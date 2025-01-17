@@ -1,0 +1,15 @@
+# tested on python 3.TODO?
+numpy
+scipy
+matplotlib
+
+rasterio
+opencv-python
+torch
+torchvision
+
+# Run the following command manually after installing the above packages (brahe is not updated on pypi)
+# pip install git+https://github.com/duncaneddy/brahe.git@master
+
+# Clone the following repository, cd into it, and run `pip install -e .`
+# https://github.com/cmu-argus-1/custom_ultralytics
