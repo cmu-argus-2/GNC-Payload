@@ -1,0 +1,16 @@
+DataPipeline/__pycache__
+DataPipeline/Landsat_Data
+DataPipeline/myenv
+DataPipeline/commands.txt
+DataPipeline/17R_S2
+
+LD/datasets/
+LD/runs
+LD/models
+LD/wandb/
+
+RCnet/data
+RCnet/data
+temp/
+
+Landsat_Data/
