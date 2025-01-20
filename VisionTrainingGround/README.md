@@ -19,4 +19,4 @@ Alternatively, it is possible to create your own project on `https://earthengine
 ## Run
 To run simply run the `run_pipeline.sh` script (make sure it is executable by running ```chmod +x ./run_pipeline.sh```)
 
-```./run_pipelin.sh```
+```./run_pipeline.sh```
