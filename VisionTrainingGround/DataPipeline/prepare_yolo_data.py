@@ -240,7 +240,13 @@ def generate_single_label_wrapper(args):
     return generate_single_label(*args)
 
 def process_data_with_pool(args):
-    val_set = args.val
+
+    val_set = args.val.strip().lower()
+    if val_set in ['true', 't', '1', 'yes', 'y']:
+        val_set = True
+    else:
+        val_set = False
+
     data_path = args.data_path
     landmark_path = args.landmark_path
     output_path = args.output_path
@@ -308,7 +314,7 @@ if __name__ == '__main__':
     parser.add_argument("--data_path", required=True, help="path to original tiff images")
     parser.add_argument("--landmark_path", required=True, help="path to landmark annotation file")
     parser.add_argument("--output_path", required=True, help="output folder path for images and labels")
-    parser.add_argument("--val", type=bool, help="Flag for creating rotated Landsat validation dataset")
+    parser.add_argument("--val", type=str, help="Flag for creating rotated Landsat validation dataset")
     parser.add_argument('-r', '--region', type=str, default='17R')
     args = parser.parse_args()
 

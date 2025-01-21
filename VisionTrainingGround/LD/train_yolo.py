@@ -1,12 +1,12 @@
 from ultralytics import YOLO
 
 # Load pretrained yolo model
-model = YOLO('runs/detect/yolov8m_R17_w106_n100/weights/last.pt')
+model = YOLO('yolov8n.pt')
 
 # Train
 results = model.train(
-   data='datasets/17R_dataset_w106_n100/dataset.yaml',
-   name='yolov8m_R17_w106_n100',
+   data='/home/frederik/cmu/GNC-Payload/VisionTrainingGround/LD/datasets/53L_dataset/dataset.yaml',
+   name='yolov8n_53L_n100',
    degrees=180,
    scale=0.3,
    fliplr=0.0,
@@ -16,7 +16,6 @@ results = model.train(
    plots=True,
    save=True,
    resume=True,
-   epochs=300
+   epochs=300,
+   device = 'cpu'
 )
-
-

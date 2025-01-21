@@ -9,12 +9,12 @@ MAXIMS=500
 SCALE=328
 BOX_WIDTH=76
 BOX_COUNT=100
-VALFLAG=True
+VALFLAG=True # Set manually TODO: Could be added as arg
 
 BASE_OUTPATH="Landsat_Data"
 
-LANDMARK_BASE="/home/${USER}/VisionTrainingGround/Landsat_Data" # Path may be adjusted as needed
-FINAL_OUTPUT_PATH="/home/${USER}/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
+LANDMARK_BASE="/home/${USER}/GNC-Payload/VisionTrainingGround/Landsat_Data" # Path may be adjusted as needed
+FINAL_OUTPUT_PATH="/home/${USER}/cmu/GNC-Payload/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
 
 # Function to display help message
 show_help() {
@@ -66,7 +66,7 @@ while getopts ":b:i:f:l:m:s:w:n:o:h" opt; do
 done
 
 # Array of keys to iterate through
-KEYS=("17R") # Add or remove keys as needed
+KEYS=("53L") # Add or remove keys as needed
 
 # Path to python bin may be adjusted as needed
 # Main processing loop
