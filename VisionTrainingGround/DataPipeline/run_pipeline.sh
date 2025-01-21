@@ -13,8 +13,8 @@ VALFLAG=True
 
 BASE_OUTPATH="Landsat_Data"
 
-LANDMARK_BASE="/home/${USER}/VisionTrainingGround/Landsat_Data/17R" # Path may be adjusted as needed
-FINAL_OUTPUT_PATH="/home/${USER}/VisionTrainingGround/LD/datasets/17R_dataset" # Path may be adjusted as needed
+LANDMARK_BASE="/home/${USER}/VisionTrainingGround/Landsat_Data" # Path may be adjusted as needed
+FINAL_OUTPUT_PATH="/home/${USER}/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
 
 # Function to display help message
 show_help() {
@@ -81,5 +81,5 @@ for KEY in "${KEYS[@]}"; do
   /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/saliencymap2boxes.py -k "$KEY" -w $BOX_WIDTH -n $BOX_COUNT -p "$BASE_OUTPATH/$KEY/landmarks"
   
   # Run prepare_yolo_data.py with configurable output path
-  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/prepare_yolo_data.py --data_path "$BASE_OUTPATH/$KEY" --landmark_path $LANDMARK_BASE/landmarks --output_path "$FINAL_OUTPUT_PATH" --r "$KEY" --val $VALFLAG
+  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/prepare_yolo_data.py --data_path "$BASE_OUTPATH/$KEY" --landmark_path $LANDMARK_BASE/$KEY/landmarks --output_path $FINAL_OUTPUT_PATH/${KEY}_dataset --r "$KEY" --val $VALFLAG
 done
