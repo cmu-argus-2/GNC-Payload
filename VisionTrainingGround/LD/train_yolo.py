@@ -5,7 +5,7 @@ model = YOLO('yolov8n.pt')
 
 # Train
 results = model.train(
-   data='/home/frederik/cmu/GNC-Payload/VisionTrainingGround/LD/datasets/53L_dataset/dataset.yaml',
+   data='/PATH TO DATA/VisionTrainingGround/LD/datasets/#MGRS_REGION#_dataset/dataset.yaml', # TODO: SET PATH TO DATASET
    name='yolov8n_53L_n100',
    degrees=180,
    scale=0.3,

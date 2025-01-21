@@ -14,7 +14,7 @@ VALFLAG=True # Set manually TODO: Could be added as arg
 BASE_OUTPATH="Landsat_Data"
 
 LANDMARK_BASE="/home/${USER}/GNC-Payload/VisionTrainingGround/Landsat_Data" # Path may be adjusted as needed
-FINAL_OUTPUT_PATH="/home/${USER}/cmu/GNC-Payload/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
+FINAL_OUTPUT_PATH="/home/${USER}/GNC-Payload/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
 
 # Function to display help message
 show_help() {
