@@ -17,6 +17,19 @@ Alternatively, it is possible to create your own project on `https://earthengine
 
 
 ## Run
-To run simply run the `run_pipeline.sh` script (make sure it is executable by running ```chmod +x ./run_pipeline.sh```)
+### Download Dataset
+To Download the Data into VisionTrainingGround/Landsat_Data, run the `run_downloader.sh` script (make sure it is executable by running ```chmod +x ./run_downloader.sh```)
+```./run_downloader.sh```
 
-```./run_pipeline.sh```
+### Run YOLO
+To train or test the YOLO model, use the `run_YOLO.sh` script. Ensure it is executable by running:
+```chmod +x ./run_YOLO.sh```
+Then execute the script:
+```./run_YOLO.sh```
+This script will set up the environment and begin the YOLO model training or evaluation.
+
+### Run RCNet
+To run the RCNet pipeline for prediction or evaluation, execute the `run_RCnet.sh` script. Make sure it is executable:
+```chmod +x ./run_RCnet.sh```
+Run the script using:
+```./run_RCnet.sh```
