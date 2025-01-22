@@ -22,14 +22,14 @@ To Download the Data into VisionTrainingGround/Landsat_Data, run the `run_downlo
 ```./run_downloader.sh```
 
 ### Run YOLO
-To train or test the YOLO model, use the `run_YOLO.sh` script. Ensure it is executable by running:
+To train the YOLO model, use the `run_YOLO.sh` script. Ensure it is executable by running:
 ```chmod +x ./run_YOLO.sh```
 Then execute the script:
 ```./run_YOLO.sh```
 This script will set up the environment and begin the YOLO model training or evaluation.
 
 ### Run RCNet
-To run the RCNet pipeline for prediction or evaluation, execute the `run_RCnet.sh` script. Make sure it is executable:
+To train RCNet model, execute the `run_RCnet.sh` script. Make sure it is executable:
 ```chmod +x ./run_RCnet.sh```
 Run the script using:
 ```./run_RCnet.sh```
