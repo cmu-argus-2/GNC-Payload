@@ -16,8 +16,8 @@ from brahe.constants import R_EARTH, GM_EARTH
 from utils.time import increment_epoch
 from dynamics.orbital_dynamics import f
 from image_simulation.earth_vis import EarthImageSimulator, lat_lon_to_ecef
-from vision.ml_pipeline import MLPipeline
-from vision.camera import Frame
+from vision_inference.ml_pipeline import MLPipeline
+from vision_inference.camera import Frame
 from nonlinear_least_squares_od import OrbitDetermination
 
 

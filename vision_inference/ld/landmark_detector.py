@@ -22,7 +22,7 @@ import csv
 import cv2
 import time
 from PIL import Image
-from vision.logger import Logger
+from vision_inference.logger import Logger
 
 LD_MODEL_SUF = "_nadir.pt"
 

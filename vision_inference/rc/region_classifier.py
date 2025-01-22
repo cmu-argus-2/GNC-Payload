@@ -22,7 +22,7 @@ import torch.nn as nn
 from torchvision import models, transforms
 from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from PIL import Image
-from vision.logger import Logger
+from vision_inference.logger import Logger
 
 LD_MODEL_SUF = ".pth"
 NUM_CLASS = 16

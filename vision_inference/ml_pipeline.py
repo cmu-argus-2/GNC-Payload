@@ -13,9 +13,9 @@ Date: [Creation or Last Update Date]
 # import necessary modules
 from PIL import Image
 import cv2
-from vision.rc import RegionClassifier
-from vision.ld import LandmarkDetector
-from vision.logger import Logger
+from vision_inference.rc import RegionClassifier
+from vision_inference.ld import LandmarkDetector
+from vision_inference.logger import Logger
 import os
 
 
