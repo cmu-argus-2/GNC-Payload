@@ -11,7 +11,7 @@ LD/wandb/
 
 RCnet/datasets
 RCnet/datasets
-
+RCnet/src/*results.txt
 
 Landsat_Data/
 
