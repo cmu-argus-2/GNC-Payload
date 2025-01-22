@@ -8,8 +8,9 @@ class CustomImageDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.classes = os.listdir(root_dir)
-        print(self.classes)
-        self.files = [(f, label) for label in self.classes for f in os.listdir(os.path.join(root_dir, label)) if f.endswith('.png')]
+        print("class:", self.classes)
+        self.files = [(f, label) for label in self.classes for f in os.listdir(os.path.join(root_dir, label)) if f.endswith('.png') or f.endswith('.jpg')]
+        print(f"Total number of images found: {len(self.files)}")
 
     def __len__(self):
         return len(self.files)

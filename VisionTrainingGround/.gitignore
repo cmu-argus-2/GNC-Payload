@@ -9,8 +9,12 @@ LD/runs
 LD/models
 LD/wandb/
 
-RCnet/data
-RCnet/data
-temp/
+RCnet/datasets
+RCnet/datasets
+
 
 Landsat_Data/
+
+wandb/
+
+/yolo*.pt

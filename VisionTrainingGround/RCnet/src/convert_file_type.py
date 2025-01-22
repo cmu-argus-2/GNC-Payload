@@ -1,37 +1,43 @@
-from PIL import Image
 import os
+import argparse
+from PIL import Image
 
-def convert_tif_to_jpg(folder_path):
-    # Check if the folder exists
-    if not os.path.exists(folder_path):
-        print(f"The folder {folder_path} does not exist.")
+def convert_tif_to_jpg(source_dir, target_dir):
+    # Check if the source directory exists
+    if not os.path.exists(source_dir):
+        print(f"The source directory {source_dir} does not exist.")
         return
-
-    print(f"Listing files in {folder_path}:")
-    for file in os.listdir(folder_path):
+    
+    # Create the target directory if it does not exist
+    os.makedirs(target_dir, exist_ok=True)
+    
+    print(f"Listing files in {source_dir}:")
+    for file in os.listdir(source_dir):
         print(file)
 
-    # Loop through all files in the folder
-    for filename in os.listdir(folder_path):
+    # Loop through all files in the source directory
+    for filename in os.listdir(source_dir):
         if filename.endswith(".tif"):
-            print("here")
             # Construct the full file path
-            file_path = os.path.join(folder_path, filename)
+            file_path = os.path.join(source_dir, filename)
             
             # Open the image
             with Image.open(file_path) as img:
-                # Convert and save as .jpg
+                # Convert and save as .jpg in the target directory
                 rgb_im = img.convert('RGB')
                 jpg_filename = filename[:-4] + '.jpg'
-                jpg_path = os.path.join(folder_path, jpg_filename)
+                jpg_path = os.path.join(target_dir, jpg_filename)
                 rgb_im.save(jpg_path, quality=95)
 
-            print(f"Converted {filename} to {jpg_filename}")
+            print(f"Converted {filename} to {jpg_filename} in {target_dir}")
 
-# Example usage
-folder_path = '/home/argus-vision/vision/VisionTrainingGround/RCnet/data/test/17R'
-fp_2  = '/home/argus-vision/vision/VisionTrainingGround/RCnet/data/test/53S'
-fp_3 = '/home/argus-vision/vision/VisionTrainingGround/RCnet/data/test/54S'
-convert_tif_to_jpg(folder_path)
-convert_tif_to_jpg(fp_2)
-convert_tif_to_jpg(fp_3)
+if __name__ == '__main__':
+    # Set up argument parsing
+    parser = argparse.ArgumentParser(description="Convert .tif images to .jpg format.")
+    parser.add_argument("--source_dir", type=str, help="Path to the source directory containing .tif files.")
+    parser.add_argument("--target_dir", type=str, help="Path to the target directory to save .jpg files.")
+    
+    args = parser.parse_args()
+    
+    # Call the function with parsed arguments
+    convert_tif_to_jpg(args.source_dir, args.target_dir)

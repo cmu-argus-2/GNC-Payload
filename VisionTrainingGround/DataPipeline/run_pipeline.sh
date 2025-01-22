@@ -9,12 +9,12 @@ MAXIMS=500
 SCALE=328
 BOX_WIDTH=76
 BOX_COUNT=100
-VALFLAG=True # Set manually TODO: Could be added as arg
+VALFLAG=False # Set manually TODO: Could be added as arg
 
 BASE_OUTPATH="Landsat_Data"
 
-LANDMARK_BASE="/home/${USER}/GNC-Payload/VisionTrainingGround/Landsat_Data" # Path may be adjusted as needed
-FINAL_OUTPUT_PATH="/home/${USER}/GNC-Payload/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
+LANDMARK_BASE="/home/${USER}/Arvind/GNC-Payload/VisionTrainingGround/Landsat_Data" # Path may be adjusted as needed
+FINAL_OUTPUT_PATH="/home/${USER}/Arvind/GNC-Payload/VisionTrainingGround/LD/datasets" # Path may be adjusted as needed
 
 # Function to display help message
 show_help() {
@@ -72,14 +72,14 @@ KEYS=("53L") # Add or remove keys as needed
 # Main processing loop
 for KEY in "${KEYS[@]}"; do
   # Run earthenginedl.py
-  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/earthenginedl.py --bounds $BOUNDS --idate "$IDATE" --fdate "$FDATE" --landsat $LANDSAT --grid_key "$KEY" --region "$KEY" --maxims $MAXIMS --scale $SCALE --outpath "$BASE_OUTPATH/$KEY"
+  # /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/earthenginedl.py --bounds $BOUNDS --idate "$IDATE" --fdate "$FDATE" --landsat $LANDSAT --grid_key "$KEY" --region "$KEY" --maxims $MAXIMS --scale $SCALE --outpath "$BASE_OUTPATH/$KEY"
   
   # Run saliencymap.py
-  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/saliencymap.py --dir_path "$BASE_OUTPATH/$KEY" --crs EPSG:4326 --grid_key "$KEY"
+  # /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/saliencymap.py --dir_path "$BASE_OUTPATH/$KEY" --crs EPSG:4326 --grid_key "$KEY"
   
   # Run saliencymap2boxes.py
-  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/saliencymap2boxes.py -k "$KEY" -w $BOX_WIDTH -n $BOX_COUNT -p "$BASE_OUTPATH/$KEY/landmarks"
+  # /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/saliencymap2boxes.py -k "$KEY" -w $BOX_WIDTH -n $BOX_COUNT -p "$BASE_OUTPATH/$KEY/landmarks"
   
   # Run prepare_yolo_data.py with configurable output path
-  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/prepare_yolo_data.py --data_path "$BASE_OUTPATH/$KEY" --landmark_path $LANDMARK_BASE/$KEY/landmarks --output_path $FINAL_OUTPUT_PATH/${KEY}_dataset --r "$KEY" --val $VALFLAG
+  /home/${USER}/miniconda3/envs/sat_env_vision/bin/python ./DataPipeline/prepare_yolo_data.py --data_path "$BASE_OUTPATH/$KEY" --landmark_path $LANDMARK_BASE/$KEY/landmarks --output_path $FINAL_OUTPUT_PATH/${KEY}_dataset --r "$KEY" --val False
 done

@@ -218,7 +218,7 @@ def generate_single_label(img_name, detected_boxes, label_path, im_size):
 
 def generate_dataset_yaml(output_path, nc):
     # Extract the last part of the output_path to use as 'path' in dataset.yaml
-    dataset_dir_name = os.path.basename(output_path)
+    dataset_dir_name = output_path
     dataset_yaml = {
         'path': dataset_dir_name,
         'train': 'train/images',

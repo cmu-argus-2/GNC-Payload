@@ -2,12 +2,10 @@ flags:
   train_flag : True
   save_plot_flag : True
 paths: 
-  train_path : "/home/argus-vision/vision/VisionTrainingGround/RCnet/data/train2"
-  test_path : "/home/argus-vision/vision/VisionTrainingGround/RCnet/data/test2"
-  val_path: "/home/argus-vision/vision/VisionTrainingGround/RCnet/data/val2" 
-  model_save_path : "/home/argus-vision/vision/VisionTrainingGround/RCnet/model/model.pth"
+  data_dir : "/home/argus/Arvind/eedl/landsat_images_train"
+  model_save_path : "/home/argus/Arvind/GNC-Payload/VisionTrainingGround/RCnet/model/model1.pth"
   model_load_path : "/home/argus-vision/vision/VisionTrainingGround/RCnet/model/model.pth"
-  save_plot_path : "/home/argus-vision/vision/VisionTrainingGround/RCnet/results/loss_vs_epoch.png"
+  save_plot_path : "/home/argus/Arvind/GNC-Payload/VisionTrainingGround/RCnet/results/loss_vs_epoch.png"
   
 hyperparameters:
   learning_rate : 0.0001

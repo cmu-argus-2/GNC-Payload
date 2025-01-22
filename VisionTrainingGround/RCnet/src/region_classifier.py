@@ -11,10 +11,9 @@ from efficientnet_pytorch import EfficientNet
 import wandb
 
 class ImageClassifier:
-    def __init__(self, train_path, test_path, save_plot_flag, save_plot_path,val_path):
+    def __init__(self, data_path, save_plot_flag, save_plot_path):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(test_path)
-        self._prepare_data(train_path, test_path,val_path)
+        self._prepare_data(data_path)
         self._initialize_model()
         self.plotter = Plotter() 
         self.save_plot_flag = save_plot_flag
@@ -28,7 +27,7 @@ class ImageClassifier:
 
 
 
-    def _prepare_data(self, train_path, test_path, val_path):
+    def _prepare_data(self, data_path):
         # Define transforms for training and testing sets
         train_transform = transforms.Compose([
                     transforms.Resize((224, 224)),
@@ -48,14 +47,15 @@ class ImageClassifier:
         ])
 
         # Load datasets with appropriate transforms
-        train_dataset = CustomImageDataset(root_dir=train_path, transform=train_transform)
-        test_dataset = CustomImageDataset(root_dir=test_path, transform=test_transform)
-        val_dataset = CustomImageDataset(root_dir=val_path, transform=test_transform)
+        train_dataset = CustomImageDataset(root_dir=data_path + '/train', transform=train_transform)
+        test_dataset = CustomImageDataset(root_dir=data_path + '/test', transform=test_transform)
+        val_dataset = CustomImageDataset(root_dir=data_path + '/val', transform=test_transform)
 
         # Create DataLoader objects for training and testing sets
         self.train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
         self.test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
         self.val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True)
+        print("Init Dataloaders")
 
 
     # def _initialize_model(self):
@@ -103,17 +103,18 @@ class ImageClassifier:
                 epoch_loss += loss.item() * data.size(0)  # Accumulate batch loss
 
                 # Log file names and class labels during training
-                with open('training_results.txt', 'a') as f:
+                with open('RCnet/results/training_results.txt', 'a') as f:
                     for img_name, label in self.train_loader.dataset.files:
                         f.write(f"{img_name}\t{label}\n")
 
             epoch_loss /= len(self.train_loader.dataset)  # Compute average batch loss
             print(f'Epoch [{epoch+1}/{epochs}], Avg. Loss: {epoch_loss:.4f}')
             wandb.log({"epoch": epoch, "loss": epoch_loss})
+            self.plotter.update_loss(epoch_loss)
 
             if epoch % 10 == 0:
                 self.validate()
-            if epoch % epochs ==0: 
+            if epoch == epochs -1: 
                 test_accuracy = self.evaluate()
                 wandb.log({"test_accuracy": test_accuracy})
 
@@ -161,7 +162,7 @@ class ImageClassifier:
         print(f'Validation Accuracy: {accuracy:.2f}%')
         return accuracy
 
-    def evaluate(self, output_file='evaluation_results.txt'):
+    def evaluate(self, output_file='RCnet/results/evaluation_results.txt'):
         self.model.eval()  # Ensure the model is in evaluation mode
         correct = 0
         total = 0

@@ -163,7 +163,7 @@ def unpack_and_call_downloadURL(args):
 
 ee.Authenticate() # Force authentication by setting ee.Authenticate(force=True)
 ee.Initialize(
-    project='ee-vision-pipeline-training'
+    project='ee-vision-download'
 )
 
 # Define and parse command-line arguments
