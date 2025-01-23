@@ -103,8 +103,8 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         """
         Since C > 0 and np.all(As > 0), if the roots are real they must have the same sign.
         Bs < 0 implies that the slope at x = 0 is negative, so the roots are positive.
-        Intuitively, this check is equivalent to np.dot(ray_dir, offset) < 0 which checks if ray_dir is in
-        the half-space that is pointing towards the Earth. 
+        Intuitively, this check is equivalent to np.dot(ray_dir, ray_start) < 0 which checks if ray_dir is in
+        the half-space that is pointing towards the Earth.
         """
         valid_intersections = (discriminants >= 0) & (Bs < 0)
 
