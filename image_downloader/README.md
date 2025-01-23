@@ -21,6 +21,11 @@ conda activate eedl
 earthengine authenticate
 ```
 
+You may also need to explicitly specify the Google Cloud project you are using by modifying the first line of code in eedl.py as follows:
+```python
+ee.initialize(project='your_project_name')
+```
+
 ## Usage
 
 Available commands:
