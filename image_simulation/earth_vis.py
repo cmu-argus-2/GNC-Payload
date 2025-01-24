@@ -47,7 +47,7 @@ class EarthImageSimulator:
             hfov (float): Horizontal field of view in degrees.
         """
         if geotiff_folder is None:
-            geotiff_folder = os.path.abspath(os.path.join(__file__, "../../../data/landsat/region_mosaics"))
+            geotiff_folder = "/home/argus/eedl_images/"
         if resolution is None:
             resolution = np.array([4608, 2592])  # width, height
         if hfov is None:
@@ -134,7 +134,7 @@ class GeoTIFFCache:
 
         for region in ["10S", "10T", "11R", "12R", "16T", "17R", "17T", "18S",
                        "32S", "32T", "33S", "33T", "52S", "53S", "54S", "54T"]:
-            region_folder = os.path.join(self.geotiff_folder, region, "sentinel_gsd_185")
+            region_folder = os.path.join(self.geotiff_folder, region)
             if not os.path.exists(region_folder):
                 print(f"WARNING: Region folder '{region_folder}' not found.")
                 break
@@ -145,7 +145,7 @@ class GeoTIFFCache:
         if region in self.cache:
             return self.cache[region]
 
-        region_folder = os.path.join(self.geotiff_folder, region, "sentinel_gsd_185")
+        region_folder = os.path.join(self.geotiff_folder, region)
         if not os.path.exists(region_folder):
             self.cache[region] = (None, None)
             return self.cache[region]
