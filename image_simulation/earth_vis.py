@@ -62,7 +62,7 @@ class EarthImageSimulator:
 
         Parameters:
             position (np.ndarray): Satellite position in ECEF coordinates (3,).
-            orientation (np.ndarray): Satellite orientation as a 3x3 rotation matrix.
+            orientation (np.ndarray): Satellite orientation as a 3x3 rotation matrix from the camera frame to ECEF.
 
         Returns:
             np.ndarray: Simulated RGB image.
