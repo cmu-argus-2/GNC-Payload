@@ -373,6 +373,7 @@ def test_od():
 
     if len(times) == 0:
         raise ValueError("No measurements taken")
+    print(f"Total measurements: {len(times)}")
 
     attitude_noises = np.deg2rad(np.linspace(0, 20, 20))
     rms_position_errors = np.zeros_like(attitude_noises)
