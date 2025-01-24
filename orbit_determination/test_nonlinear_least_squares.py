@@ -53,7 +53,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         :param max_measurements: The number of measurements to attempt to take at once. The actual number may be less.
         """
         camera_params = config["satellite"]["camera"]
-        self.R_body_to_camera = Rotation.from_quat(np.asarray(camera_params["orientation_in_cubesat_frame"]),
+        self.R_camera_to_body = Rotation.from_quat(np.asarray(camera_params["orientation_in_cubesat_frame"]),
                                                    scalar_first=True).as_matrix()
         self.t_body_to_camera = np.asarray(camera_params["position_in_cubesat_frame"])  # in the body frame
 
@@ -76,7 +76,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         # sanity check
         assert np.all(bearing_unit_vectors_cf[:, 2] > self.cos_fov)
 
-        bearing_unit_vectors_body = (self.R_body_to_camera.T @ bearing_unit_vectors_cf.T).T
+        bearing_unit_vectors_body = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
         return bearing_unit_vectors_body
 
     @staticmethod
@@ -157,7 +157,7 @@ class SimulatedMLLandmarkBearingSensor:
         :param config: The configuration dictionary.
         """
         camera_params = config["satellite"]["camera"]
-        self.R_body_to_camera = Rotation.from_quat(np.asarray(camera_params["orientation_in_cubesat_frame"]),
+        self.R_camera_to_body = Rotation.from_quat(np.asarray(camera_params["orientation_in_cubesat_frame"]),
                                                    scalar_first=True).as_matrix()
         self.t_body_to_camera = np.asarray(camera_params["position_in_cubesat_frame"])  # in the body frame
 
@@ -178,7 +178,7 @@ class SimulatedMLLandmarkBearingSensor:
         R_eci_to_ecef = brahe.frames.rECItoECEF(epoch)
         R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
         position_ecef = R_eci_to_ecef @ cubesat_position + R_body_to_ecef @ self.t_body_to_camera
-        R_camera_to_ecef = R_body_to_ecef @ self.R_body_to_camera.T
+        R_camera_to_ecef = R_body_to_ecef @ self.R_camera_to_body
 
         print(f"Taking measurement at {epoch=}, {cubesat_position=}, {R_body_to_eci=}")
 
@@ -221,7 +221,7 @@ class SimulatedMLLandmarkBearingSensor:
 
         landmark_positions_eci = (R_eci_to_ecef.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(pixel_coordinates)
-        bearing_unit_vectors_body = (self.R_body_to_camera.T @ bearing_unit_vectors_cf.T).T
+        bearing_unit_vectors_body = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
 
         print(f"Detected {len(landmark_positions_eci)} landmarks")
 

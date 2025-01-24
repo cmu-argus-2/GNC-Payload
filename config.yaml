@@ -27,7 +27,7 @@ satellite:
                          [ 0, 10000, 360 ],
                          [ 0, 0, 1 ]]  # 3x3 matrix representing the intrinsic parameters of the camera
             position_in_cubesat_frame: [ 0.0, 0.0, 0.0 ]  # m, position of camera in the satellite's body frame
-            orientation_in_cubesat_frame: [ 1.0, 0.0, 0.0, 0.0 ]  # quaternions representing a transformation from body-frame to camera-frame
+            orientation_in_cubesat_frame: [ 1.0, 0.0, 0.0, 0.0 ]  # quaternions representing a transformation from camera-frame to body-frame
 
 
 solver:
