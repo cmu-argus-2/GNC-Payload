@@ -156,8 +156,11 @@ class SimulatedMLLandmarkBearingSensor:
         """
         :param config: The configuration dictionary.
         """
-        quat_body_to_camera = np.asarray(config["satellite"]["camera"]["orientation_in_cubesat_frame"])
-        self.R_camera_to_body = Rotation.from_quat(quat_body_to_camera, scalar_first=True).inv().as_matrix()
+        camera_params = config["satellite"]["camera"]
+        self.R_body_to_camera = Rotation.from_quat(np.asarray(camera_params["orientation_in_cubesat_frame"]),
+                                                   scalar_first=True).as_matrix()
+        self.t_body_to_camera = np.asarray(camera_params["position_in_cubesat_frame"])  # in the body frame
+
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
 
@@ -173,13 +176,14 @@ class SimulatedMLLandmarkBearingSensor:
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
         R_eci_to_ecef = brahe.frames.rECItoECEF(epoch)
-        position_ecef = R_eci_to_ecef @ cubesat_position
         R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
+        position_ecef = R_eci_to_ecef @ cubesat_position + R_body_to_ecef @ self.t_body_to_camera
+        R_camera_to_ecef = R_body_to_ecef @ self.R_body_to_camera.T
 
         print(f"Taking measurement at {epoch=}, {cubesat_position=}, {R_body_to_eci=}")
 
         # simulate image
-        image = self.earth_image_simulator.simulate_image(position_ecef, R_body_to_ecef)
+        image = self.earth_image_simulator.simulate_image(position_ecef, R_camera_to_ecef)
 
         if np.all(image == 0):
             print("No image detected")
@@ -217,12 +221,12 @@ class SimulatedMLLandmarkBearingSensor:
 
         landmark_positions_eci = (R_eci_to_ecef.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(pixel_coordinates)
-        bearing_unit_vectors = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
+        bearing_unit_vectors_body = (self.R_body_to_camera.T @ bearing_unit_vectors_cf.T).T
 
         print(f"Detected {len(landmark_positions_eci)} landmarks")
 
         # TODO: output confidence_scores too
-        return bearing_unit_vectors, landmark_positions_eci
+        return bearing_unit_vectors_body, landmark_positions_eci
 
 
 def load_config() -> dict[str, Any]:
