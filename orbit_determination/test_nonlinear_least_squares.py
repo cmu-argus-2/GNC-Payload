@@ -230,8 +230,8 @@ def load_config() -> dict[str, Any]:
 
     :return: The modified configuration file as a dictionary.
     """
-    with open("../config.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    with open("../config.yaml", "r") as file:
+        config = yaml.safe_load(file)
 
     # decrease world update rate since we only care about position dynamics
     config["solver"]["world_update_rate"] = 1 / 60  # Hz
@@ -379,14 +379,14 @@ def test_od():
 
     if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
         # save measurements to pickle file
-        with open(f"measurements-{time()}.pkl", "wb") as f:
+        with open(f"measurements-{time()}.pkl", "wb") as file:
             pickle.dump({
                 "times": times,
                 "states": states,
                 "Rs_body_to_eci": Rs_body_to_eci,
                 "bearing_unit_vectors": bearing_unit_vectors,
                 "landmarks": landmarks
-            }, f)
+            }, file)
 
     # for i, attitude_noise in enumerate(attitude_noises):
     #     so3_noise_matrices = get_SO3_noise_matrices(len(times), np.deg2rad(attitude_noise))
