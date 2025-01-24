@@ -512,7 +512,8 @@ def sweep_lat_lon_test():
         orientation = get_nadir_rotation(ecef_position)
         simulated_image = simulator.simulate_image(ecef_position, orientation)
 
-        print(f"{i}/{lat_lon.shape[0] * lat_lon.shape[1]}")
+        if i % 20 == 0:
+            print(f"{i}/{lat_lon.shape[0] * lat_lon.shape[1]}")
         if np.all(simulated_image == 0):
             empty_indices.append(i)
         else:
