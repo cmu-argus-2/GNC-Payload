@@ -71,12 +71,13 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         phi = 2 * np.pi * np.random.random(self.max_measurements)
         # uniformly sample cos(theta) instead of theta to get a uniform distribution on the unit sphere
         theta = np.arccos(np.random.uniform(self.cos_fov, 1, self.max_measurements))
-        bearing_unit_vectors = Rotation.from_euler("ZX", np.column_stack((phi, theta))).apply(np.array([0, 0, 1]))
+        bearing_unit_vectors_cf = Rotation.from_euler("ZX", np.column_stack((phi, theta))).apply(np.array([0, 0, 1]))
 
         # sanity check
-        assert np.all(bearing_unit_vectors[:, 2] > self.cos_fov)
+        assert np.all(bearing_unit_vectors_cf[:, 2] > self.cos_fov)
 
-        return bearing_unit_vectors
+        bearing_unit_vectors_body = (self.R_body_to_camera.T @ bearing_unit_vectors_cf.T).T
+        return bearing_unit_vectors_body
 
     @staticmethod
     def get_ray_and_earth_intersections(ray_dirs: np.ndarray, ray_start: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
