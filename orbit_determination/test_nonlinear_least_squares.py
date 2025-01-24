@@ -55,7 +55,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         camera_params = config["satellite"]["camera"]
         self.R_body_to_camera = Rotation.from_quat(np.asarray(camera_params["orientation_in_cubesat_frame"]),
                                                    scalar_first=True).as_matrix()
-        self.t_body_to_camera = np.asarray(camera_params["position_in_cubesat_frame"])
+        self.t_body_to_camera = np.asarray(camera_params["position_in_cubesat_frame"])  # in the body frame
 
         self.max_measurements = max_measurements
         self.fov = fov
