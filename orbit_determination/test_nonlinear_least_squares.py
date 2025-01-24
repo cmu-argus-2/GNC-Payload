@@ -195,6 +195,7 @@ class SimulatedMLLandmarkBearingSensor:
             .replace('.', '_')
         output_dir = os.path.abspath(
             os.path.join(__file__, f"../log/simulated_images/seed_69420_epoch_{epoch_str}/"))
+        os.makedirs(output_dir, exist_ok=True)
         self.ml_pipeline.visualize_landmarks(frame, regions_and_landmarks, output_dir)
 
         landmark_positions_ecef = np.zeros(shape=(0, 3))
