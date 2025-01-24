@@ -319,8 +319,8 @@ def test_od():
     config = load_config()
 
     # set up landmark bearing sensor and orbit determination objects
-    landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
-    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
+    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
     od = OrbitDetermination(dt=1 / config["solver"]["world_update_rate"])
 
     # set up initial state
@@ -388,30 +388,38 @@ def test_od():
                 "landmarks": landmarks
             }, f)
 
-    for i, attitude_noise in enumerate(attitude_noises):
-        so3_noise_matrices = get_SO3_noise_matrices(len(times), np.deg2rad(attitude_noise))
-        bearing_unit_vectors = np.einsum("ijk,ik->ij", so3_noise_matrices, bearing_unit_vectors)
+    # for i, attitude_noise in enumerate(attitude_noises):
+    #     so3_noise_matrices = get_SO3_noise_matrices(len(times), np.deg2rad(attitude_noise))
+    #     bearing_unit_vectors = np.einsum("ijk,ik->ij", so3_noise_matrices, bearing_unit_vectors)
+    #
+    #     start_time = perf_counter()
+    #     estimated_states = od.fit_orbit(times, landmarks, bearing_unit_vectors, Rs_body_to_eci, N)
+    #     print(f"Elapsed time: {perf_counter() - start_time:.2f} s")
+    #
+    #     position_errors = np.linalg.norm(states[:, :3] - estimated_states[:, :3], axis=1)
+    #     rms_position_error = np.sqrt(np.mean(position_errors ** 2))
+    #     print(f"Attitude SO(3) Noise Variance: {attitude_noise}")
+    #     print(f"RMS position error: {rms_position_error}")
+    #     print(f"Completion Percentage: {100 * (i + 1) / len(attitude_noises):.2f}%")
+    #
+    #     rms_position_errors[i] = rms_position_error
+    #
+    # print(f"{rms_position_errors=}")
+    # plt.figure()
+    # plt.xlabel("Attitude SO(3) Noise Variance [deg]")
+    # plt.ylabel("OD RMS Position Error [km]")
+    # plt.title("Effect of Attitude Noise on Orbit Determination")
+    # plt.scatter(np.rad2deg(attitude_noises), rms_position_errors / 1e3)
+    # plt.plot([0, 10], [50, 50], linestyle="--", color="r")
+    # plt.show()
 
-        start_time = perf_counter()
-        estimated_states = od.fit_orbit(times, landmarks, bearing_unit_vectors, Rs_body_to_eci, N)
-        print(f"Elapsed time: {perf_counter() - start_time:.2f} s")
+    start_time = perf_counter()
+    estimated_states = od.fit_orbit(times, landmarks, bearing_unit_vectors, Rs_body_to_eci, N)
+    print(f"Elapsed time: {perf_counter() - start_time:.2f} s")
 
-        position_errors = np.linalg.norm(states[:, :3] - estimated_states[:, :3], axis=1)
-        rms_position_error = np.sqrt(np.mean(position_errors ** 2))
-        print(f"Attitude SO(3) Noise Variance: {attitude_noise}")
-        print(f"RMS position error: {rms_position_error}")
-        print(f"Completion Percentage: {100 * (i + 1) / len(attitude_noises):.2f}%")
-
-        rms_position_errors[i] = rms_position_error
-
-    print(f"{rms_position_errors=}")
-    plt.figure()
-    plt.xlabel("Attitude SO(3) Noise Variance [deg]")
-    plt.ylabel("OD RMS Position Error [km]")
-    plt.title("Effect of Attitude Noise on Orbit Determination")
-    plt.scatter(np.rad2deg(attitude_noises), rms_position_errors / 1e3)
-    plt.plot([0, 10], [50, 50], linestyle="--", color="r")
-    plt.show()
+    position_errors = np.linalg.norm(states[:, :3] - estimated_states[:, :3], axis=1)
+    rms_position_error = np.sqrt(np.mean(position_errors ** 2))
+    print(f"RMS position error: {rms_position_error}")
 
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')
