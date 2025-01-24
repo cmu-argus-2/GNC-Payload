@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any, Tuple
-from time import perf_counter
+from time import perf_counter, time
 from datetime import datetime
 import yaml
 import os
+import pickle
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -376,8 +377,16 @@ def test_od():
         raise ValueError("No measurements taken")
     print(f"Total measurements: {len(times)}")
 
-    attitude_noises = np.deg2rad(np.linspace(0, 20, 20))
-    rms_position_errors = np.zeros_like(attitude_noises)
+    if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
+        # save measurements to pickle file
+        with open(f"measurements-{time()}.pkl", "wb") as f:
+            pickle.dump({
+                "times": times,
+                "states": states,
+                "Rs_body_to_eci": Rs_body_to_eci,
+                "bearing_unit_vectors": bearing_unit_vectors,
+                "landmarks": landmarks
+            }, f)
 
     for i, attitude_noise in enumerate(attitude_noises):
         so3_noise_matrices = get_SO3_noise_matrices(len(times), np.deg2rad(attitude_noise))
