@@ -23,10 +23,10 @@ for zone in {1..60}; do
       --vertical_buffer 250000 \
       --horizontal_buffer 250000 \
       --outpath "${region}" \
-      -sensor l9 \
+      --sensor l9 \
       --maxims 1 \
       --crs EPSG:4326 \
-      -region_mosaic True \
+      --region_mosaic True \
       --gdrive True
   done
 done
