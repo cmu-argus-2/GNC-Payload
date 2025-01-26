@@ -319,6 +319,63 @@ def animate_orbits(positions: np.ndarray, estimated_positions: np.ndarray, landm
         plt.pause(0.01)
 
 
+def get_sso_orbit_state(epoch: Epoch, latitude: float, longitude: float, altitude: float, northwards: bool = True) \
+        -> np.ndarray:
+    """
+    Computes the state vector for a circular sun-synchronous orbit at the given epoch, latitude, longitude, and altitude.
+
+    :param epoch: The epoch at which the satellite is at the specified location and the state vector is computed.
+    :param latitude: The latitude of the satellite in degrees.
+    :param longitude: The longitude of the satellite in degrees.
+    :param altitude: The altitude of the circular orbit in meters.
+    :param northwards: If True, then the satellite will be moving northwards at the specified epoch.
+                       If False, then the satellite will be moving southwards at the specified epoch.
+    :return: A numpy array of shape (6,) containing the state vector of the satellite at the specified epoch,
+             which meets the specified conditions.
+    """
+    if altitude < 0 or altitude > 5973e3:
+        # cos_inclination will be less than -1 if altitude > 5973km
+        raise ValueError("Altitude must be between 0 and 5973km")
+
+    a = R_EARTH + altitude
+    lat_lon = np.array([latitude, longitude])
+    position_ecef = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
+    position_ecef *= a / np.linalg.norm(position_ecef)
+    position_eci = brahe.frames.rECItoECEF(epoch).T @ position_ecef
+
+    # https://en.wikipedia.org/wiki/Sun-synchronous_orbit#Technical_details
+    cos_inclination = -(a / 12_352e3) ** (7 / 2)  # TODO: define this constant in terms of other constants
+
+    # construct a right-handed orthonormal basis (r_hat, z_perp_hat, west_hat)
+    r_hat = position_eci / np.linalg.norm(position_eci)
+    z_hat = np.array([0, 0, 1])
+    z_perp = z_hat - np.dot(z_hat, r_hat) * r_hat
+    z_perp_hat = z_perp / np.linalg.norm(z_perp)
+    west_hat = np.cross(r_hat, z_perp_hat)
+
+    """
+    The orbital normal vector can be represented in this basis as follows:
+    n_hat = alpha * z_perp_hat + beta * west_hat + 0 * r_hat
+    To match the inclination condition, we need np.dot(n_hat, z_hat) = cos_inclination.
+    Note that z_perp_hat is a linear combination of r_hat and z_hat, and west_hat is perpendicular to both r_hat and z_perp_hat;
+    thus, west_hat is perpendicular to z_hat (i.e. np.dot(west_hat, z_hat) = 0).
+    Thus, cos_inclination = np.dot(n_hat, z_hat) = alpha * np.dot(z_perp_hat, z_hat).
+    """
+    alpha = cos_inclination / np.dot(z_perp_hat, z_hat)
+    beta = np.sqrt(1 - alpha ** 2)
+    normal_1_hat = alpha * z_perp_hat + beta * west_hat
+    normal_2_hat = alpha * z_perp_hat - beta * west_hat
+
+    v_magnitude = np.sqrt(GM_EARTH / a)
+    v_1 = v_magnitude * np.cross(normal_1_hat, r_hat)
+    v_2 = v_magnitude * np.cross(normal_2_hat, r_hat)
+    is_v1_northbound = v_1[2] > 0
+    is_v2_northbound = v_2[2] > 0
+
+    assert is_v1_northbound != is_v2_northbound, f"Velocities cannot both be {'north' if is_v1_northbound else 'south'}bound!"
+    return np.concatenate((position_eci, v_1 if northwards == is_v1_northbound else v_2))
+
+
 def test_od():
     # update_brahe_data_files()
     config = load_config()
@@ -334,9 +391,8 @@ def test_od():
     )
     N = int(np.ceil(config["mission"]["duration"] * config["solver"]["world_update_rate"]))
     states = np.zeros((N, 6))
-    a = R_EARTH + 600e3
-    v = np.sqrt(GM_EARTH / a)
-    states[0, :] = np.array([a, 0, 0, 0, 0, -v])  # polar orbit in x-z plane, angular momentum in +y direction
+    # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
+    states[0, :] = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
     epoch = starting_epoch
 
     # set up arrays to store measurements
