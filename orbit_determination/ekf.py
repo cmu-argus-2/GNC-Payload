@@ -1,11 +1,12 @@
 from typing import Any, Tuple
 
+from scipy.spatial.transform import Rotation
 import jax
 import jax.numpy as jnp
 import numpy as np
 import yaml
 
-from dynamics.orbital_dynamics import f, f_jac
+from dynamics.orbital_dynamics import f_jac
 from vision_inference.landmark_bearings import LandmarkBearingSensor
 
 class EKF:
@@ -17,21 +18,27 @@ class EKF:
                  x: np.ndarray, 
                  P: np.ndarray,
                  Q: np.ndarray, 
-                 R: np.ndarray
+                 R: np.ndarray,
+                 att_quat: np.ndarray
                  ) -> None:
         """
         Initialize the EKF
-        :param x: initial state consisting of position and velocity
-        :param P: initial covariance
-        :param Q: process noise covariance
-        :param R: measurement noise covariance
+
+        :param x: Initial state consisting of position and velocity with respect to the ECI frame with shape (6,)
+        :param P: Initial covariance with shape (6, 6)
+        :param Q: Process noise covariance with shape (6, 6)
+        :param R: Measurement noise covariance with shape (3, 3)
+        :param att_quat: Initial attitude quaternion with shape (4,) where the scalar component is first.
         """
         self.x_m = x
         self.x_p = x
+        self.att_quat = att_quat # TODO: Merge with MEKF to update attitude quaternion
         self.P_m = P
         self.P_p = P
         self.Q = Q
         self.R = R
+
+        self.cond_threshold = 1e15
 
         config = load_config()
 
@@ -48,6 +55,7 @@ class EKF:
         self.x_p = A @ self.x_m
         self.P_p = A @ self.P_m @ self.A.T + self.Q
 
+
     def measurement(self, z: Tuple[np.ndarray,np.ndarray]) -> None:
         """
         Update the state estimate based on the measurement. This corresponds to the posterior update step in the EKF algorithm.
@@ -59,9 +67,15 @@ class EKF:
         H = self.H(z[1], self.x_p)
 
         S = H @ self.P_p @ H.T + self.R
+        cond = np.linalg.cond(S)
+        
+        # Check for ill-conditioned matrix and add regularization if necessary
+        if cond > self.cond_threshold:
+            S += np.eye(S.shape[0]) * 1e-6
+
         K = self.P_p @ H.T @ np.linalg.inv(S)
         self.x_m = self.x_p + K @ (z - h)
-        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p
+        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (np.eye(self.P_m.shape[0]) - K @ H).T + K @ self.R @ K.T # Joseph form covariance update
 
 
     def H(self, z: np.ndarray, x_p: np.ndarray) -> np.ndarray:
@@ -76,8 +90,8 @@ class EKF:
         jac = jax.jacobian(self.h, argnums=1)(z, x_p)
         return jac
 
-    @staticmethod
-    def h(z: np.ndarray, x_p: np.ndarray) -> np.ndarray:
+
+    def h(self, z: np.ndarray, x_p: np.ndarray) -> np.ndarray:
         """
         Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide a bearing estimate.
 
@@ -90,18 +104,15 @@ class EKF:
         for i, landmark in enumerate(z):
             vec = landmark - x_p[:3]
             vec /= jnp.linalg.norm(vec)
-            """
-            # TODO: Implement this function. If we store our quaternion attitude as a state variable, 
-            # we can use that to calculate the rotation matrix that we need to rotate the vector from ECI to body frame.
-            """
-            R_eci_to_body = jnp.eye(3)
-            body_vec = R_eci_to_body @ vec
+            body_R_eci = Rotation.from_quat(self.att_quat, scalar_first=True).as_matrix()
+            body_vec = body_R_eci @ vec
             estimate[i,:] = body_vec
         return estimate
 
+
 def load_config() -> dict[str, Any]:
     """
-    Load the configuration file and modify it for the purposes of this test.
+    Load the configuration file
 
     :return: The modified configuration file as a dictionary.
     """
