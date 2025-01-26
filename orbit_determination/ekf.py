@@ -15,11 +15,12 @@ class EKF:
     """
 
     def __init__(self, 
-                 x: np.ndarray, 
+                 x: np.ndarray,
                  P: np.ndarray,
-                 Q: np.ndarray, 
+                 Q: np.ndarray,
                  R: np.ndarray,
-                 att_quat: np.ndarray
+                 att_quat: np.ndarray,
+                 dt: float
                  ) -> None:
         """
         Initialize the EKF
@@ -29,6 +30,7 @@ class EKF:
         :param Q: Process noise covariance with shape (6, 6)
         :param R: Measurement noise covariance with shape (3, 3)
         :param att_quat: Initial attitude quaternion with shape (4,) where the scalar component is first.
+        :param dt: The amount of time between each time step.
         """
         self.x_m = x
         self.x_p = x
@@ -37,6 +39,7 @@ class EKF:
         self.P_p = P
         self.Q = Q
         self.R = R
+        self.dt = dt
 
         self.cond_threshold = 1e15
 
@@ -44,16 +47,16 @@ class EKF:
 
         # set up landmark bearing sensor and orbit determination objects
         self.landmark_bearing_sensor = LandmarkBearingSensor(config)
-        # TODO: Get the actual images into the EKF. 
+        # TODO: Get the actual images into the EKF.
 
 
     def predict(self) -> None:
         """
         Predict the next prior state. This corresponds to the prior update step in the EKF algorithm.
         """
-        A = f_jac(self.x_m)
+        A = f_jac(self.x_m, self.dt)
         self.x_p = A @ self.x_m
-        self.P_p = A @ self.P_m @ self.A.T + self.Q
+        self.P_p = A @ self.P_m @ A.T + self.Q
 
 
     def measurement(self, z: Tuple[np.ndarray,np.ndarray]) -> None:
