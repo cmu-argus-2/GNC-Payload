@@ -534,10 +534,13 @@ def sweep_lat_lon_test():
 def main():
     simulator = EarthImageSimulator()
 
-    satellite_position = np.array([983017.6742974258, -6109867.766065873, 3098940.646932125])
-    orientation = get_nadir_rotation(satellite_position)
+    lat_lon = np.array([39.8283, -98.5795])
+    ecef_position = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
+    R_earth = 6371.0088e3
+    ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
+    orientation = get_nadir_rotation(ecef_position)
 
-    simulated_image = simulator.simulate_image(satellite_position, orientation)
+    simulated_image = simulator.simulate_image(ecef_position, orientation)
     print(np.all(simulated_image == 0))
 
 
