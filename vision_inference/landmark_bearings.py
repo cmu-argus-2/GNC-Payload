@@ -1,24 +1,15 @@
-# from abc import ABC, abstractmethod
-from typing import Any, Tuple
-# from time import perf_counter, time
 from datetime import datetime
-import yaml
 import os
-# import pickle
-
-import numpy as np
-from scipy.spatial.transform import Rotation
-# from matplotlib import pyplot as plt
+from typing import Tuple
 
 import brahe
 from brahe.epoch import Epoch
-# from brahe.constants import R_EARTH, GM_EARTH
+import numpy as np
+from scipy.spatial.transform import Rotation
 
-# from utils.time import increment_epoch
-# from dynamics.orbital_dynamics import f
-from image_simulation.earth_vis import EarthImageSimulator, lat_lon_to_ecef
-from vision_inference.ml_pipeline import MLPipeline
+from image_simulation.earth_vis import lat_lon_to_ecef
 from vision_inference.camera import Frame
+from vision_inference.ml_pipeline import MLPipeline
 
 
 class LandmarkBearingSensor:
@@ -30,12 +21,12 @@ class LandmarkBearingSensor:
         """
         :param config: The configuration dictionary.
         """
-        quat_body_to_camera = np.asarray(config["satellite"]["camera"]["orientation_in_cubesat_frame"])
-        self.R_camera_to_body = Rotation.from_quat(quat_body_to_camera, scalar_first=True).inv().as_matrix()
+        camera_Q_body = np.asarray(config["satellite"]["camera"]["orientation_in_cubesat_frame"])
+        self.body_R_camera = Rotation.from_quat(camera_Q_body, scalar_first=True).inv().as_matrix()
         self.ml_pipeline = MLPipeline()
         # self.earth_image_simulator = EarthImageSimulator()
 
-    def take_measurement(self, epoch: Epoch, cubesat_position: np.ndarray, R_body_to_eci: np.ndarray) \
+    def take_measurement(self, epoch: Epoch, cubesat_position: np.ndarray, eci_R_body: np.ndarray) \
             -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -46,15 +37,15 @@ class LandmarkBearingSensor:
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
-        R_eci_to_ecef = brahe.frames.rECItoECEF(epoch)
-        position_ecef = R_eci_to_ecef @ cubesat_position
-        R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
+        ecef_R_eci = brahe.frames.rECItoECEF(epoch)
+        position_ecef = ecef_R_eci @ cubesat_position
+        ecef_R_body = ecef_R_eci @ eci_R_body
 
-        print(f"Taking measurement at {epoch=}, {cubesat_position=}, {R_body_to_eci=}")
+        print(f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
 
         # simulate image
         # TODO: Get image from the camera rather than the simulator
-        image = self.earth_image_simulator.simulate_image(position_ecef, R_body_to_ecef)
+        image = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body)
 
         if np.all(image == 0):
             print("No image detected")
@@ -91,7 +82,7 @@ class LandmarkBearingSensor:
             print("No landmarks detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
-        landmark_positions_eci = (R_eci_to_ecef.T @ landmark_positions_ecef.T).T
+        landmark_positions_eci = (ecef_R_eci.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(pixel_coordinates)
         bearing_unit_vectors = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
 
