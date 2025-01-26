@@ -336,6 +336,8 @@ def get_sso_orbit_state(epoch: Epoch, latitude: float, longitude: float, altitud
     if altitude < 0 or altitude > 5973e3:
         # cos_inclination will be less than -1 if altitude > 5973km
         raise ValueError("Altitude must be between 0 and 5973km")
+    if np.abs(np.cos(np.deg2rad(latitude))) < 0.001:
+        raise ValueError("Latitude must not be too close to the poles")
 
     a = R_EARTH + altitude
     lat_lon = np.array([latitude, longitude])
