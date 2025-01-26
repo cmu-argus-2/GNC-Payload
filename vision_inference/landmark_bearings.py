@@ -7,7 +7,7 @@ from brahe.epoch import Epoch
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from image_simulation.earth_vis import lat_lon_to_ecef
+from image_simulation.earth_vis import lat_lon_to_ecef, EarthImageSimulator
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
 
@@ -24,7 +24,7 @@ class LandmarkBearingSensor:
         camera_Q_body = np.asarray(config["satellite"]["camera"]["orientation_in_cubesat_frame"])
         self.body_R_camera = Rotation.from_quat(camera_Q_body, scalar_first=True).inv().as_matrix()
         self.ml_pipeline = MLPipeline()
-        # self.earth_image_simulator = EarthImageSimulator()
+        self.earth_image_simulator = EarthImageSimulator()
 
     def take_measurement(self, epoch: Epoch, cubesat_position: np.ndarray, eci_R_body: np.ndarray) \
             -> Tuple[np.ndarray, np.ndarray]:
@@ -84,7 +84,7 @@ class LandmarkBearingSensor:
 
         landmark_positions_eci = (ecef_R_eci.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(pixel_coordinates)
-        bearing_unit_vectors = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
+        bearing_unit_vectors = (self.body_R_camera @ bearing_unit_vectors_cf.T).T
 
         print(f"Detected {len(landmark_positions_eci)} landmarks")
 
