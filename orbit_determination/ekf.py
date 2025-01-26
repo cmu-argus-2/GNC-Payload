@@ -1,3 +1,5 @@
+""" Extended Kalman Filter for orbit determination """
+
 from typing import Any, Tuple
 
 from scipy.spatial.transform import Rotation
