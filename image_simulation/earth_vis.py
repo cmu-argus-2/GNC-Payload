@@ -502,25 +502,29 @@ def sweep_lat_lon_test():
     longitudes = np.linspace(-180, 180, 90)
 
     lat_lon = np.stack(np.meshgrid(latitudes, longitudes), axis=-1)
-    ecef_positions = lat_lon_to_ecef(lat_lon).reshape(-1, 3)
+    ecef_positions = lat_lon_to_ecef(lat_lon)
 
     # scale to 600km altitude
     R_earth = 6371.0088e3
     ecef_positions *= (R_earth + 600e3) / R_earth
 
+    i_stride = ecef_positions.shape[1]
+    total = np.prod(ecef_positions.shape[:2])
     empty_indices = []
-    for i, ecef_position in enumerate(ecef_positions):
+    for i, j in np.ndindex(ecef_positions.shape[:2]):
+        ecef_position = ecef_positions[i, j, :]
+
         orientation = get_nadir_rotation(ecef_position)
         simulated_image = simulator.simulate_image(ecef_position, orientation)
 
-        if i % 20 == 0:
-            print(f"{i}/{lat_lon.shape[0] * lat_lon.shape[1]}")
+        if j % 20 == 0:
+            print(f"{i * i_stride + j}/{total}")
         if np.all(simulated_image == 0):
-            empty_indices.append(i)
+            empty_indices.append((i, j))
         else:
-            print(f"Nonempty image at index {i}, lat/lon: {lat_lon[0, i, :]}")
+            print(f"Nonempty image at index ({i}, {j}), lat/lon: {lat_lon[i, j, :]}")
 
-    print(f"{len(empty_indices)}/{lat_lon.shape[1]} images are empty")
+    print(f"{len(empty_indices)}/{total} images are empty")
     print(f"Empty images at indices: {empty_indices}")
 
     with open("empty_images.txt", "w") as f:
