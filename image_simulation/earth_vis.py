@@ -313,7 +313,7 @@ def convert_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
     Returns:
         np.ndarray: Array of latitude and longitude (HxWx2), or NaN for invalid points.
     """
-
+    # TODO: generalize this to work with arbitrary arrays of shape (..., 2)
     H, W, _ = intersection_points.shape
     intersection_points_flat = intersection_points.reshape(-1, 3)
 
@@ -357,6 +357,7 @@ def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
     Returns:
         np.ndarray: Array of ECEF coordinates (HxWx3).
     """
+    # TODO: generalize this to work with arbitrary arrays of shape (..., 2)
     H, W, _ = lat_lon.shape
     lat_lon_flat = lat_lon.reshape(-1, 2)
 
