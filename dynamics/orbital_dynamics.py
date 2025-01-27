@@ -1,5 +1,5 @@
-import numpy as np
 from brahe.constants import GM_EARTH
+import numpy as np
 
 
 """
