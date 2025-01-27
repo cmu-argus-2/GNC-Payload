@@ -245,6 +245,7 @@ def load_config() -> dict[str, Any]:
     with open("../config.yaml", "r") as file:
         config = yaml.safe_load(file)
 
+    # TODO: move this into the config file itself
     # decrease world update rate since we only care about position dynamics
     config["solver"]["world_update_rate"] = 1 / 60  # Hz
     config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
@@ -252,6 +253,7 @@ def load_config() -> dict[str, Any]:
     return config
 
 
+# TODO: consolidate this with the function in utils/earth_utils.py
 def get_nadir_rotation(cubesat_position: np.ndarray) -> np.ndarray:
     """
     Get the rotation matrix from the body frame to the ECI frame for a satellite with an orbital angular momentum in the -y direction.
