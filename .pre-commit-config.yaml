@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/ambv/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3.12  # or "default"
+
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        pass_filenames: true
+        types: [python]
+        # Configuration file:
+        args: ["--rcfile=./.pylintrc"]
