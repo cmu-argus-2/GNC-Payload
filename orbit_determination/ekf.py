@@ -29,7 +29,7 @@ class EKF:
         """
         Initialize the EKF
 
-        :param x: Initial state consisting of position and velocity with respect to the ECI frame with shape (6,)
+        :param x: Initial state consisting of position and velocity with respect to the ECEF frame with shape (6,)
         :param P: Initial covariance with shape (6, 6)
         :param Q: Process noise covariance with shape (6, 6)
         :param R: Measurement noise covariance with shape (3, 3)
