@@ -197,6 +197,9 @@ class SimulatedMLLandmarkBearingSensor:
         frame = Frame(image, 0, datetime.now())
         # TODO: queue requests to the model and send them in batches as the sim runs
         regions_and_landmarks = self.ml_pipeline.run_ml_pipeline_on_single(frame)
+        if regions_and_landmarks is None:
+            print("No salient regions detected")
+            return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         # save the image with the detected landmarks
         epoch_str = str(epoch) \
