@@ -138,7 +138,7 @@ class MLPipeline:
         if len(pred_regions) == 0:
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected. ",
+                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No salient regions detected. ",
             )
             return None
         frame_results = []
