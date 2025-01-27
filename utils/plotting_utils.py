@@ -1,6 +1,33 @@
 import numpy as np
 from brahe import R_EARTH
 from matplotlib import pyplot as plt
+from functools import cache
+
+
+@cache
+def load_equirectangular_map() -> np.ndarray:
+    """
+    Load an equirectangular map of the Earth.
+
+    :return: A numpy array of shape (H, W, 3) containing the image data.
+    """
+    # https://en.wikipedia.org/wiki/Equirectangular_projection#/media/File:Blue_Marble_2002.png
+    return plt.imread("equirectangular_map.png")
+
+
+def plot_ground_track(lat_lons: np.ndarray) -> None:
+    """
+    Plot the ground track of a satellite's orbit on an equirectangular map.
+
+    :param lat_lons: A numpy array of shape (N, 2) containing latitude and longitude coordinates.
+    """
+    fig, ax = plt.subplots()
+    ax.imshow(load_equirectangular_map(), extent=[-180, 180, -90, 90])
+    ax.plot(lat_lons[:, 1], lat_lons[:, 0], color='red')
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_title("Ground Track")
+    plt.show()
 
 
 def animate_orbits(positions: np.ndarray, estimated_positions: np.ndarray, landmarks: np.ndarray) -> None:
