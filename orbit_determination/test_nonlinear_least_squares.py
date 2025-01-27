@@ -17,8 +17,8 @@ from brahe.epoch import Epoch
 
 from dynamics.orbital_dynamics import f
 from image_simulation.earth_vis import EarthImageSimulator
-from nonlinear_least_squares_od import OrbitDetermination
-from utils.geometry_utils import lat_lon_to_ecef
+from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
+from utils.earth_utils import lat_lon_to_ecef
 
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 from utils.time import increment_epoch
