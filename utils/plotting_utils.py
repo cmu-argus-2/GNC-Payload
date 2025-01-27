@@ -22,7 +22,7 @@ def plot_ground_track(lat_lons: np.ndarray) -> None:
     :param lat_lons: A numpy array of shape (N, 2) containing latitude and longitude coordinates.
     """
     fig, ax = plt.subplots()
-    ax.imshow(load_equirectangular_map(), extent=[-180, 180, -90, 90])
+    ax.imshow(load_equirectangular_map(), extent=(-180, 180, -90, 90))
     ax.plot(lat_lons[:, 1], lat_lons[:, 0], color='red')
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
