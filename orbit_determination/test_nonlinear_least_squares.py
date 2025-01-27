@@ -21,7 +21,7 @@ from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from utils.earth_utils import lat_lon_to_ecef
 
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
-from utils.time import increment_epoch
+from utils.brahe_utils import increment_epoch
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
 
