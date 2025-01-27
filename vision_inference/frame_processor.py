@@ -12,7 +12,8 @@ Date: [Creation or Last Update Date]
 
 import cv2
 import numpy as np
-from payload.vision.logger import Logger
+
+from vision_inference.logger import Logger
 
 # Define error messages
 error_messages = {

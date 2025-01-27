@@ -37,8 +37,8 @@ Date: [Creation or Last Update Date]
 """
 
 import logging
-import os
 import inspect
+import os
 
 # Default configuration upon module load (can be reconfigured elsewhere in the code)
 # Logger.configure(log_level=logging.DEBUG, log_file='log/payload.log')

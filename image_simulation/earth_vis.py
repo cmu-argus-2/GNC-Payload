@@ -60,7 +60,7 @@ class EarthImageSimulator:
             hfov = 66.1
         self.cache = GeoTIFFCache(geotiff_folder)
         self.resolution = resolution
-        self.camera = Camera(self.resolution, hfov)
+        self.camera = CameraSimulation(self.resolution, hfov)
 
     def simulate_image(self, position, orientation):
         """
@@ -173,10 +173,10 @@ class GeoTIFFCache:
         self.cache = {}
 
 
-class Camera:
+class CameraSimulation:
     def __init__(self, resolution, fov):
         """
-        Initialize the camera parameters.
+        Initialize the camera parameters the simulation class
 
         Parameters:
             resolution (tuple): Resolution of the camera (width, height).
@@ -296,6 +296,7 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
     return intersection_points
 
 
+# TODO: Movee tests to a separate file
 def test_geodetic_conversion():
     # convert_to_ecef was ChatGPT generated, it also produced this test
 

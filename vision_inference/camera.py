@@ -1,15 +1,15 @@
-import cv2
-import os
-import yaml
-import time
-import hashlib
 from datetime import datetime
-import logging
-from typing import List
-import numpy as np
-import threading
+import hashlib
+import os
 import sys
+import time
 
+import cv2
+import numpy as np
+
+from utils.config_utils import load_config
+
+# Why is this needed? 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vision_inference.logger import Logger
 
@@ -31,7 +31,6 @@ error_messages = {
     CameraErrorCodes.READ_FRAME_ERROR: "Error reading frame.",
     CameraErrorCodes.SUN_BLIND: "Image blinded by the sun",
     CameraErrorCodes.CAMERA_NOT_OPERATIONAL: "Camera is not operational.",
-    CameraErrorCodes.CONFIGURATION_ERROR: "Configuration error.",
     CameraErrorCodes.CONFIGURATION_ERROR: "Configuration error.",
 }
 
@@ -74,10 +73,11 @@ class Frame:
         return cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
 
 
+#TODO: Improve documentation for this class and its methods
 class Camera:
     def __init__(self, camera_id, config_path):
         try:
-            config = self.load_config(config_path)
+            config = load_config(config_path)
         except Exception as e:
             Logger.log("ERROR", f"{error_messages[CameraErrorCodes.CONFIGURATION_ERROR]}: {e}")
             raise ValueError(error_messages[CameraErrorCodes.CONFIGURATION_ERROR])
@@ -158,10 +158,6 @@ class Camera:
                 self.camera_status = 0
                 return self.camera_status
         return self.camera_status
-
-    def load_config(self, config_path):
-        with open(config_path, "r") as file:
-            return yaml.safe_load(file)
 
     def log_error(self, error_code):
         message = error_messages.get(error_code, "Unknown error.")

@@ -15,13 +15,15 @@ Author: Eddie, Haochen
 Date: [Creation or Last Update Date]
 """
 
-import numpy as np
-from ultralytics import YOLO
-import os
 import csv
-import cv2
+import os
 import time
+
+import cv2
+import numpy as np
 from PIL import Image
+from ultralytics import YOLO
+
 from vision_inference.logger import Logger
 
 LD_MODEL_SUF = "_nadir.pt"
@@ -77,7 +79,7 @@ class LandmarkDetector:
         """
         ground_truth = []
         try:
-            with open(ground_truth_path, "r") as csvfile:
+            with open(ground_truth_path, "r", encoding='utf-8') as csvfile:
                 csvreader = csv.reader(csvfile)
                 next(csvreader)  # Skip the header row
                 for row in csvreader:

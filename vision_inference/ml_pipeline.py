@@ -7,16 +7,16 @@ detects landmarks within those regions. The script is designed to handle varying
 by discarding frames that are deemed too dark for reliable classification or detection.
 
 Author: Eddie
-Date: [Creation or Last Update Date]
+Date: January 27, 2025
 """
 
-# import necessary modules
-from PIL import Image
+import os
+
 import cv2
-from vision_inference.rc import RegionClassifier
+
 from vision_inference.ld import LandmarkDetector
 from vision_inference.logger import Logger
-import os
+from vision_inference.rc import RegionClassifier
 
 
 class Landmark:
@@ -176,6 +176,7 @@ class MLPipeline:
         
         return adjusted_color
 
+    # TODO: Improve the readability of this method.
     def visualize_landmarks(self, frame_obj, regions_and_landmarks, save_dir):
         """
         Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent boxes,

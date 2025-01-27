@@ -1,8 +1,10 @@
-import os
-import cv2
 import datetime
 from itertools import cycle
-from payload.vision.camera import Frame
+import os
+
+import cv2
+
+from vision_inference.camera import Frame
 
 
 class DemoFrames:
