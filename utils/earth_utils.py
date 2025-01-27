@@ -107,6 +107,37 @@ def get_nadir_rotation(satellite_position):
     R = np.stack([xc, yc, zc], axis=-1)
     return R
 
+# Define MGRS latitude bands and UTM exceptions
+mgrs_latitude_bands = [
+    {"name": "C", "min_lat": -80, "max_lat": -72},
+    {"name": "D", "min_lat": -72, "max_lat": -64},
+    {"name": "E", "min_lat": -64, "max_lat": -56},
+    {"name": "F", "min_lat": -56, "max_lat": -48},
+    {"name": "G", "min_lat": -48, "max_lat": -40},
+    {"name": "H", "min_lat": -40, "max_lat": -32},
+    {"name": "J", "min_lat": -32, "max_lat": -24},
+    {"name": "K", "min_lat": -24, "max_lat": -16},
+    {"name": "L", "min_lat": -16, "max_lat": -8},
+    {"name": "M", "min_lat": -8, "max_lat": 0},
+    {"name": "N", "min_lat": 0, "max_lat": 8},
+    {"name": "P", "min_lat": 8, "max_lat": 16},
+    {"name": "Q", "min_lat": 16, "max_lat": 24},
+    {"name": "R", "min_lat": 24, "max_lat": 32},
+    {"name": "S", "min_lat": 32, "max_lat": 40},
+    {"name": "T", "min_lat": 40, "max_lat": 48},
+    {"name": "U", "min_lat": 48, "max_lat": 56},
+    {"name": "V", "min_lat": 56, "max_lat": 64},
+    {"name": "W", "min_lat": 64, "max_lat": 72},
+    {"name": "X", "min_lat": 72, "max_lat": 84},  # X spans 12° latitude
+]
+
+mgrs_utm_exceptions = [
+    {"zone": 32, "min_lon": 3, "max_lon": 12, "bands": ["V"]},  # Norway
+    {"zone": 31, "min_lon": 0, "max_lon": 9, "bands": ["X"]},  # Svalbard
+    {"zone": 33, "min_lon": 9, "max_lon": 21, "bands": ["X"]},  # Svalbard
+    {"zone": 35, "min_lon": 21, "max_lon": 33, "bands": ["X"]},  # Svalbard
+    {"zone": 37, "min_lon": 33, "max_lon": 42, "bands": ["X"]},  # Svalbard
+]
 
 def calculate_mgrs_zones(latitudes, longitudes):
     """
@@ -120,8 +151,8 @@ def calculate_mgrs_zones(latitudes, longitudes):
         np.ndarray: Array of MGRS region identifiers (same shape as input).
     """
     # Create lookup tables for vectorized latitude band calculation
-    latitude_band_names = np.array([band["name"] for band in latitude_bands])
-    latitude_band_edges = np.array([[band["min_lat"], band["max_lat"]] for band in latitude_bands])
+    latitude_band_names = np.array([band["name"] for band in mgrs_latitude_bands])
+    latitude_band_edges = np.array([[band["min_lat"], band["max_lat"]] for band in mgrs_latitude_bands])
 
     # Flatten lat/lon for processing
     lat_flat = latitudes.ravel()
@@ -137,7 +168,7 @@ def calculate_mgrs_zones(latitudes, longitudes):
     utm_zones = ((lon_flat + 180) // 6 + 1).astype(int)
 
     # Apply UTM exceptions
-    for exception in utm_exceptions:
+    for exception in mgrs_utm_exceptions:
         mask = (
                 (lon_flat >= exception["min_lon"]) &
                 (lon_flat < exception["max_lon"]) &
