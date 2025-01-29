@@ -185,6 +185,9 @@ class MLPipeline:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
+        # TODO: less hacky fix for RGB to BGR conversion
+        frame_obj.frame = cv2.cvtColor(frame_obj.frame, cv2.COLOR_RGB2BGR)
+
         image = frame_obj.frame.copy()
 
         colors = [
