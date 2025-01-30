@@ -5,7 +5,7 @@ import numpy as np
 import rasterio
 
 from utils.earth_utils import calculate_mgrs_zones
-from utils.earth_utils import convert_to_lat_lon
+from utils.earth_utils import ecef_to_lat_lon
 from utils.earth_utils import get_nadir_rotation
 from utils.earth_utils import lat_lon_to_ecef
 
@@ -48,7 +48,7 @@ class EarthImageSimulator:
         intersection_points = intersect_ellipsoid(ray_directions_ecef, position)
 
         # Convert intersection points to lat/lon
-        lat_lon = convert_to_lat_lon(intersection_points)
+        lat_lon = ecef_to_lat_lon(intersection_points)
 
         # Flatten latitude/longitude grid
         lat_lon_flat = lat_lon.reshape(-1, 2)
@@ -266,7 +266,7 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
 
 # TODO: Move tests to a separate file
 def test_geodetic_conversion():
-    # convert_to_ecef was ChatGPT generated, it also produced this test
+    # lat_lon_to_ecef was ChatGPT generated, it also produced this test
 
     # Generate a grid of latitude and longitude values
     latitudes = np.linspace(-90, 90, num=10)
@@ -279,7 +279,7 @@ def test_geodetic_conversion():
     ecef_points = lat_lon_to_ecef(lat_lon)
 
     # Convert ECEF back to lat/lon using the original function
-    lat_lon_reconstructed = convert_to_lat_lon(ecef_points)
+    lat_lon_reconstructed = ecef_to_lat_lon(ecef_points)
 
     # Compute differences
     lat_diff = lat_lon[:, :, 0] - lat_lon_reconstructed[:, :, 0]

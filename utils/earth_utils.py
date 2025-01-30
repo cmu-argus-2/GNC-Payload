@@ -6,7 +6,7 @@ import numpy as np
 
 
 # TODO: use brahe constants instead of hardcoding
-def convert_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
+def ecef_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
     """
     Convert intersection points (ECEF) to latitude and longitude.
 
