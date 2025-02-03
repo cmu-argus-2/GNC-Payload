@@ -15,8 +15,9 @@ def is_over_daytime(epoch: Epoch, cubesat_position: np.ndarray) -> bool:
     return np.dot(brahe.ephemerides.sun_position(epoch), cubesat_position) > 0
 
 
-def get_sso_orbit_state(epoch: Epoch, latitude: float, longitude: float, altitude: float, northwards: bool = True) \
-        -> np.ndarray:
+def get_sso_orbit_state(
+    epoch: Epoch, latitude: float, longitude: float, altitude: float, northwards: bool = True
+) -> np.ndarray:
     """
     Computes the state vector for a circular sun-synchronous orbit at the given epoch, latitude, longitude, and altitude.
 
@@ -42,7 +43,9 @@ def get_sso_orbit_state(epoch: Epoch, latitude: float, longitude: float, altitud
     position_eci = brahe.frames.rECItoECEF(epoch).T @ position_ecef
 
     # https://en.wikipedia.org/wiki/Sun-synchronous_orbit#Technical_details
-    cos_inclination = -(a / 12_352e3) ** (7 / 2)  # TODO: define this constant in terms of other constants
+    cos_inclination = -(
+        (a / 12_352e3) ** (7 / 2)
+    )  # TODO: define this constant in terms of other constants
 
     # construct a right-handed orthonormal basis (r_hat, z_perp_hat, west_hat)
     r_hat = position_eci / np.linalg.norm(position_eci)
@@ -60,7 +63,7 @@ def get_sso_orbit_state(epoch: Epoch, latitude: float, longitude: float, altitud
     Thus, cos_inclination = np.dot(n_hat, z_hat) = alpha * np.dot(z_perp_hat, z_hat).
     """
     alpha = cos_inclination / np.dot(z_perp_hat, z_hat)
-    beta = np.sqrt(1 - alpha ** 2)
+    beta = np.sqrt(1 - alpha**2)
     normal_1_hat = alpha * z_perp_hat + beta * west_hat
     normal_2_hat = alpha * z_perp_hat - beta * west_hat
 
@@ -70,5 +73,7 @@ def get_sso_orbit_state(epoch: Epoch, latitude: float, longitude: float, altitud
     is_v1_northbound = v_1[2] > 0
     is_v2_northbound = v_2[2] > 0
 
-    assert is_v1_northbound != is_v2_northbound, f"Velocities cannot both be {'north' if is_v1_northbound else 'south'}bound!"
+    assert (
+        is_v1_northbound != is_v2_northbound
+    ), f"Velocities cannot both be {'north' if is_v1_northbound else 'south'}bound!"
     return np.concatenate((position_eci, v_1 if northwards == is_v1_northbound else v_2))

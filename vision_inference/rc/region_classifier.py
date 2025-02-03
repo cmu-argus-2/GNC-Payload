@@ -12,7 +12,6 @@ Author: Eddie
 Date: [Creation or Last Update Date]
 """
 
-
 import os
 import yaml
 import cv2
@@ -136,8 +135,5 @@ class RegionClassifier:
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
         )
-        Logger.log(
-            "INFO",
-            f"Inference completed in {inference_time:.2f} seconds."
-        )
+        Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids

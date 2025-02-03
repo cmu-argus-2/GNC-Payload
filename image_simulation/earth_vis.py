@@ -78,10 +78,7 @@ class EarthImageSimulator:
 
             # Query pixel colors for the region
             pixel_colors_region = query_pixel_colors(
-                latitudes[region_mask.flatten()],
-                longitudes[region_mask.flatten()],
-                data,
-                trans
+                latitudes[region_mask.flatten()], longitudes[region_mask.flatten()], data, trans
             )
 
             # Assign pixel values to the full image
@@ -97,7 +94,7 @@ class EarthImageSimulator:
             image (np.ndarray): Simulated RGB image.
         """
         plt.imshow(image)
-        plt.axis('off')
+        plt.axis("off")
         plt.show()
 
 
@@ -106,8 +103,24 @@ class GeoTIFFCache:
         self.geotiff_folder = geotiff_folder
         self.cache = {}
 
-        for region in ["10S", "10T", "11R", "12R", "16T", "17R", "17T", "18S",
-                       "32S", "32T", "33S", "33T", "52S", "53S", "54S", "54T"]:
+        for region in [
+            "10S",
+            "10T",
+            "11R",
+            "12R",
+            "16T",
+            "17R",
+            "17T",
+            "18S",
+            "32S",
+            "32T",
+            "33S",
+            "33T",
+            "52S",
+            "53S",
+            "54S",
+            "54T",
+        ]:
             region_folder = os.path.join(self.geotiff_folder, region)
             if not os.path.exists(region_folder):
                 print(f"WARNING: Region folder '{region_folder}' not found.")
@@ -207,7 +220,9 @@ class CameraSimulation:
         # Normalize pixel coordinates to range [-half_width, half_width] and [half_height, -half_height]
         # Assuming pixel (0,0) is at the top-left corner
         x = -half_width + (2 * half_width) * (u / (width - 1))
-        y = half_height - (2 * half_height) * (v / (height - 1))  # Invert y-axis for image coordinates
+        y = half_height - (2 * half_height) * (
+            v / (height - 1)
+        )  # Invert y-axis for image coordinates
         z = np.ones_like(x)
 
         # Stack and normalize direction vectors
@@ -232,15 +247,23 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
     H, W, _ = ray_directions.shape
     ray_directions_flat = ray_directions.reshape(-1, 3)
 
-    A = ray_directions_flat[:, 0] ** 2 / a ** 2 + ray_directions_flat[:, 1] ** 2 / a ** 2 + ray_directions_flat[:,
-                                                                                            2] ** 2 / b ** 2
-    B = 2 * (satellite_position[0] * ray_directions_flat[:, 0] / a ** 2 +
-             satellite_position[1] * ray_directions_flat[:, 1] / a ** 2 +
-             satellite_position[2] * ray_directions_flat[:, 2] / b ** 2)
-    C = (satellite_position[0] ** 2 / a ** 2 +
-         satellite_position[1] ** 2 / a ** 2 +
-         satellite_position[2] ** 2 / b ** 2 - 1)
-    discriminant = B ** 2 - 4 * A * C
+    A = (
+        ray_directions_flat[:, 0] ** 2 / a**2
+        + ray_directions_flat[:, 1] ** 2 / a**2
+        + ray_directions_flat[:, 2] ** 2 / b**2
+    )
+    B = 2 * (
+        satellite_position[0] * ray_directions_flat[:, 0] / a**2
+        + satellite_position[1] * ray_directions_flat[:, 1] / a**2
+        + satellite_position[2] * ray_directions_flat[:, 2] / b**2
+    )
+    C = (
+        satellite_position[0] ** 2 / a**2
+        + satellite_position[1] ** 2 / a**2
+        + satellite_position[2] ** 2 / b**2
+        - 1
+    )
+    discriminant = B**2 - 4 * A * C
 
     # Initialize intersection points as NaN
     intersection_points_flat = np.full_like(ray_directions_flat, np.nan)
@@ -258,7 +281,9 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
 
         # Calculate intersection points
         valid_ray_directions = ray_directions_flat[valid_mask]
-        intersection_points_flat[valid_mask] = t[:, None] * valid_ray_directions + satellite_position
+        intersection_points_flat[valid_mask] = (
+            t[:, None] * valid_ray_directions + satellite_position
+        )
     # Reshape intersection points back to original ray grid shape
     intersection_points = intersection_points_flat.reshape(H, W, 3)
     return intersection_points
@@ -306,10 +331,7 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
     height, width, _ = image_data.shape
 
     # Create a mask for valid indices
-    valid_mask = (
-            (rows >= 0) & (rows < height) &
-            (cols >= 0) & (cols < width)
-    )
+    valid_mask = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
 
     # Prepare an array for the pixel values
     num_pixels = latitudes_flat.size

@@ -9,7 +9,7 @@ import numpy as np
 
 from utils.config_utils import load_config
 
-# Why is this needed? 
+# Why is this needed?
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vision_inference.logger import Logger
 
@@ -63,7 +63,10 @@ class Frame:
     def update_landmarks(self, new_landmarks):
         """Update the frame with new landmark data."""
         self.landmarks = new_landmarks
-        Logger.log("INFO", f"[Camera {self.camera_id} frame {self.frame_id}] Landmarks updated on Frame object.")
+        Logger.log(
+            "INFO",
+            f"[Camera {self.camera_id} frame {self.frame_id}] Landmarks updated on Frame object.",
+        )
 
     def save(self):
         pass
@@ -73,7 +76,7 @@ class Frame:
         return cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
 
 
-#TODO: Improve documentation for this class and its methods
+# TODO: Improve documentation for this class and its methods
 class Camera:
     def __init__(self, camera_id, config_path):
         try:
@@ -99,7 +102,7 @@ class Camera:
             self.exposure = self.camera_settings.get("exposure")
 
             self.camera_status = self.initialize_camera()
-            
+
             Logger.log(
                 "INFO",
                 f"Camera {camera_id}: {self.camera_status}",
@@ -240,7 +243,9 @@ class Camera:
         # If more than `limit` files, remove the oldest ones
         while len(files) > limit:
             os.remove(files[0])
-            Logger.log("INFO", f"Camera {self.camera_id}: Removed old image {files[0]} to maintain limit")
+            Logger.log(
+                "INFO", f"Camera {self.camera_id}: Removed old image {files[0]} to maintain limit"
+            )
             files.pop(0)
 
     # DEBUG only
@@ -270,7 +275,9 @@ class CameraManager:
             if cam_obj is not None:
                 self.cameras[camera_id] = cam_obj
                 Logger.log("INFO", f"Camera {camera_id} added to the camera manager.")
-                Logger.log("INFO", f"Camera {camera_id} operational status: {cam_obj.camera_status}")
+                Logger.log(
+                    "INFO", f"Camera {camera_id} operational status: {cam_obj.camera_status}"
+                )
 
         number_of_cameras = len(self.cameras)
         self.camera_frames = []
