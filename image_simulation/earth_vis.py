@@ -1,9 +1,16 @@
+"""
+Module for simulating Earth images from given satellite position and attitude
+"""
+
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
+# pylint: disable=import-error
+# pylint: disable=invalid-name
+# pylint: disable=unpacking-non-sequence
 from utils.earth_utils import calculate_mgrs_zones
 from utils.earth_utils import convert_to_lat_lon
 from utils.earth_utils import get_nadir_rotation
@@ -11,6 +18,10 @@ from utils.earth_utils import lat_lon_to_ecef
 
 
 class EarthImageSimulator:
+    """
+    This class simulates Earth images from a given satellite position and attitude.
+    """
+
     def __init__(self, geotiff_folder=None, resolution=None, hfov=None):
         """
         Initialize the Earth image simulator.
@@ -31,6 +42,7 @@ class EarthImageSimulator:
         self.camera = CameraSimulation(self.resolution, hfov)
 
     def simulate_image(self, position, orientation):
+        # pylint: disable=too-many-locals
         """
         Simulate an Earth image given the satellite position and orientation.
 
@@ -63,6 +75,7 @@ class EarthImageSimulator:
         width, height = self.resolution
         pixel_colors_full = np.zeros((height, width, 3), dtype=np.uint8)
 
+        # pylint: disable=not-an-iterable
         # Load and assign data for each region
         for region in present_regions:
             data, trans = self.cache.load_geotiff_data(region)
@@ -99,6 +112,9 @@ class EarthImageSimulator:
 
 
 class GeoTIFFCache:
+    """
+    Cache for GeoTIFF files.
+    """
     def __init__(self, geotiff_folder):
         self.geotiff_folder = geotiff_folder
         self.cache = {}
@@ -129,6 +145,9 @@ class GeoTIFFCache:
             print("All region folders found!")
 
     def load_geotiff_data(self, region):
+        """
+        Load GeoTIFF data for a given region.
+        """
         if region in self.cache:
             return self.cache[region]
 
@@ -155,6 +174,9 @@ class GeoTIFFCache:
 
 
 class CameraSimulation:
+    """
+    Simulates a camera with a given resolution and field of view.
+    """
     def __init__(self, resolution, fov):
         """
         Initialize the simulation camera parameters
@@ -232,6 +254,7 @@ class CameraSimulation:
 
 
 def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=6356752.314245):
+    # pylint: disable=too-many-locals
     """
     Vectorized computation of ray intersections with the WGS84 ellipsoid.
 
@@ -281,23 +304,29 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
 
         # Calculate intersection points
         valid_ray_directions = ray_directions_flat[valid_mask]
+        # pylint: disable=unsupported-assignment-operation
         intersection_points_flat[valid_mask] = (
             t[:, None] * valid_ray_directions + satellite_position
         )
     # Reshape intersection points back to original ray grid shape
-    intersection_points = intersection_points_flat.reshape(H, W, 3)
-    return intersection_points
+    # pylint: disable=no-member
+    return intersection_points_flat.reshape(H, W, 3)
 
-
+# pylint: disable=fixme
 # TODO: Move tests to a separate file
+# pylint: enable=fixme
 def test_geodetic_conversion():
+    """
+    Test the conversion functions between geodetic and ECEF coordinates.
+    """
     # convert_to_ecef was ChatGPT generated, it also produced this test
 
     # Generate a grid of latitude and longitude values
     latitudes = np.linspace(-90, 90, num=10)
     longitudes = np.linspace(-180, 180, num=10)
     lon_grid, lat_grid = np.meshgrid(longitudes, latitudes)
-    H, W = lat_grid.shape
+
+    # pylint: disable=unsubscriptable-object
     lat_lon = np.stack((lat_grid, lon_grid), axis=2)  # Shape (H, W, 2)
 
     # Convert lat/lon to ECEF using the inverse function
@@ -316,6 +345,10 @@ def test_geodetic_conversion():
 
 
 def query_pixel_colors(latitudes, longitudes, image_data, trans):
+    # pylint: disable=too-many-locals
+    """
+    Query pixel colors from the image data based on latitude and longitude.
+    """
     latitudes_flat = latitudes.flatten()
     longitudes_flat = longitudes.flatten()
 
@@ -353,11 +386,15 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
 
 
 def sweep_lat_lon_test():
+    """
+    Test the Earth image simulation by sweeping through latitude and longitude.
+    """
     simulator = EarthImageSimulator()
 
     latitudes = np.linspace(-90, 90, 90)
     longitudes = np.linspace(-180, 180, 90)
 
+    # pylint: disable=unsubscriptable-object
     lat_lon = np.stack(np.meshgrid(latitudes, longitudes), axis=-1)
     ecef_positions = lat_lon_to_ecef(lat_lon)
 
@@ -384,11 +421,13 @@ def sweep_lat_lon_test():
     print(f"{len(empty_indices)}/{total} images are empty")
     print(f"Empty images at indices: {empty_indices}")
 
-    with open("empty_images.txt", "w") as f:
+    with open("empty_images.txt", "w",encoding='utf-8') as f:
         f.write(str(empty_indices))
 
-
 def main():
+    """
+    Main function to run the Earth image simulation.
+    """
     simulator = EarthImageSimulator()
 
     lat_lon = np.array([39.8283, -98.5795])

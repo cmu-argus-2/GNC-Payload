@@ -56,7 +56,7 @@ def getMGRS():
                 lats[i] + LATSTEP,
             )
 
-    # pylint: diable=not-an-iterable
+    # pylint: disable=not-an-iterable
     for i in lon_labels:
         idx = str(i).zfill(2) + "X"
         mgrs_grid[idx] = (lons[i - 1], 72, lons[i - 1] + LONSTEP, 84)
