@@ -51,5 +51,5 @@ These tools can also be run separately or on specific folders or files by specif
 ```
 pylint ./sensors/bias.py
 black ./orbit_determination/nonlinear_least_squares_od.py
-pylint ./vision_inference
+pre-commit ./vision_inference
 ```
