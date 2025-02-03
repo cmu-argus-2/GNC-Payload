@@ -1,8 +1,9 @@
 black==24.10.0
+brahe==0.0.0
 earthengine_api==1.4.5
 pre-commit==4.1.0
 matplotlib==3.10.0
-numpy==2.2.2
+numpy==1.26.4
 opencv_contrib_python==4.11.0.86
 opencv_python==4.11.0.86
 Pillow==11.1.0
