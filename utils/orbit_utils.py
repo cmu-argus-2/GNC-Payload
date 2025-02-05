@@ -1,7 +1,7 @@
 import brahe
 import numpy as np
 from brahe import Epoch, R_EARTH, GM_EARTH
-from earth_utils import lat_lon_to_ecef
+from utils.earth_utils import lat_lon_to_ecef
 
 
 def is_over_daytime(epoch: Epoch, cubesat_position: np.ndarray) -> bool:
