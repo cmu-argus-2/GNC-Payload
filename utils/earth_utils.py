@@ -1,13 +1,17 @@
 """
 Common earth utilities.
 """
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from brahe.constants import e_EARTH
+
+from brahe.constants import ECC_EARTH
 from brahe.constants import R_EARTH
 import numpy as np
 
 R_EARTH_EQ = R_EARTH  # convert to km
-R_EARTH_POL = R_EARTH * (1 - e_EARTH**2) ** 0.5
+R_EARTH_POL = R_EARTH * (1 - ECC_EARTH**2) ** 0.5
 
 
 # TODO: use brahe constants instead of hardcoding

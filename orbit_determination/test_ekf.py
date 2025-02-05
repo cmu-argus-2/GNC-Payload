@@ -11,6 +11,7 @@ from typing import List
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from brahe.constants import e_EARTH
+from brahe.constants import GM_EARTH
 from brahe.constants import R_EARTH
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -140,25 +141,24 @@ def measure_z_landmark(curr_pos, curr_quat, curr_visible_landmarks) -> np.ndarra
     """
     z_l = np.zeros((len(curr_visible_landmarks) * 3))
     for i, landmark in enumerate(curr_visible_landmarks):
-        noise = np.random.normal(loc=0, scale=math.sqrt(0.4), size=(3))
-        vec = curr_pos - landmark.pos
+        noise = np.random.normal(loc=0, scale=math.sqrt(0), size=(3))
+        vec = curr_pos - landmark.pos + noise
         vec = vec / np.linalg.norm(vec)
-        body_R_eci = Rotation.from_quat(curr_quat, scalar_first=True).as_matrix()
-        body_vec = body_R_eci @ vec
-        z_l[i * 3 : i * 3 + 3] = body_vec + noise
-
+        # body_R_eci = Rotation.from_quat(curr_quat, scalar_first=True).as_matrix()
+        # body_vec = body_R_eci @ vec
+        z_l[i * 3 : i * 3 + 3] = vec
     return z_l
 
 
 def run_simulation(landmark_test_objects):
-    dt = 1.0
+    dt = 10
     timesteps = 1000
 
     ground_truth = np.zeros((timesteps + 1, 6))
     ground_truth_quat = np.zeros((timesteps + 1, 4))
 
     orbit_height = 590  # in km
-    init_state = np.array([R_EARTH + orbit_height * 1000, 0, 0, 0, 7500, 0])
+    init_state = np.array([(R_EARTH + orbit_height * 1000)*1, 0, 0, 0, 10, 7500])
     init_quat = np.array([1, 0, 0, 0])
 
     ground_truth[0, :] = init_state
@@ -203,22 +203,25 @@ def run_simulation(landmark_test_objects):
 
     # Initialize the EKF
     ekf = EKF(
-        r=init_state[0:3],
-        v=init_state[3:6],
+        r=init_state[0:3] + np.random.normal(0, 100, 3),
+        v=init_state[3:6] + np.random.normal(0, 3, 3),
         q=quaternion.as_quat_array(init_quat),
-        P=np.eye(9),
-        Q=np.eye(9) * 1e-6,
+        P=np.eye(6) * 10,
+        Q=np.eye(6) * 1e-12,
         R=np.zeros((3, 3)),
         dt=dt,
     )
 
     # Run the simulation
     for i in range(timesteps):
+        print("timestep", i)
         # Get the IMU measurements
-        imu_update_truth = ground_truth_quat[i + 1, :]  # Stored as float array
+        imu_update_truth = quaternion.as_quat_array(ground_truth_quat[i + 1, :])  # Stored as float array
+        imu_update_truth = quaternion.as_rotation_vector(imu_update_truth)
         gyro_meas, _ = imu.update(imu_update_truth, [0, 0, 0])  # Adds noise to the IMU measurements
 
         # Run EKF prediction step
+        # print(quaternion.from_rotation_vector(gyro_meas))
         ekf.predict(u=gyro_meas)
 
         # Get the measurements
@@ -234,9 +237,15 @@ def run_simulation(landmark_test_objects):
             landmark_list.append(landmark.pos)
         landmark_list = np.array(landmark_list)
         z = (z_landmark, landmark_list)
-
+        
         # Run the EKF post-update step
+        if i == timesteps - 1:
+            print("debug")
+
         ekf.measurement(z)
+        if landmark_list.shape[0] > 0:
+            print("landmark seen")
+        print("error", ekf.r_m - ground_truth[i + 1, :3])
 
 
 if __name__ == "__main__":
