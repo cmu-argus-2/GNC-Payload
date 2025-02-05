@@ -84,10 +84,11 @@ class EKF:
         """
 
         wf = u[0:3]  # angular velocity measurement from IMU
-
         self.r_p = self.r_m + self.dt * self.v_m
         self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
         self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
+
+        # print(quaternion.as_rotation_vector(self.q_p))
 
         # Using RK4 TODO: Add quaternion dynamics into orbit_dynamics.py so we can use the f and f_jac functions
         # A = f_jac(self.x_m, self.dt)
@@ -95,8 +96,7 @@ class EKF:
         # Jacobian
         dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(0.5 * self.dt * wf))
         dadr = (
-            -self.dt
-            * GM_EARTH
+            -self.dt * GM_EARTH
             * (
                 (np.eye(3) / np.linalg.norm(self.r_m) ** 3)
                 - 3 * np.outer(self.r_m, self.r_m) / np.linalg.norm(self.r_m) ** 5
@@ -104,11 +104,17 @@ class EKF:
         )  # Derivative of v_dot w.r.t r
         # dadq is zero as velocity in inertial frame not coupled to quaternion
 
+        # A = np.block(
+        #     [
+        #         [np.eye(3), np.zeros((3, 3)), np.eye(3) * self.dt],
+        #         [np.zeros((3, 3)), dqdq, np.zeros((3, 3))],
+        #         [dadr, np.zeros((3, 3)), np.eye(3)],
+        #     ]
+        # )
         A = np.block(
             [
-                [np.eye(3), np.zeros((3, 3)), np.eye(3) * self.dt],
-                [np.zeros((3, 3)), dqdq, np.zeros((3, 3))],
-                [dadr, np.zeros((3, 3)), np.eye(3)],
+                [np.eye(3), self.dt * np.eye(3)],
+                [dadr, np.eye(3)],
             ]
         )
 
@@ -120,36 +126,44 @@ class EKF:
 
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the landmark positions in ECI coordinates with shape (N, 3)
         """
+        if z[0].shape[0] == 0:
+            self.r_m = self.r_p
+            self.q_m = self.q_p
+            self.v_m = self.v_p
+            self.P_m = self.P_p
 
-        x_p = jnp.array(
-            np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
-        )
-        h = self.h(z[1], x_p)
-        H = self.H(z[1], x_p)
+        else:
+            # x_p = jnp.array(
+            #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
+            # )
+            x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
+            
+            h = self.h(z[1], x_p)
+            H = self.H(z[1], x_p)
 
-        z = z[1].reshape(-1)  # Flatten the measurement vector
+            z = z[0].reshape(-1)  # Flatten the measurement vector
 
-        # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([4e-1] * z.shape[0])
+            # Let R take the dimensionality of the number of measurements
+            self.R = np.diag([1] * z.shape[0])
 
-        S = H @ self.P_p @ H.T + self.R
-        cond = np.linalg.cond(S)
+            S = H @ self.P_p @ H.T + self.R
+            cond = np.linalg.cond(S)
 
-        # Check for ill-conditioned matrix and add regularization if necessary
-        if cond > self.cond_threshold:
-            S += np.eye(S.shape[0]) * 1e-6
+            # Check for ill-conditioned matrix and add regularization if necessary
+            if cond > self.cond_threshold:
+                S += np.eye(S.shape[0]) * 1e-6
 
-        K = self.P_p @ H.T @ np.linalg.inv(S)
+            K = self.P_p @ H.T @ np.linalg.inv(S)
 
-        delta = K @ (z - h)
+            delta = K @ (z - h)
 
-        self.r_m = self.r_p + delta[0:3]
-        self.q_m = self.q_p * quaternion.from_rotation_vector(delta[3:6])
-        self.v_m = self.v_p + delta[6:9]
+            self.r_m = self.r_p + delta[0:3]
+            # self.q_m = self.q_p * quaternion.from_rotation_vector(delta[3:6])
+            self.v_m = self.v_p + delta[3:6]
 
-        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
-            np.eye(self.P_m.shape[0]) - K @ H
-        ).T + K @ self.R @ K.T  # Joseph form covariance update
+            self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
+                np.eye(self.P_m.shape[0]) - K @ H
+            ).T + K @ self.R @ K.T  # Joseph form covariance update
 
     def H(self, z: np.ndarray, x_p: jnp.ndarray) -> np.ndarray:
         """
@@ -160,11 +174,11 @@ class EKF:
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
-        # J = np.zeros((len(z) * 3, 10))
-        # for i, land_pos in enumerate(z):
-        #     deriv = np.eye(3)/np.linalg.norm(x_p[0:3] - land_pos) - np.outer(x_p[0:3] - land_pos, x_p[0:3] - land_pos)/np.linalg.norm(x_p[0:3] - land_pos)**3
-
         jac = jax.jacobian(self.h, argnums=1)(z, x_p)
+        # J = np.zeros((len(z) * 3, 6))
+        # for i, land_pos in enumerate(z):
+        #     deriv = np.eye(3)/np.linalg.norm(x_p[0:3] - land_pos) - np.outer(x_p[0:3] - land_pos, x_p[0:3] - land_pos)/(np.linalg.norm(x_p[0:3] - land_pos)**3)
+
         return jac
 
     def h(self, z: np.ndarray, x_p: np.ndarray) -> np.ndarray:
@@ -179,11 +193,11 @@ class EKF:
         estimate = jnp.zeros((len(z) * 3))
 
         for i, land_pos in enumerate(z):
-            vec = land_pos - x_p[:3]
+            vec = x_p[:3] - land_pos
             vec /= jnp.linalg.norm(vec)
-            body_R_eci = R(rot_2_q(x_p[3:6]))
-            body_vec = body_R_eci @ vec
-            estimate = estimate.at[i * 3 : i * 3 + 3].set(body_vec)
+            # body_R_eci = R(rot_2_q(x_p[3:6]))
+            # body_vec = body_R_eci @ vec
+            estimate = estimate.at[i * 3 : i * 3 + 3].set(vec)
         return estimate
 
 
