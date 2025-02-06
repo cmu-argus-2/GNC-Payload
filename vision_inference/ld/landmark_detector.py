@@ -26,6 +26,7 @@ from PIL import Image
 from ultralytics import YOLO
 
 from vision_inference.logger import Logger
+from vision_inference.frame import Frame
 
 LD_MODEL_SUF = "_nadir.pt"
 
@@ -145,7 +146,7 @@ class LandmarkDetector:
             centroids.append([centroid_lon, centroid_lat])
         return np.array(centroids), np.array(corners)
 
-    def detect_landmarks(self, frame_obj):
+    def detect_landmarks(self, frame_obj: Frame):
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
 
