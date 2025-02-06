@@ -139,7 +139,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         return bearing_unit_vectors_body, landmark_positions_eci
 
 
-class SimulatedMLLandmarkBearingSensor:
+class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
     """
     A sensor that simulates an image of the Earth from the camera's pose and runs the ML pipeline to generate landmark bearing measurements.
     """
