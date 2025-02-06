@@ -167,7 +167,6 @@ class LandmarkDetector:
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['DETECTION_START']}",
         )
 
-        centroid_xy, centroid_latlons, landmark_class, confidence_scores = [], [], [], []
         try:
             # Detect landmarks using the YOLO model
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
