@@ -28,7 +28,7 @@ from typing import Tuple, List
 from vision_inference.camera import Frame
 
 LD_MODEL_SUF = ".pth"
-NUM_CLASS = 16
+NUM_CLASSES = 16
 
 # Define error and info messages
 error_messages = {
@@ -45,7 +45,7 @@ info_messages = {
 
 
 class ClassifierEfficient(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self):
         super(ClassifierEfficient, self).__init__()
         # Using new weights system
         # This uses the most up-to-date weights
@@ -54,7 +54,7 @@ class ClassifierEfficient(nn.Module):
         for param in self.efficientnet.features[:3].parameters():
             param.requires_grad = False
         num_features = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier[1] = nn.Linear(num_features, num_classes)
+        self.efficientnet.classifier[1] = nn.Linear(num_features, NUM_CLASSES)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -71,7 +71,7 @@ class RegionClassifier:
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model = ClassifierEfficient(NUM_CLASS).to(self.device)
+            self.model = ClassifierEfficient().to(self.device)
 
             # Load Custom model weights
             model_weights_path = os.path.join(model_path, "model_effnet_0.997_acc" + LD_MODEL_SUF)
