@@ -11,12 +11,14 @@ Date: January 27, 2025
 """
 
 import os
+from typing import Tuple, List
 
 import cv2
 
 from vision_inference.ld import LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.rc import RegionClassifier
+from vision_inference.camera import Frame
 
 
 class Landmark:
@@ -80,8 +82,7 @@ class MLPipeline:
         """
         self.region_classifier = RegionClassifier()
 
-
-    def classify_frame(self, frame_obj):
+    def classify_frame(self, frame_obj: Frame) -> List[str]:
         """
         Classifies a frame to identify geographic regions using the region classifier.
 
@@ -94,7 +95,7 @@ class MLPipeline:
         predicted_list = self.region_classifier.classify_region(frame_obj)
         return predicted_list
 
-    def run_ml_pipeline_on_batch(self, frames):
+    def run_ml_pipeline_on_batch(self, frames: List[Frame]):
         """
         Processes a series of frames, classifying each for geographic regions and detecting landmarks,
         and returns the detection results along with camera IDs.
@@ -119,7 +120,7 @@ class MLPipeline:
             results.append((frame_obj.camera_id, frame_results))
         return results
 
-    def run_ml_pipeline_on_single(self, frame_obj):
+    def run_ml_pipeline_on_single(self, frame_obj: Frame):
         """
         Processes a single frame, classifying it for geographic regions and detecting landmarks,
         and returns the detection result along with the camera ID.
@@ -158,7 +159,7 @@ class MLPipeline:
         frame_obj.update_landmarks(frame_results)
         return frame_results
 
-    def adjust_color(self, color, confidence):
+    def adjust_color(self, color: Tuple[int], confidence):
         # Option 1: Exponential scaling
         # scale_factor = (confidence ** 2)  # Square the confidence to exaggerate differences
         
