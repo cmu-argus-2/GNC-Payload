@@ -18,6 +18,7 @@ Date: [Creation or Last Update Date]
 import csv
 import os
 import time
+from typing import Tuple, List
 
 import cv2
 import numpy as np
@@ -47,7 +48,7 @@ info_messages = {
 
 class LandmarkDetector:
 
-    def __init__(self, region_id, model_path=None):
+    def __init__(self, region_id: str, model_path: str = None):
         """
         Initialize the LandmarkDetector with a specific region ID and model path
         The YOLO object is created with the path to a specific pretrained model
@@ -60,14 +61,15 @@ class LandmarkDetector:
         self.region_id = region_id
         try:
             self.model = YOLO(os.path.join(model_path, region_id, f"{region_id}_nadir.pt"))
-            self.ground_truth = self.load_ground_truth(
+            self.ground_truth = LandmarkDetector.load_ground_truth(
                 os.path.join(model_path, region_id, f"{region_id}_top_salient.csv")
             )
         except Exception as e:
             Logger.log("ERROR", f"{error_messages['LOADING_FAILED']}: {e}")
             raise
 
-    def load_ground_truth(self, ground_truth_path):
+    @staticmethod
+    def load_ground_truth(ground_truth_path: str) -> List[Tuple[float, float, float, float, float, float]]:
         """
         Loads ground truth bounding box coordinates from a CSV file.
 
