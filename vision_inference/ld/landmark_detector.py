@@ -230,13 +230,9 @@ class LandmarkDetector:
                     )  # Centroid coordinates, convert to int for cleaner logging
                     lat, lon = centroid_latlons[i]
                     conf = confidence_scores[i]
-                    # Format lat and lon to two decimal places
-                    formatted_lat = f"{lat:.2f}"
-                    formatted_lon = f"{lon:.2f}"
-                    formatted_conf = f"{conf:.2f}"
                     Logger.log(
                         "INFO",
-                        f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x}, {y})\t({formatted_lat}, {formatted_lon})\t{formatted_conf}",
+                        f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x}, {y})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
                     )
 
             return centroid_xy, centroid_latlons, landmark_class, confidence_scores
