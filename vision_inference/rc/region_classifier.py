@@ -16,7 +16,7 @@ Date: [Creation or Last Update Date]
 import os
 import yaml
 import cv2
-import time
+from time import perf_counter
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
@@ -123,10 +123,9 @@ class RegionClassifier:
             img = self.transforms(img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
-                start_time = time.time()
+                start_time = perf_counter()
                 outputs = self.model(img)
-                end_time = time.time()
-                inference_time = end_time - start_time
+                inference_time = perf_counter() - start_time
 
                 probabilities = torch.sigmoid(outputs)
                 predicted = (probabilities > 0.55).float()

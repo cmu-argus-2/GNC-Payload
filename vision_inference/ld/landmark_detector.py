@@ -17,7 +17,7 @@ Date: [Creation or Last Update Date]
 
 import csv
 import os
-import time
+from time import perf_counter
 from typing import Tuple, List
 
 import cv2
@@ -170,10 +170,9 @@ class LandmarkDetector:
         try:
             # Detect landmarks using the YOLO model
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
-            start_time = time.time()
+            start_time = perf_counter()
             results = self.model.predict(img, conf=0.5, imgsz=(1088, 1920), verbose=False)
-            end_time = time.time()
-            inference_time = end_time - start_time
+            inference_time = perf_counter() - start_time
 
             landmark_list = []
 
