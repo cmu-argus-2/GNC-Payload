@@ -23,6 +23,9 @@ from torchvision import models, transforms
 from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from PIL import Image
 from vision_inference.logger import Logger
+from typing import Tuple, List
+
+from vision_inference.camera import Frame
 
 LD_MODEL_SUF = ".pth"
 NUM_CLASS = 16
@@ -64,7 +67,7 @@ class RegionClassifier:
     def __init__(self):
         Logger.log("INFO", info_messages["INITIALIZATION_START"])
 
-        model_path, config_path = self.construct_paths()
+        model_path, config_path = RegionClassifier.construct_paths()
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -89,15 +92,17 @@ class RegionClassifier:
             ]
         )
 
-        self.region_ids = self.load_region_ids(config_path)
+        self.region_ids = RegionClassifier.load_region_ids(config_path)
 
-    def construct_paths(self):
+    @staticmethod
+    def construct_paths() -> Tuple[str, str]:
         root = os.path.abspath(os.path.join(__file__, "../../"))
         model_path = os.path.join(root, "models", "rc")
         config_path = os.path.join(root, "configuration", "inference_config.yml")
         return model_path, config_path
 
-    def load_region_ids(self, config_path):
+    @staticmethod
+    def load_region_ids(config_path: str) -> List[str]:
         try:
             with open(config_path, "r") as file:
                 config = yaml.safe_load(file)
@@ -106,7 +111,7 @@ class RegionClassifier:
             Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
             raise
 
-    def classify_region(self, frame_obj):
+    def classify_region(self, frame_obj: Frame) -> List[str]:
         Logger.log(
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['CLASSIFICATION_START']}",
