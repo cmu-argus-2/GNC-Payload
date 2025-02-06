@@ -18,7 +18,7 @@ import cv2
 from vision_inference.ld import LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.rc import RegionClassifier
-from vision_inference.camera import Frame
+from vision_inference.frame import Frame
 
 
 class Landmark:

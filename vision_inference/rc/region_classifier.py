@@ -25,7 +25,7 @@ from PIL import Image
 from vision_inference.logger import Logger
 from typing import Tuple, List
 
-from vision_inference.camera import Frame
+from vision_inference.frame import Frame
 
 LD_MODEL_SUF = ".pth"
 NUM_CLASSES = 16

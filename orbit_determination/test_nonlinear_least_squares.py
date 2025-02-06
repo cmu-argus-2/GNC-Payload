@@ -22,7 +22,7 @@ from utils.earth_utils import lat_lon_to_ecef
 
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 from utils.brahe_utils import increment_epoch
-from vision_inference.camera import Frame
+from vision_inference.frame import Frame
 from vision_inference.ml_pipeline import MLPipeline
 
 
