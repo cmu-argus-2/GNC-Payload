@@ -159,7 +159,8 @@ class MLPipeline:
         frame_obj.update_landmarks(frame_results)
         return frame_results
 
-    def adjust_color(self, color: Tuple[int], confidence):
+    @staticmethod
+    def adjust_color(color: Tuple[int, int, int], confidence):
         # Option 1: Exponential scaling
         # scale_factor = (confidence ** 2)  # Square the confidence to exaggerate differences
 
@@ -212,7 +213,7 @@ class MLPipeline:
 
             for (x, y), confidence, cls in zip(detection_result.centroid_xy, detection_result.confidence_scores,
                                                detection_result.landmark_classes):
-                adjusted_color = self.adjust_color(base_color, confidence)
+                adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
                 # Collect data for top landmarks
