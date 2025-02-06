@@ -55,30 +55,30 @@ class MLPipeline:
     Attributes:
         region_classifier (RegionClassifier): An instance of RegionClassifier for classifying geographic regions in frames.
     """
+    REGION_TO_LOCATION = {
+        '10S': 'California',
+        '10T': 'Washington / Oregon',
+        '11R': 'Baja California, Mexico',
+        '12R': 'Sonora, Mexico',
+        '16T': 'Minnesota / Wisconsin / Iowa / Illinois',
+        '17R': 'Florida',
+        '17T': 'Toronto, Canada / Michigan / OH / PA',
+        '18S': 'New Jersey / Washington DC',
+        '32S': 'Tunisia (North Africa near Tyrrhenian Sea)',
+        '32T': 'Switzerland / Italy / Tyrrhenian Sea',
+        '33S': 'Sicilia, Italy',
+        '33T': 'Italy / Adriatic Sea',
+        '52S': 'Korea / Kumamoto, Japan',
+        '53S': 'Hiroshima to Nagoya, Japan',
+        '54S': 'Tokyo to Hachinohe, Japan',
+        '54T': 'Sapporo, Japan'
+    }
 
     def __init__(self):
         """
         Initializes the MLPipeline class, setting up any necessary components for the machine learning tasks.
         """
         self.region_classifier = RegionClassifier()
-        self.region_to_location = {
-            '10S': 'California',
-            '10T': 'Washington / Oregon',
-            '11R': 'Baja California, Mexico',
-            '12R': 'Sonora, Mexico',
-            '16T': 'Minnesota / Wisconsin / Iowa / Illinois',
-            '17R': 'Florida',
-            '17T': 'Toronto, Canada / Michigan / OH / PA',
-            '18S': 'New Jersey / Washington DC',
-            '32S': 'Tunisia (North Africa near Tyrrhenian Sea)',
-            '32T': 'Switzerland / Italy / Tyrrhenian Sea',
-            '33S': 'Sicilia, Italy',
-            '33T': 'Italy / Adriatic Sea',
-            '52S': 'Korea / Kumamoto, Japan',
-            '53S': 'Hiroshima to Nagoya, Japan',
-            '54S': 'Tokyo to Hachinohe, Japan',
-            '54T': 'Sapporo, Japan'
-        }
 
 
     def classify_frame(self, frame_obj):
@@ -273,7 +273,7 @@ class MLPipeline:
         font_scale_legend = 1.5
         text_thickness_legend = 3
         for region, color in region_color_map.items():
-            location = self.region_to_location.get(region, 'Unknown Location')  # Get the location name or default to 'Unknown Location'
+            location = MLPipeline.REGION_TO_LOCATION.get(region, 'Unknown Location')  # Get the location name or default to 'Unknown Location'
             text = f"Region {region}: {location}"
             (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale_legend, text_thickness_legend)
             overlay = image.copy()
