@@ -1,8 +1,9 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 regions=("10S" "10T" "11R" "12R" "16T" "17R" "17T" "18S" "32S" "32T" "33S" "33T" "52S" "53S" "54S" "54T")
 for region in "${regions[@]}"; do
-  python3 image_downloader/eedl.py \
+  python3 "$SCRIPT_DIR/eedl.py" \
     --grid_key "$region" \
     --idate 2022 \
     --fdate 2023-06-15 \
