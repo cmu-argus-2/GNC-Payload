@@ -107,18 +107,6 @@ class LandmarkDetector:
 
         return bounding_boxes
 
-    def get_latlons(self, bbox_indexes):
-        """
-        Get the latitude and longitude for each detected bounding box based on class index.
-
-        Args:
-            bbox_indexes (list of int): Indexes of bounding boxes in the ground truth data.
-
-        Returns:
-            np.ndarray: Array of bounding box latitudes and longitudes.
-        """
-        return self.ground_truth[bbox_indexes, :2], self.ground_truth[bbox_indexes, 2:]
-
     def detect_landmarks(self, frame_obj: Frame):
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
@@ -177,7 +165,7 @@ class LandmarkDetector:
             confidence_scores = landmark_arr[:, 5]  # Confidence scores
 
             # Additional processing to calculate bounding box corners and lat/lon coordinates
-            centroid_latlons, _ = self.get_latlons(landmark_class)
+            centroid_latlons = self.ground_truth[landmark_class, :2]
 
             Logger.log(
                 "INFO",
