@@ -70,7 +70,7 @@ class LandmarkDetector:
             raise
 
     @staticmethod
-    def load_ground_truth(ground_truth_path: str) -> List[Tuple[float, float, float, float, float, float]]:
+    def load_ground_truth(ground_truth_path: str) -> np.ndarray:
         """
         Loads ground truth bounding box coordinates from a CSV file.
 
@@ -78,28 +78,14 @@ class LandmarkDetector:
             ground_truth_path (str): Path to the ground truth CSV file.
 
         Returns:
-            list of tuples: Each tuple contains (top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat)
+            A numpy array of shape (N, 6) containing the following for each landmark:
+            (centroid_lon, centroid_lat, top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat).
         """
-        ground_truth = []
         try:
-            with open(ground_truth_path, "r", encoding='utf-8') as csvfile:
-                csvreader = csv.reader(csvfile)
-                next(csvreader)  # Skip the header row
-                for row in csvreader:
-                    ground_truth.append(
-                        (
-                            float(row[0]),
-                            float(row[1]),
-                            float(row[2]),
-                            float(row[3]),
-                            float(row[4]),
-                            float(row[5]),
-                        )
-                    )
+            return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)
         except Exception as e:
             Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
             raise
-        return ground_truth
 
     def calculate_bounding_boxes(self, centroid_xy, landmark_wh):
         """
@@ -131,20 +117,7 @@ class LandmarkDetector:
         Returns:
             np.ndarray: Array of bounding box latitudes and longitudes.
         """
-        centroids = []
-        corners = []
-        for index in bbox_indexes:
-            (
-                centroid_lon,
-                centroid_lat,
-                top_left_lon,
-                top_left_lat,
-                bottom_right_lon,
-                bottom_right_lat,
-            ) = self.ground_truth[index]
-            corners.append([top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat])
-            centroids.append([centroid_lon, centroid_lat])
-        return np.array(centroids), np.array(corners)
+        return self.ground_truth[bbox_indexes, :2], self.ground_truth[bbox_indexes, 2:]
 
     def detect_landmarks(self, frame_obj: Frame):
         """
