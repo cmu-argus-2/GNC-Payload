@@ -11,10 +11,11 @@ class Frame:
         self.frame = frame
         self.timestamp = timestamp
         # Generate ID by hashing the timestamp
-        self.frame_id = self.generate_frame_id(timestamp)
+        self.frame_id = Frame.generate_frame_id(timestamp)
         self.landmarks = []
 
-    def generate_frame_id(self, timestamp):
+    @staticmethod
+    def generate_frame_id(timestamp):
         """
         Generates a unique frame ID using the hash of the timestamp.
 
