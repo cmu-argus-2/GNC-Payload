@@ -116,8 +116,6 @@ class RegionClassifier:
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['CLASSIFICATION_START']}",
         )
-        predicted_region_ids = []
-        inference_time = 0
         try:
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
             img = self.transforms(img).unsqueeze(0).to(self.device)
