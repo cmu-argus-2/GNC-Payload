@@ -354,6 +354,5 @@ def main():
 
 
 if __name__ == "__main__":
-    test_geodetic_conversion()
-    sweep_lat_lon_test()
+    # sweep_lat_lon_test()
     main()
