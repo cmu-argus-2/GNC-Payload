@@ -404,7 +404,16 @@ def test_od():
     # ax.legend()
     # plt.show()
 
+def load_brahe_data_files():
+    brahe_directory = os.path.dirname(brahe.__file__)
+    try:
+        print("Updating Brahe data files. Might take a minute ...")
+        brahe.utils.download_all_data(brahe_directory + '/data')
+    except:
+        pass # One or the other files always errors out. Not a problem though
+
 
 if __name__ == "__main__":
     np.random.seed(69420)
+    load_brahe_data_files()
     test_od()
