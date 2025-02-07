@@ -151,7 +151,6 @@ mgrs_utm_exceptions = [
     {"zone": 37, "min_lon": 33, "max_lon": 42, "bands": ["X"]},  # Svalbard
 ]
 
-
 def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
     """
     Vectorized computation of MGRS regions for given latitude and longitude arrays.
