@@ -64,6 +64,11 @@ class ClassifierEfficient(nn.Module):
 
 
 class RegionClassifier:
+    CONFIDENCE_THRESHOLD = 0.55
+    DOWNSAMPLED_SIZE = (224, 224)
+    IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
+    IMAGE_NET_STD = [0.229, 0.224, 0.225]
+
     def __init__(self):
         Logger.log("INFO", info_messages["INITIALIZATION_START"])
 
@@ -86,9 +91,9 @@ class RegionClassifier:
         # Define the preprocessing
         self.transforms = transforms.Compose(
             [
-                transforms.Resize((224, 224)),
+                transforms.Resize(RegionClassifier.DOWNSAMPLED_SIZE),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                transforms.Normalize(mean=RegionClassifier.IMAGE_NET_MEAN, std=RegionClassifier.IMAGE_NET_STD),
             ]
         )
 
@@ -126,7 +131,7 @@ class RegionClassifier:
                 inference_time = perf_counter() - start_time
 
                 probabilities = torch.sigmoid(outputs)
-                predicted = (probabilities > 0.55).float()
+                predicted = (probabilities > RegionClassifier.CONFIDENCE_THRESHOLD).float()
                 predicted_indices = predicted.nonzero(as_tuple=True)[1]
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
 
