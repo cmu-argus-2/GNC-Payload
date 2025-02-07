@@ -1,27 +1,29 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+import os
+import pickle
+import sys
 from typing import Any
 from typing import Tuple
 from time import perf_counter
 from time import time
-import yaml
-import os
-import pickle
 
-import numpy as np
-from scipy.spatial.transform import Rotation
+sys.path.append(os.path.abspath(os.path.join(__file__, "../..")))
 
 import brahe
 from brahe.constants import R_EARTH
 from brahe.epoch import Epoch
+import numpy as np
+from scipy.spatial.transform import Rotation
+import yaml
+
 
 from dynamics.orbital_dynamics import f
 from image_simulation.earth_vis import EarthImageSimulator
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
-from utils.earth_utils import lat_lon_to_ecef
-
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 from utils.brahe_utils import increment_epoch
+from utils.earth_utils import lat_lon_to_ecef
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
 
@@ -242,7 +244,7 @@ def load_config() -> dict[str, Any]:
 
     :return: The modified configuration file as a dictionary.
     """
-    with open("../config.yaml", "r") as file:
+    with open("config.yaml", "r") as file:
         config = yaml.safe_load(file)
 
     # TODO: move this into the config file itself
