@@ -27,6 +27,7 @@ class ODSimulationDataManager:
                                  in the body frame.
     :param landmarks: A numpy array of shape (M, 3) containing the positions of the landmarks in ECI.
     """
+
     starting_epoch: Epoch
     dt: float
 
@@ -82,21 +83,28 @@ class ODSimulationDataManager:
         assert self.states.shape[1] == 6, "States must have shape (N, 6)"
         assert len(self.Rs_body_to_eci.shape) == 3, "Rs_body_to_eci must be a 3D array"
         assert self.Rs_body_to_eci.shape[1:] == (3, 3), "Rs_body_to_eci must have shape (N, 3, 3)"
-        assert self.states.shape[0] == self.Rs_body_to_eci.shape[0], \
-            "states and Rs_body_to_eci must have the same number of entries"
+        assert (
+            self.states.shape[0] == self.Rs_body_to_eci.shape[0]
+        ), "states and Rs_body_to_eci must have the same number of entries"
 
         assert len(self.measurement_indices.shape) == 1, "measurement_indices must be a 1D array"
         assert len(self.bearing_unit_vectors.shape) == 2, "bearing_unit_vectors must be a 2D array"
-        assert self.bearing_unit_vectors.shape[1] == 3, "bearing_unit_vectors must have shape (M, 3)"
+        assert (
+            self.bearing_unit_vectors.shape[1] == 3
+        ), "bearing_unit_vectors must have shape (M, 3)"
         assert len(self.landmarks.shape) == 2, "landmarks must be a 2D array"
         assert self.landmarks.shape[1] == 3, "landmarks must have shape (M, 3)"
-        assert self.measurement_indices.shape[0] == self.bearing_unit_vectors.shape[0], \
-            "measurement_indices and bearing_unit_vectors must have the same number of entries"
-        assert self.measurement_indices.shape[0] == self.landmarks.shape[0], \
-            "measurement_indices and landmarks must have the same number of entries"
+        assert (
+            self.measurement_indices.shape[0] == self.bearing_unit_vectors.shape[0]
+        ), "measurement_indices and bearing_unit_vectors must have the same number of entries"
+        assert (
+            self.measurement_indices.shape[0] == self.landmarks.shape[0]
+        ), "measurement_indices and landmarks must have the same number of entries"
 
         assert np.all(self.measurement_indices >= 0), "measurement_indices must be non-negative"
-        assert np.all(np.diff(self.measurement_indices) >= 0), "measurement_indices must be non-strictly increasing"
+        assert np.all(
+            np.diff(self.measurement_indices) >= 0
+        ), "measurement_indices must be non-strictly increasing"
 
     def push_next_state(self, state, R_body_to_eci) -> None:
         self.states = np.concatenate((self.states, state), axis=0)
@@ -121,9 +129,12 @@ class ODSimulationDataManager:
         measurement_count = bearing_unit_vectors.shape[0]
         assert landmarks.shape[0] == measurement_count
 
-        self.measurement_indices = np.concatenate((self.measurement_indices,
-                                                   np.repeat(t_idx, measurement_count)))
-        self.bearing_unit_vectors = np.concatenate((self.bearing_unit_vectors, bearing_unit_vectors), axis=0)
+        self.measurement_indices = np.concatenate(
+            (self.measurement_indices, np.repeat(t_idx, measurement_count))
+        )
+        self.bearing_unit_vectors = np.concatenate(
+            (self.bearing_unit_vectors, bearing_unit_vectors), axis=0
+        )
         self.landmarks = np.concatenate((self.landmarks, landmarks), axis=0)
 
         self.assert_invariants()

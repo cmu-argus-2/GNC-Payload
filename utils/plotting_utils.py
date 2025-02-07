@@ -23,14 +23,16 @@ def plot_ground_track(lat_lons: np.ndarray) -> None:
     """
     fig, ax = plt.subplots()
     ax.imshow(load_equirectangular_map(), extent=(-180, 180, -90, 90))
-    ax.plot(lat_lons[:, 1], lat_lons[:, 0], color='red')
+    ax.plot(lat_lons[:, 1], lat_lons[:, 0], color="red")
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
     ax.set_title("Ground Track")
     plt.show()
 
 
-def animate_orbits(positions: np.ndarray, estimated_positions: np.ndarray, landmarks: np.ndarray) -> None:
+def animate_orbits(
+    positions: np.ndarray, estimated_positions: np.ndarray, landmarks: np.ndarray
+) -> None:
     """
     Creates an animation where the orbital paths of the true and estimated states are plotted as evolving over time.
     The landmarks are also plotted statically.
@@ -40,19 +42,23 @@ def animate_orbits(positions: np.ndarray, estimated_positions: np.ndarray, landm
     :param landmarks: A numpy array of shape (M, 3) containing the landmark positions.
     """
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ax = fig.add_subplot(111, projection="3d")
 
     for t in range(positions.shape[0]):
         start_idx = max(0, t - 100)
         ax.clear()
-        ax.plot(positions[start_idx:t, 0],
-                positions[start_idx:t, 1],
-                positions[start_idx:t, 2],
-                label="True orbit")
-        ax.plot(estimated_positions[start_idx:t, 0],
-                estimated_positions[start_idx:t, 1],
-                estimated_positions[start_idx:t, 2],
-                label="Estimated orbit")
+        ax.plot(
+            positions[start_idx:t, 0],
+            positions[start_idx:t, 1],
+            positions[start_idx:t, 2],
+            label="True orbit",
+        )
+        ax.plot(
+            estimated_positions[start_idx:t, 0],
+            estimated_positions[start_idx:t, 1],
+            estimated_positions[start_idx:t, 2],
+            label="Estimated orbit",
+        )
         ax.scatter(landmarks[:, 0], landmarks[:, 1], landmarks[:, 2], label="Landmarks")
 
         ax.set_xlim(-1.5 * R_EARTH, 1.5 * R_EARTH)

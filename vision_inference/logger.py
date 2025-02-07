@@ -29,7 +29,7 @@ Configuration:
     - `log_level`: Sets the threshold for the log messages that are to be handled. Lower levels will be ignored.
 
 Initialization:
-    Logger is initialized automatically on first use with default settings, but it can be re-configured anytime 
+    Logger is initialized automatically on first use with default settings, but it can be re-configured anytime
     with `Logger.configure()` method to suit different operational needs such as during different phases of a mission.
 
 Author(s): Eddie
