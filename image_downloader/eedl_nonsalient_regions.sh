@@ -15,7 +15,7 @@ for zone in {1..60}; do
       continue
     fi
 
-    python3 eedl.py \
+    python3 image_downloader/eedl.py \
       --grid_key "$region" \
       --idate 2022 \
       --fdate 2023-06-15 \
