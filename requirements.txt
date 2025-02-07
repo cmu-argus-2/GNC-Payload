@@ -1,5 +1,6 @@
 black==24.10.0
 git+https://github.com/duncaneddy/brahe.git@master
+git+https://github.com/cmu-argus-1/custom_ultralytics.git@main
 earthengine_api==1.4.5
 pre-commit==4.1.0
 matplotlib==3.10.0
@@ -19,5 +20,4 @@ torch==2.5.1
 torchvision==0.20.1
 typeguard==4.4.1
 tqdm==4.67.1
-ultralytics==8.3.65
 wandb==0.19.4
