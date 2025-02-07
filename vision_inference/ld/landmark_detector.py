@@ -17,7 +17,8 @@ Date: [Creation or Last Update Date]
 
 import csv
 import os
-import time
+from time import perf_counter
+from typing import Tuple, List
 
 import cv2
 import numpy as np
@@ -25,6 +26,7 @@ from PIL import Image
 from ultralytics import YOLO
 
 from vision_inference.logger import Logger
+from vision_inference.frame import Frame
 
 LD_MODEL_SUF = "_nadir.pt"
 
@@ -47,7 +49,7 @@ info_messages = {
 
 class LandmarkDetector:
 
-    def __init__(self, region_id, model_path=None):
+    def __init__(self, region_id: str, model_path: str = None):
         """
         Initialize the LandmarkDetector with a specific region ID and model path
         The YOLO object is created with the path to a specific pretrained model
@@ -60,14 +62,15 @@ class LandmarkDetector:
         self.region_id = region_id
         try:
             self.model = YOLO(os.path.join(model_path, region_id, f"{region_id}_nadir.pt"))
-            self.ground_truth = self.load_ground_truth(
+            self.ground_truth = LandmarkDetector.load_ground_truth(
                 os.path.join(model_path, region_id, f"{region_id}_top_salient.csv")
             )
         except Exception as e:
             Logger.log("ERROR", f"{error_messages['LOADING_FAILED']}: {e}")
             raise
 
-    def load_ground_truth(self, ground_truth_path):
+    @staticmethod
+    def load_ground_truth(ground_truth_path: str) -> List[Tuple[float, float, float, float, float, float]]:
         """
         Loads ground truth bounding box coordinates from a CSV file.
 
@@ -143,101 +146,96 @@ class LandmarkDetector:
             centroids.append([centroid_lon, centroid_lat])
         return np.array(centroids), np.array(corners)
 
-    def detect_landmarks(self, frame_obj):
-            """
-            Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
+    def detect_landmarks(self, frame_obj: Frame):
+        """
+        Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
 
-            Args:
-                img (np.ndarray): The input image array on which to perform landmark detection.
+        Args:
+            img (np.ndarray): The input image array on which to perform landmark detection.
 
-            Returns:
-                tuple: A tuple containing several numpy arrays:
-                    - centroid_xy (np.ndarray): Array of [x, y] coordinates for the centroids of detected landmarks.
-                    - centroid_latlons (np.ndarray): Array of geographical coordinates [latitude, longitude] for each detected landmark's centroid, based on class ID.
-                    - landmark_class (np.ndarray): Array of class IDs for each detected landmark.
-                    - confidence_scores
+        Returns:
+            tuple: A tuple containing several numpy arrays:
+                - centroid_xy (np.ndarray): Array of [x, y] coordinates for the centroids of detected landmarks.
+                - centroid_latlons (np.ndarray): Array of geographical coordinates [latitude, longitude] for each detected landmark's centroid, based on class ID.
+                - landmark_class (np.ndarray): Array of class IDs for each detected landmark.
+                - confidence_scores
 
-            The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions. It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
-            """
+        The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions. It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
+        """
+        Logger.log(
+            "INFO",
+            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['DETECTION_START']}",
+        )
+
+        try:
+            # Detect landmarks using the YOLO model
+            img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
+            start_time = perf_counter()
+            results = self.model.predict(img, conf=0.5, imgsz=(1088, 1920), verbose=False)
+            inference_time = perf_counter() - start_time
+
+            landmark_list = []
+
+            for result in results:
+                landmarks = result.boxes
+
+                if landmarks:  # Sanity Check
+                    # Iterate over each detected bounding box (landmark)
+                    for landmark in landmarks:
+                        x, y, w, h = landmark.xywh[0]
+                        cls = landmark.cls[0].item()
+                        conf = landmark.conf[0].item()
+
+                        if w < 0 or h < 0:
+                            Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
+                            continue
+
+                        landmark_list.append([x, y, cls, w, h, conf])
+
+            if not landmark_list:
+                Logger.log("INFO",
+                           f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.")
+                return None, None, None, None
+
+            landmark_arr = np.array(landmark_list)
+
+            centroid_xy = landmark_arr[:, :2]
+            landmark_class = landmark_arr[:, 2].astype(int)
+            confidence_scores = landmark_arr[:, 5]  # Confidence scores
+
+            # Additional processing to calculate bounding box corners and lat/lon coordinates
+            centroid_latlons, _ = self.get_latlons(landmark_class)
+
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['DETECTION_START']}",
+                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_list)} landmarks detected.",
+            )
+            Logger.log(
+                "INFO",
+                f"Inference completed in {inference_time:.2f} seconds."
             )
 
-            centroid_xy, centroid_latlons, landmark_class, confidence_scores = [], [], [], []
-            try:
-                # Detect landmarks using the YOLO model
-                img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
-                start_time = time.time()
-                results = self.model.predict(img, conf=0.5, imgsz=(1088, 1920), verbose=False)
-                end_time = time.time()
-                inference_time = end_time - start_time
-
-                landmark_list = []
-
-                for result in results:
-                    landmarks = result.boxes
-
-                    if landmarks:  # Sanity Check
-                        # Iterate over each detected bounding box (landmark)
-                        for landmark in landmarks:
-                            x, y, w, h = landmark.xywh[0]
-                            cls = landmark.cls[0].item()
-                            conf = landmark.conf[0].item()
-
-                            if w < 0 or h < 0:
-                                Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
-                                continue
-
-                            landmark_list.append([x, y, cls, w, h, conf])
-
-                if not landmark_list:
-                    Logger.log("INFO", f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.")
-                    return None, None, None, None
-
-                landmark_arr = np.array(landmark_list)
-
-                centroid_xy = landmark_arr[:, :2]
-                landmark_class = landmark_arr[:, 2].astype(int)
-                confidence_scores = landmark_arr[:, 5]  # Confidence scores
-
-                # Additional processing to calculate bounding box corners and lat/lon coordinates
-                centroid_latlons, _ = self.get_latlons(landmark_class)
-
+            # Logging details for each detected landmark
+            if landmark_arr.size > 0:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_list)} landmarks detected.",
+                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
                 )
-                Logger.log(
-                    "INFO",
-                    f"Inference completed in {inference_time:.2f} seconds."
-                )
-                
-                # Logging details for each detected landmark
-                if landmark_arr.size > 0:
+                for i in range(len(landmark_list)):
+                    # Class ID, convert to int for cleaner logging
+                    cls = int(landmark_arr[i, 2])
+                    x, y = int(landmark_arr[i, 0]), int(
+                        landmark_arr[i, 1]
+                    )  # Centroid coordinates, convert to int for cleaner logging
+                    lat, lon = centroid_latlons[i]
+                    conf = confidence_scores[i]
                     Logger.log(
                         "INFO",
-                        f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
+                        f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x}, {y})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
                     )
-                    for i in range(len(landmark_list)):
-                        # Class ID, convert to int for cleaner logging
-                        cls = int(landmark_arr[i, 2])
-                        x, y = int(landmark_arr[i, 0]), int(
-                            landmark_arr[i, 1]
-                        )  # Centroid coordinates, convert to int for cleaner logging
-                        lat, lon = centroid_latlons[i]  
-                        conf = confidence_scores[i]
-                        # Format lat and lon to two decimal places
-                        formatted_lat = f"{lat:.2f}"
-                        formatted_lon = f"{lon:.2f}"
-                        formatted_conf = f"{conf:.2f}"
-                        Logger.log(
-                            "INFO",
-                            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x}, {y})\t({formatted_lat}, {formatted_lon})\t{formatted_conf}",
-                        )
 
-                return centroid_xy, centroid_latlons, landmark_class, confidence_scores
+            return centroid_xy, centroid_latlons, landmark_class, confidence_scores
 
-            except Exception as e:
-                Logger.log("ERROR", f"Detection failed: {str(e)}")
-                raise
+        except Exception as e:
+            Logger.log("ERROR", f"Detection failed: {str(e)}")
+            raise

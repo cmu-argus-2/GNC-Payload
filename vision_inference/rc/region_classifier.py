@@ -16,16 +16,19 @@ Date: [Creation or Last Update Date]
 import os
 import yaml
 import cv2
-import time
+from time import perf_counter
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from PIL import Image
 from vision_inference.logger import Logger
+from typing import Tuple, List
+
+from vision_inference.frame import Frame
 
 LD_MODEL_SUF = ".pth"
-NUM_CLASS = 16
+NUM_CLASSES = 16
 
 # Define error and info messages
 error_messages = {
@@ -42,7 +45,7 @@ info_messages = {
 
 
 class ClassifierEfficient(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self):
         super(ClassifierEfficient, self).__init__()
         # Using new weights system
         # This uses the most up-to-date weights
@@ -51,7 +54,7 @@ class ClassifierEfficient(nn.Module):
         for param in self.efficientnet.features[:3].parameters():
             param.requires_grad = False
         num_features = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier[1] = nn.Linear(num_features, num_classes)
+        self.efficientnet.classifier[1] = nn.Linear(num_features, NUM_CLASSES)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -61,14 +64,19 @@ class ClassifierEfficient(nn.Module):
 
 
 class RegionClassifier:
+    CONFIDENCE_THRESHOLD = 0.55
+    DOWNSAMPLED_SIZE = (224, 224)
+    IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
+    IMAGE_NET_STD = [0.229, 0.224, 0.225]
+
     def __init__(self):
         Logger.log("INFO", info_messages["INITIALIZATION_START"])
 
-        model_path, config_path = self.construct_paths()
+        model_path, config_path = RegionClassifier.construct_paths()
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model = ClassifierEfficient(NUM_CLASS).to(self.device)
+            self.model = ClassifierEfficient().to(self.device)
 
             # Load Custom model weights
             model_weights_path = os.path.join(model_path, "model_effnet_0.997_acc" + LD_MODEL_SUF)
@@ -83,21 +91,23 @@ class RegionClassifier:
         # Define the preprocessing
         self.transforms = transforms.Compose(
             [
-                transforms.Resize((224, 224)),
+                transforms.Resize(RegionClassifier.DOWNSAMPLED_SIZE),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                transforms.Normalize(mean=RegionClassifier.IMAGE_NET_MEAN, std=RegionClassifier.IMAGE_NET_STD),
             ]
         )
 
-        self.region_ids = self.load_region_ids(config_path)
+        self.region_ids = RegionClassifier.load_region_ids(config_path)
 
-    def construct_paths(self):
+    @staticmethod
+    def construct_paths() -> Tuple[str, str]:
         root = os.path.abspath(os.path.join(__file__, "../../"))
         model_path = os.path.join(root, "models", "rc")
         config_path = os.path.join(root, "configuration", "inference_config.yml")
         return model_path, config_path
 
-    def load_region_ids(self, config_path):
+    @staticmethod
+    def load_region_ids(config_path: str) -> List[str]:
         try:
             with open(config_path, "r") as file:
                 config = yaml.safe_load(file)
@@ -106,25 +116,22 @@ class RegionClassifier:
             Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
             raise
 
-    def classify_region(self, frame_obj):
+    def classify_region(self, frame_obj: Frame) -> List[str]:
         Logger.log(
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['CLASSIFICATION_START']}",
         )
-        predicted_region_ids = []
-        inference_time = 0
         try:
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
             img = self.transforms(img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
-                start_time = time.time()
+                start_time = perf_counter()
                 outputs = self.model(img)
-                end_time = time.time()
-                inference_time = end_time - start_time
+                inference_time = perf_counter() - start_time
 
                 probabilities = torch.sigmoid(outputs)
-                predicted = (probabilities > 0.55).float()
+                predicted = (probabilities > RegionClassifier.CONFIDENCE_THRESHOLD).float()
                 predicted_indices = predicted.nonzero(as_tuple=True)[1]
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
 

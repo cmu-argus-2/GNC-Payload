@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# TODO: add cloud cover filter
 regions=("10S" "10T" "11R" "12R" "16T" "17R" "17T" "18S" "32S" "32T" "33S" "33T" "52S" "53S" "54S" "54T")
 for region in "${regions[@]}"; do
   python3 eedl.py \

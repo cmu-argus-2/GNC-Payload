@@ -11,12 +11,14 @@ Date: January 27, 2025
 """
 
 import os
+from typing import Tuple, List
 
 import cv2
 
 from vision_inference.ld import LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.rc import RegionClassifier
+from vision_inference.frame import Frame
 
 
 class Landmark:
@@ -55,33 +57,32 @@ class MLPipeline:
     Attributes:
         region_classifier (RegionClassifier): An instance of RegionClassifier for classifying geographic regions in frames.
     """
+    REGION_TO_LOCATION = {
+        '10S': 'California',
+        '10T': 'Washington / Oregon',
+        '11R': 'Baja California, Mexico',
+        '12R': 'Sonora, Mexico',
+        '16T': 'Minnesota / Wisconsin / Iowa / Illinois',
+        '17R': 'Florida',
+        '17T': 'Toronto, Canada / Michigan / OH / PA',
+        '18S': 'New Jersey / Washington DC',
+        '32S': 'Tunisia (North Africa near Tyrrhenian Sea)',
+        '32T': 'Switzerland / Italy / Tyrrhenian Sea',
+        '33S': 'Sicilia, Italy',
+        '33T': 'Italy / Adriatic Sea',
+        '52S': 'Korea / Kumamoto, Japan',
+        '53S': 'Hiroshima to Nagoya, Japan',
+        '54S': 'Tokyo to Hachinohe, Japan',
+        '54T': 'Sapporo, Japan'
+    }
 
     def __init__(self):
         """
         Initializes the MLPipeline class, setting up any necessary components for the machine learning tasks.
         """
         self.region_classifier = RegionClassifier()
-        self.region_to_location = {
-            '10S': 'California',
-            '10T': 'Washington / Oregon',
-            '11R': 'Baja California, Mexico',
-            '12R': 'Sonora, Mexico',
-            '16T': 'Minnesota / Wisconsin / Iowa / Illinois',
-            '17R': 'Florida',
-            '17T': 'Toronto, Canada / Michigan / OH / PA',
-            '18S': 'New Jersey / Washington DC',
-            '32S': 'Tunisia (North Africa near Tyrrhenian Sea)',
-            '32T': 'Switzerland / Italy / Tyrrhenian Sea',
-            '33S': 'Sicilia, Italy',
-            '33T': 'Italy / Adriatic Sea',
-            '52S': 'Korea / Kumamoto, Japan',
-            '53S': 'Hiroshima to Nagoya, Japan',
-            '54S': 'Tokyo to Hachinohe, Japan',
-            '54T': 'Sapporo, Japan'
-        }
 
-
-    def classify_frame(self, frame_obj):
+    def classify_frame(self, frame_obj: Frame) -> List[str]:
         """
         Classifies a frame to identify geographic regions using the region classifier.
 
@@ -94,7 +95,7 @@ class MLPipeline:
         predicted_list = self.region_classifier.classify_region(frame_obj)
         return predicted_list
 
-    def run_ml_pipeline_on_batch(self, frames):
+    def run_ml_pipeline_on_batch(self, frames: List[Frame]):
         """
         Processes a series of frames, classifying each for geographic regions and detecting landmarks,
         and returns the detection results along with camera IDs.
@@ -119,7 +120,7 @@ class MLPipeline:
             results.append((frame_obj.camera_id, frame_results))
         return results
 
-    def run_ml_pipeline_on_single(self, frame_obj):
+    def run_ml_pipeline_on_single(self, frame_obj: Frame):
         """
         Processes a single frame, classifying it for geographic regions and detecting landmarks,
         and returns the detection result along with the camera ID.
@@ -146,9 +147,9 @@ class MLPipeline:
             detector = LandmarkDetector(region_id=region)
             centroid_xy, centroid_latlons, landmark_classes, confidence_scores = detector.detect_landmarks(frame_obj)
             if (
-                centroid_xy is not None
-                and centroid_latlons is not None
-                and landmark_classes is not None
+                    centroid_xy is not None
+                    and centroid_latlons is not None
+                    and landmark_classes is not None
             ):
                 landmark = Landmark(centroid_xy, centroid_latlons, landmark_classes, confidence_scores)
                 frame_results.append((region, landmark))
@@ -158,22 +159,23 @@ class MLPipeline:
         frame_obj.update_landmarks(frame_results)
         return frame_results
 
-    def adjust_color(self, color, confidence):
+    @staticmethod
+    def adjust_color(color: Tuple[int, int, int], confidence):
         # Option 1: Exponential scaling
         # scale_factor = (confidence ** 2)  # Square the confidence to exaggerate differences
-        
+
         # Option 2: Offset and scaling adjustment
         # This ensures that even low confidence values have a noticeable color intensity
-        #min_factor = 0.5  # Ensure that even the lowest confidence gives us at least half the color intensity
-        #scale_factor = min_factor + (1 - min_factor) * confidence
-        
+        # min_factor = 0.5  # Ensure that even the lowest confidence gives us at least half the color intensity
+        # scale_factor = min_factor + (1 - min_factor) * confidence
+
         # Option 3: Squared scaling (chosen for demonstration)
         # More dramatic effect as confidence increases
         scale_factor = confidence ** 2
-        
+
         # Apply the scale factor to the color components
         adjusted_color = tuple(int(c * scale_factor) for c in color)
-        
+
         return adjusted_color
 
     # TODO: Improve the readability of this method.
@@ -184,6 +186,9 @@ class MLPipeline:
         """
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
+
+        # TODO: less hacky fix for RGB to BGR conversion
+        frame_obj.frame = cv2.cvtColor(frame_obj.frame, cv2.COLOR_RGB2BGR)
 
         image = frame_obj.frame.copy()
 
@@ -199,24 +204,25 @@ class MLPipeline:
         region_color_map = {}
         circle_radius = 15
         circle_thickness = -1
-        
+
         top_landmarks = []  # List to store top landmarks for display
 
         for idx, (region, detection_result) in enumerate(regions_and_landmarks):
             base_color = colors[idx % len(colors)]
             region_color_map[region] = base_color
 
-            for (x, y), confidence, cls in zip(detection_result.centroid_xy, detection_result.confidence_scores, detection_result.landmark_classes):
-                adjusted_color = self.adjust_color(base_color, confidence)
+            for (x, y), confidence, cls in zip(detection_result.centroid_xy, detection_result.confidence_scores,
+                                               detection_result.landmark_classes):
+                adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
-                
+
                 # Collect data for top landmarks
                 top_landmarks.append((region, confidence, (x, y), detection_result.centroid_latlons))
 
         # Sort landmarks by confidence, descending, and keep the top 5
         top_landmarks.sort(key=lambda x: x[1], reverse=True)
         top_landmarks = top_landmarks[:5]
-        
+
         # ========================== Metadata displaying ========================================
         # Metadata drawing first to determine right edge for alignment
         metadata_info = f"Camera ID: {frame_obj.camera_id} | Time: {frame_obj.timestamp} | Frame: {frame_obj.frame_id}"
@@ -230,11 +236,13 @@ class MLPipeline:
 
         # Draw semi-transparent rectangle for metadata
         overlay = image.copy()
-        cv2.rectangle(overlay, (metadata_text_x, metadata_text_y - metadata_text_size[1] - 10), (metadata_text_x + metadata_text_size[0] + 10, metadata_text_y + 10), (50, 50, 50), -1)
+        cv2.rectangle(overlay, (metadata_text_x, metadata_text_y - metadata_text_size[1] - 10),
+                      (metadata_text_x + metadata_text_size[0] + 10, metadata_text_y + 10), (50, 50, 50), -1)
         image = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
 
         # Place metadata text
-        cv2.putText(image, metadata_info, (metadata_text_x, metadata_text_y), font, metadata_font_scale, (255, 255, 255), text_thickness)
+        cv2.putText(image, metadata_info, (metadata_text_x, metadata_text_y), font, metadata_font_scale,
+                    (255, 255, 255), text_thickness)
 
         # Prepare for Top Landmarks box
         top_legend_x = metadata_text_x  # Align with the left edge of metadata text
@@ -249,8 +257,8 @@ class MLPipeline:
         text_entries = []
         for i, (cls, confidence, (x, y), latlons) in enumerate(top_landmarks):
             latitude = latlons[0].item(0)
-            longitude = latlons[1].item(0)
-            text = f"Top {i+1}: Region {region}, Conf: {confidence:.2f}, XY: ({int(x)}, {int(y)}), LatLon: ({latitude:.2f}, {longitude:.2f})"
+            longitude = latlons[1].item(0)  # TODO: bug fix: index 1 is out of range for dimension of size 1
+            text = f"Top {i + 1}: Region {region}, Conf: {confidence:.2f}, XY: ({int(x)}, {int(y)}), LatLon: ({latitude:.2f}, {longitude:.2f})"
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width
             total_height += entry_height
@@ -258,7 +266,8 @@ class MLPipeline:
 
         # Draw semi-transparent rectangle for top landmarks
         overlay = image.copy()
-        cv2.rectangle(overlay, (top_legend_x, top_legend_y), (top_legend_x + max_width, top_legend_y + total_height + 10), (50, 50, 50), -1)
+        cv2.rectangle(overlay, (top_legend_x, top_legend_y),
+                      (top_legend_x + max_width, top_legend_y + total_height + 10), (50, 50, 50), -1)
         image = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
 
         # Place each text entry
@@ -270,15 +279,17 @@ class MLPipeline:
         font_scale_legend = 1.5
         text_thickness_legend = 3
         for region, color in region_color_map.items():
-            location = self.region_to_location.get(region, 'Unknown Location')  # Get the location name or default to 'Unknown Location'
+            location = MLPipeline.REGION_TO_LOCATION.get(region, 'Unknown Location')  # Get the location name or default to 'Unknown Location'
             text = f"Region {region}: {location}"
             (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale_legend, text_thickness_legend)
             overlay = image.copy()
             # Draw a semi-transparent rectangle
-            cv2.rectangle(overlay, (legend_x, legend_y), (legend_x + text_width, legend_y + text_height + 10), color, -1)
+            cv2.rectangle(overlay, (legend_x, legend_y), (legend_x + text_width, legend_y + text_height + 10), color,
+                          -1)
             cv2.addWeighted(overlay, 0.5, image, 0.5, 0, image)
             # Put the text on the image
-            cv2.putText(image, text, (legend_x, legend_y + text_height), font, font_scale_legend, (255, 255, 255), text_thickness_legend)
+            cv2.putText(image, text, (legend_x, legend_y + text_height), font, font_scale_legend, (255, 255, 255),
+                        text_thickness_legend)
             # Move down for the next entry
             legend_y += text_height + 10
 
@@ -298,4 +309,3 @@ class MLPipeline:
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Landmark visualization saved to data/inference_output",
         )
-

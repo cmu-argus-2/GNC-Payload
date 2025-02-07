@@ -5,7 +5,7 @@ import numpy as np
 import rasterio
 
 from utils.earth_utils import calculate_mgrs_zones
-from utils.earth_utils import convert_to_lat_lon
+from utils.earth_utils import ecef_to_lat_lon
 from utils.earth_utils import get_nadir_rotation
 from utils.earth_utils import lat_lon_to_ecef
 
@@ -48,7 +48,7 @@ class EarthImageSimulator:
         intersection_points = intersect_ellipsoid(ray_directions_ecef, position)
 
         # Convert intersection points to lat/lon
-        lat_lon = convert_to_lat_lon(intersection_points)
+        lat_lon = ecef_to_lat_lon(intersection_points)
 
         # Flatten latitude/longitude grid
         lat_lon_flat = lat_lon.reshape(-1, 2)
@@ -264,32 +264,6 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
     return intersection_points
 
 
-# TODO: Move tests to a separate file
-def test_geodetic_conversion():
-    # convert_to_ecef was ChatGPT generated, it also produced this test
-
-    # Generate a grid of latitude and longitude values
-    latitudes = np.linspace(-90, 90, num=10)
-    longitudes = np.linspace(-180, 180, num=10)
-    lon_grid, lat_grid = np.meshgrid(longitudes, latitudes)
-    H, W = lat_grid.shape
-    lat_lon = np.stack((lat_grid, lon_grid), axis=2)  # Shape (H, W, 2)
-
-    # Convert lat/lon to ECEF using the inverse function
-    ecef_points = lat_lon_to_ecef(lat_lon)
-
-    # Convert ECEF back to lat/lon using the original function
-    lat_lon_reconstructed = convert_to_lat_lon(ecef_points)
-
-    # Compute differences
-    lat_diff = lat_lon[:, :, 0] - lat_lon_reconstructed[:, :, 0]
-    lon_diff = lat_lon[:, :, 1] - lat_lon_reconstructed[:, :, 1]
-
-    # Print maximum differences
-    print("Maximum latitude difference (degrees):", np.max(np.abs(lat_diff)))
-    print("Maximum longitude difference (degrees):", np.max(np.abs(lon_diff)))
-
-
 def query_pixel_colors(latitudes, longitudes, image_data, trans):
     latitudes_flat = latitudes.flatten()
     longitudes_flat = longitudes.flatten()
@@ -380,6 +354,5 @@ def main():
 
 
 if __name__ == "__main__":
-    test_geodetic_conversion()
-    sweep_lat_lon_test()
+    # sweep_lat_lon_test()
     main()
