@@ -8,8 +8,6 @@ from typing import Tuple
 from time import perf_counter
 from time import time
 
-sys.path.append(os.path.abspath(os.path.join(__file__, "../..")))
-
 import brahe
 from brahe.constants import R_EARTH
 from brahe.epoch import Epoch
