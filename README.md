@@ -35,6 +35,13 @@ pip install -r ./requirements.txt
 
 This should set up the environment and packages needed but this can be flaky if pip uses cached packages it finds on your machine. 
 
+### Special Installations
+The version of Brahe on PyPI is not up to date, and we have a custom version of ultralytics, so you have to install these packages directly from the latest code on GitHub using the following commands. TODO: can we integrate this into environment_training.yml?
+```
+pip install git+https://github.com/duncaneddy/brahe.git@master
+pip install git+https://github.com/cmu-argus-1/custom_ultralytics@main
+```
+
 ## Pre-Commit Hook 
 A pre-commit hook can be set up to run pylint and black formatter.
 
