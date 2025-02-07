@@ -87,26 +87,6 @@ class LandmarkDetector:
             Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
             raise
 
-    def calculate_bounding_boxes(self, centroid_xy, landmark_wh):
-        """
-        Calculate the top-left and bottom-right coordinates of bounding boxes from centroids and dimensions.
-
-        Args:
-            centroid_xy (np.ndarray): Centroid coordinates of the landmarks as [x, y].
-            landmark_wh (np.ndarray): Dimensions of the landmarks as [width, height].
-
-        Returns:
-            np.ndarray: An array of shape (n, 4), with each row containing the top-left and bottom-right coordinates of the bounding boxes.
-        """
-        # Calculate the top-left and bottom-right coordinates of the bounding boxes
-        top_left = centroid_xy - landmark_wh / 2
-        bottom_right = centroid_xy + landmark_wh / 2
-
-        # Combine top-left and bottom-right into a single numpy array of shape (n, 4)
-        bounding_boxes = np.hstack((top_left, bottom_right))
-
-        return bounding_boxes
-
     def detect_landmarks(self, frame_obj: Frame):
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
