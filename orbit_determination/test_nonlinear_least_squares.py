@@ -131,7 +131,7 @@ def test_od():
     print(f"Elapsed time: {perf_counter() - start_time:.2f} s")
 
     position_errors = np.linalg.norm(data_manager.states[:, :3] - estimated_states[:, :3], axis=1)
-    rms_position_error = np.sqrt(np.mean(position_errors ** 2))
+    rms_position_error = np.sqrt(np.mean(position_errors**2))
     print(f"RMS position error: {rms_position_error}")
 
     # fig = plt.figure()
@@ -151,6 +151,16 @@ def test_od():
     # plt.show()
 
 
+def load_brahe_data_files():
+    brahe_directory = os.path.dirname(brahe.__file__)
+    try:
+        print("Updating Brahe data files. Might take a minute ...")
+        brahe.utils.download_all_data(brahe_directory + "/data")
+    except:
+        pass  # One or the other files always errors out. Not a problem though
+
+
 if __name__ == "__main__":
     np.random.seed(69420)
+    load_brahe_data_files()
     test_od()
