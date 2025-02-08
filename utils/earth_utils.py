@@ -32,9 +32,9 @@ def convert_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
     lon = np.degrees(np.arctan2(y, x))
 
     # Geodetic latitude calculation (iterative approach)
-    e2 = (a ** 2 - b ** 2) / a ** 2  # First eccentricity squared
-    ep2 = (a ** 2 - b ** 2) / b ** 2  # Second eccentricity squared
-    p = np.sqrt(x ** 2 + y ** 2)
+    e2 = (a**2 - b**2) / a**2  # First eccentricity squared
+    ep2 = (a**2 - b**2) / b**2  # Second eccentricity squared
+    p = np.sqrt(x**2 + y**2)
 
     # Initial approximation of latitude
     theta = np.arctan2(z * a, p * b)
@@ -72,7 +72,7 @@ def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
     lon_rad = np.radians(lon)
 
     # First eccentricity squared
-    e2 = (a ** 2 - b ** 2) / a ** 2
+    e2 = (a**2 - b**2) / a**2
 
     # Prime vertical radius of curvature
     N = a / np.sqrt(1 - e2 * np.sin(lat_rad) ** 2)
@@ -109,6 +109,7 @@ def get_nadir_rotation(satellite_position):
     R = np.stack([xc, yc, zc], axis=-1)
     return R
 
+
 # Define MGRS latitude bands and UTM exceptions
 mgrs_latitude_bands = [
     {"name": "C", "min_lat": -80, "max_lat": -72},
@@ -141,6 +142,7 @@ mgrs_utm_exceptions = [
     {"zone": 37, "min_lon": 33, "max_lon": 42, "bands": ["X"]},  # Svalbard
 ]
 
+
 def calculate_mgrs_zones(latitudes, longitudes):
     """
     Vectorized computation of MGRS regions for given latitude and longitude arrays.
@@ -154,7 +156,9 @@ def calculate_mgrs_zones(latitudes, longitudes):
     """
     # Create lookup tables for vectorized latitude band calculation
     latitude_band_names = np.array([band["name"] for band in mgrs_latitude_bands])
-    latitude_band_edges = np.array([[band["min_lat"], band["max_lat"]] for band in mgrs_latitude_bands])
+    latitude_band_edges = np.array(
+        [[band["min_lat"], band["max_lat"]] for band in mgrs_latitude_bands]
+    )
 
     # Flatten lat/lon for processing
     lat_flat = latitudes.ravel()
@@ -172,15 +176,16 @@ def calculate_mgrs_zones(latitudes, longitudes):
     # Apply UTM exceptions
     for exception in mgrs_utm_exceptions:
         mask = (
-                (lon_flat >= exception["min_lon"]) &
-                (lon_flat < exception["max_lon"]) &
-                np.isin(lat_bands, exception["bands"])
+            (lon_flat >= exception["min_lon"])
+            & (lon_flat < exception["max_lon"])
+            & np.isin(lat_bands, exception["bands"])
         )
         utm_zones[mask] = exception["zone"]
 
     # Combine UTM zones and latitude bands
-    mgrs_regions = np.array([f"{zone}{band}" if band is not None else None
-                             for zone, band in zip(utm_zones, lat_bands)])
+    mgrs_regions = np.array(
+        [f"{zone}{band}" if band is not None else None for zone, band in zip(utm_zones, lat_bands)]
+    )
 
     # Reshape to match input lat/lon shape
     return mgrs_regions.reshape(latitudes.shape)

@@ -13,9 +13,7 @@ from utils.plotting_utils import plot_ground_track
 def test_plot_ground_track():
     config = load_config()
 
-    starting_epoch = Epoch(
-        *brahe.time.mjd_to_caldate(config["mission"]["start_date"])
-    )
+    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] * config["solver"]["world_update_rate"]))
     dt = 1 / config["solver"]["world_update_rate"]
     state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)

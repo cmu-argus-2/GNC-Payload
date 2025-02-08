@@ -1,10 +1,10 @@
 """
 Frame Processing Module for Vision-Based Systems
 
-This module defines a FrameProcessor class that preprocesses video frames for different analytical tasks in vision-based systems. 
-The primary focus of this class is to filter and prepare frames based on specific criteria such as brightness levels, which can 
+This module defines a FrameProcessor class that preprocesses video frames for different analytical tasks in vision-based systems.
+The primary focus of this class is to filter and prepare frames based on specific criteria such as brightness levels, which can
 significantly impact the performance and accuracy of downstream processing tasks, such as ml pipelines and star tracking algorithms.
-Frames are processed in batches, with each frame being associated with a camera ID. 
+Frames are processed in batches, with each frame being associated with a camera ID.
 
 Author: Eddie
 Date: [Creation or Last Update Date]

@@ -22,8 +22,9 @@ class OrbitDetermination:
         """
         self.dt = dt
 
-    def fit_circular_orbit(self, measurement_indices: np.ndarray, positions: np.ndarray) \
-            -> Callable[[np.ndarray], np.ndarray]:
+    def fit_circular_orbit(
+        self, measurement_indices: np.ndarray, positions: np.ndarray
+    ) -> Callable[[np.ndarray], np.ndarray]:
         """
         Fits a circular orbit model to a set of timestamped ECI position estimates.
         This is used for creating an initial guess for the non-linear least squares problem.
@@ -36,8 +37,9 @@ class OrbitDetermination:
         assert positions.shape[1] == 3, "positions must have 3 columns"
         assert positions.shape[0] >= 3, "There must be at least 3 points"
         assert len(measurement_indices.shape) == 1, "measurement_indices must be a 1D array"
-        assert len(measurement_indices) == positions.shape[0], \
-            "measurement_indices and positions must have the same length"
+        assert (
+            len(measurement_indices) == positions.shape[0]
+        ), "measurement_indices and positions must have the same length"
 
         """
         We want to solve for the unit normal vector of the best fit plane that passes through the origin. 
@@ -98,15 +100,18 @@ class OrbitDetermination:
             positions_ = positions_2d_ @ np.row_stack((x_axis, y_axis))
 
             velocity_directions_ = np.sign(angular_velocity) * np.cross(normal, positions_)
-            velocity_directions_ = velocity_directions_ / np.linalg.norm(velocity_directions_, axis=1, keepdims=True)
+            velocity_directions_ = velocity_directions_ / np.linalg.norm(
+                velocity_directions_, axis=1, keepdims=True
+            )
             velocities_ = speed * velocity_directions_
 
             return np.column_stack((positions_, velocities_))
 
         return model
 
-    def fit_orbit(self, data_manager: ODSimulationDataManager,
-                  semi_major_axis_guess: float = R_EARTH + 600e3) -> np.ndarray:
+    def fit_orbit(
+        self, data_manager: ODSimulationDataManager, semi_major_axis_guess: float = R_EARTH + 600e3
+    ) -> np.ndarray:
         """
         Solve the orbit determination problem using non-linear least squares.
 
@@ -119,10 +124,12 @@ class OrbitDetermination:
         N = data_manager.state_count
         M = data_manager.measurement_count
 
-        measurement_Rs_body_to_eci = data_manager.Rs_body_to_eci[data_manager.measurement_indices, ...]
-        bearing_unit_vectors_wf = np.einsum("ijk,ik->ij",
-                                            measurement_Rs_body_to_eci,
-                                            data_manager.bearing_unit_vectors)
+        measurement_Rs_body_to_eci = data_manager.Rs_body_to_eci[
+            data_manager.measurement_indices, ...
+        ]
+        bearing_unit_vectors_wf = np.einsum(
+            "ijk,ik->ij", measurement_Rs_body_to_eci, data_manager.bearing_unit_vectors
+        )
 
         def residuals(X: np.ndarray) -> np.ndarray:
             """
@@ -138,20 +145,24 @@ class OrbitDetermination:
 
             # dynamics residuals
             for i in range(N - 1):
-                res[idx:idx + 6] = states[i + 1, :] - f(states[i, :], self.dt)
+                res[idx : idx + 6] = states[i + 1, :] - f(states[i, :], self.dt)
                 idx += 6
 
             # measurement residuals
-            for i, (time, landmark) in enumerate(zip(data_manager.measurement_indices, data_manager.landmarks)):
+            for i, (time, landmark) in enumerate(
+                zip(data_manager.measurement_indices, data_manager.landmarks)
+            ):
                 cubesat_position = states[time, :3]
                 predicted_bearing = landmark - cubesat_position
-                predicted_bearing_unit_vector = predicted_bearing / np.linalg.norm(predicted_bearing)
+                predicted_bearing_unit_vector = predicted_bearing / np.linalg.norm(
+                    predicted_bearing
+                )
 
-                res[idx:idx + 3] = predicted_bearing_unit_vector - bearing_unit_vectors_wf[i]
+                res[idx : idx + 3] = predicted_bearing_unit_vector - bearing_unit_vectors_wf[i]
                 idx += 3
 
             assert idx == len(res)
-            print(np.sum(res ** 2))
+            print(np.sum(res**2))
             return res
 
         def residual_jac(X: np.ndarray):
@@ -169,29 +180,35 @@ class OrbitDetermination:
 
             # dynamics Jacobian
             for i in range(N - 1):
-                jac[row_idx:row_idx + 6, row_idx:row_idx + 6] = -f_jac(states[i, :], self.dt)
-                jac[row_idx:row_idx + 6, row_idx + 6:row_idx + 12] = np.eye(6)
+                jac[row_idx : row_idx + 6, row_idx : row_idx + 6] = -f_jac(states[i, :], self.dt)
+                jac[row_idx : row_idx + 6, row_idx + 6 : row_idx + 12] = np.eye(6)
                 row_idx += 6
 
             # measurement Jacobian
-            for i, (time, landmark) in enumerate(zip(data_manager.measurement_indices, data_manager.landmarks)):
+            for i, (time, landmark) in enumerate(
+                zip(data_manager.measurement_indices, data_manager.landmarks)
+            ):
                 cubesat_position = states[time, :3]
                 predicted_bearing = landmark - cubesat_position
                 predicted_bearing_norm = np.linalg.norm(predicted_bearing)
                 predicted_bearing_unit_vector = predicted_bearing / predicted_bearing_norm
 
-                jac[row_idx:row_idx + 3, 6 * time:6 * time + 3] = \
-                    (np.outer(predicted_bearing_unit_vector, predicted_bearing_unit_vector) - np.eye(3)) / predicted_bearing_norm
+                jac[row_idx : row_idx + 3, 6 * time : 6 * time + 3] = (
+                    np.outer(predicted_bearing_unit_vector, predicted_bearing_unit_vector)
+                    - np.eye(3)
+                ) / predicted_bearing_norm
                 row_idx += 3
 
             assert row_idx == jac.shape[0]
             return jac
 
         # fit a circular orbit to the altitude-normalized landmarks to get an initial guess
-        altitude_normalized_landmarks = data_manager.landmarks / np.linalg.norm(data_manager.landmarks,
-                                                                                axis=1, keepdims=True)
-        model = self.fit_circular_orbit(data_manager.measurement_indices,
-                                        semi_major_axis_guess * altitude_normalized_landmarks)
+        altitude_normalized_landmarks = data_manager.landmarks / np.linalg.norm(
+            data_manager.landmarks, axis=1, keepdims=True
+        )
+        model = self.fit_circular_orbit(
+            data_manager.measurement_indices, semi_major_axis_guess * altitude_normalized_landmarks
+        )
         initial_guess = model(np.arange(N)).flatten()
 
         result = least_squares(residuals, initial_guess, method="lm", jac=residual_jac)

@@ -1,17 +1,16 @@
 """
 Region Classification Module
 
-This module defines the RegionClassifier class, which leverages a pretrained EfficientNet model to classify 
-images based on geographic regions. The classifier is tailored to recognize specific regions by adjusting the 
-final layer to match the number of target classes and loading custom model weights. Main functionalities 
-include image preprocessing and the execution of classification, providing class probabilities for each 
+This module defines the RegionClassifier class, which leverages a pretrained EfficientNet model to classify
+images based on geographic regions. The classifier is tailored to recognize specific regions by adjusting the
+final layer to match the number of target classes and loading custom model weights. Main functionalities
+include image preprocessing and the execution of classification, providing class probabilities for each
 recognized region.
 
 
 Author: Eddie
 Date: [Creation or Last Update Date]
 """
-
 
 import os
 import yaml
@@ -136,8 +135,5 @@ class RegionClassifier:
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
         )
-        Logger.log(
-            "INFO",
-            f"Inference completed in {inference_time:.2f} seconds."
-        )
+        Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids

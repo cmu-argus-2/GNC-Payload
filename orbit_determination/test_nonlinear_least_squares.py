@@ -11,7 +11,10 @@ import brahe
 from brahe.epoch import Epoch
 
 from dynamics.orbital_dynamics import f
-from orbit_determination.landmark_bearing_sensors import RandomLandmarkBearingSensor, SimulatedMLLandmarkBearingSensor
+from orbit_determination.landmark_bearing_sensors import (
+    RandomLandmarkBearingSensor,
+    SimulatedMLLandmarkBearingSensor,
+)
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 
