@@ -1,6 +1,7 @@
 """ Extended Kalman Filter for orbit determination """
 
-from typing import Any, Tuple
+from typing import Any
+from typing import Tuple
 
 from brahe.constants import GM_EARTH
 import jax
@@ -14,9 +15,6 @@ from dynamics.orbital_dynamics import f
 from dynamics.orbital_dynamics import f_jac
 from utils.math_utils import R
 from utils.math_utils import rot_2_q
-
-# from vision_inference.landmark_bearings import LandmarkBearingSensor
-
 
 class EKF:
     """
