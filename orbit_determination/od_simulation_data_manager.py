@@ -43,6 +43,9 @@ class ODSimulationDataManager:
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
+    curr_bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+    curr_landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+
     @property
     def state_count(self) -> int:
         """
@@ -164,5 +167,8 @@ class ODSimulationDataManager:
             (self.bearing_unit_vectors, bearing_unit_vectors), axis=0
         )
         self.landmarks = np.concatenate((self.landmarks, landmarks), axis=0)
+
+        self.curr_bearing_unit_vectors = bearing_unit_vectors
+        self.curr_landmarks = landmarks
 
         self.assert_invariants()

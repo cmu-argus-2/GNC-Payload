@@ -2,181 +2,55 @@
 Testing the EKF class.
 """
 
-import csv
-import math
 import os
 import sys
+from time import time
+from typing import Any
 from typing import List
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from brahe.constants import e_EARTH
+import brahe
 from brahe.constants import GM_EARTH
 from brahe.constants import R_EARTH
+from brahe.epoch import Epoch
 import numpy as np
-from scipy.spatial.transform import Rotation
+import pickle
+import yaml
 
-from orbit_determination.ekf import EKF
 from dynamics.orbital_dynamics import f
 from dynamics.orbital_dynamics import f_jac
+from orbit_determination.ekf import EKF
+from orbit_determination.landmark_bearing_sensors import SimulatedMLLandmarkBearingSensor
+from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 import quaternion
 from sensors.imu import IMU
 from sensors.imu import IMU
 from sensors.sensor import SensorNoiseParams
 from sensors.bias import BiasParams
 from sensors.imu import IMUNoiseParams
-from utils.earth_utils import is_visible_on_ellipse
+from utils.orbit_utils import get_sso_orbit_state
+from utils.orbit_utils import is_over_daytime
 
 
-def latlon2ecef(landmarks: list) -> np.ndarray:
+def load_config() -> dict[str, Any]:
     """
-    Convert latitude, longitude, and altitude coordinates to Earth-Centered, Earth-Fixed (ECEF) coordinates.
+    Load the configuration file and modify it for the purposes of this test.
 
-    Args:
-        landmarks (list of tuples): A list of tuples where each tuple contains:
-            - landmark[0] (any): An identifier for the landmark.
-            - landmark[1] (float): Latitude in radians.
-            - landmark[2] (float): Longitude in radians.
-            - landmark[3] (float): Altitude in kilometers.
-    Returns:
-        numpy.ndarray: A 2D array where each row corresponds to a landmark and contains:
-            - landmark[0] (any): The identifier for the landmark.
-            - X (float): The ECEF X coordinate in kilometers.
-            - Y (float): The ECEF Y coordinate in kilometers.
-            - Z (float): The ECEF Z coordinate in kilometers.
+    :return: The modified configuration file as a dictionary.
     """
-    ecef = []
+    with open("config.yaml", "r") as file:
+        config = yaml.safe_load(file)
 
-    R_EARTH_EQ = R_EARTH
-    R_EARTH_POL = R_EARTH * (1 - e_EARTH**2) ** 0.5
+    # TODO: move this into the config file itself
+    # decrease world update rate since we only care about position dynamics
+    config["solver"]["world_update_rate"] = 1 / 60  # Hz
+    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
-    # helper function
-    def N(a, b, lat):
-        return a**2 / np.sqrt(a**2 * np.cos(lat) ** 2 + b**2 * np.sin(lat) ** 2)
+    return config
 
-    for mark in landmarks:
-        lat_deg = float(mark[1])
-        lon_deg = float(mark[2])
-        h = float(mark[3])
-
-        # Convert degrees to radians
-        lat_rad = np.deg2rad(lat_deg)
-        lon_rad = np.deg2rad(lon_deg)
-
-        N_val = N(R_EARTH_EQ, R_EARTH_POL, lat_rad)
-        X = (N_val + h) * np.cos(lat_rad) * np.cos(lon_rad)
-        Y = (N_val + h) * np.cos(lat_rad) * np.sin(lon_rad)
-        Z = (N_val * (1 - e_EARTH**2) + h) * np.sin(lat_rad)
-
-        ecef.append([mark[0], X, Y, Z])
-
-    return np.array(ecef)
-
-
-def import_landmarks() -> List["landmark"]:
-    """
-    Imports landmark coordinates from a CSV file, converts them to ECEF coordinates,
-    and initializes landmark objects.
-
-    Returns:
-        List[landmark]: A list of landmark objects with their names and ECEF coordinates.
-
-    Raises:
-        FileNotFoundError: If the landmark coordinates file is not found.
-        ValueError: If there is an error reading the landmark coordinates.
-    """
-
-    landmarks = []
-    try:
-        with open(
-            "orbit_determination/landmark_coordinates.csv", newline="", encoding="utf-8"
-        ) as csvfile:
-            reader = csv.reader(csvfile, delimiter=",")
-            for row in reader:
-                landmarks.append(np.array([row[0], row[1], row[2], row[3]]))
-
-        landmarks_ecef = latlon2ecef(landmarks)
-        landmark_objects = []
-
-        for landmark_obj in landmarks_ecef:
-            landmark_objects.append(
-                landmark(
-                    x=float(landmark_obj[1]),
-                    y=float(landmark_obj[2]),
-                    z=float(landmark_obj[3]),
-                    name=(landmark_obj[0]),
-                )
-            )
-
-        return landmark_objects
-    except FileNotFoundError as exc:
-        raise FileNotFoundError("Landmark coordinates file not found.") from exc
-    except ValueError as exc:
-        raise ValueError(f"Error reading landmark coordinates: {exc}") from exc
-
-
-class landmark:  # Class for the landmark object.
-    def __init__(self, x: float, y: float, z: float, name: str) -> None:
-        self.pos = np.array([x, y, z])
-        self.name = name
-
-
-def visible_landmarks_list(position, landmark_objects) -> List[landmark]:
-    """
-    Get a list of landmarks that are visible from a given position.
-    """
-    curr_visible_landmarks = []
-    for landmark in landmark_objects:
-        if is_visible_on_ellipse(position, landmark.pos):
-            curr_visible_landmarks.append(landmark)
-
-    return curr_visible_landmarks
-
-
-def measure_z_landmark(curr_pos, curr_quat, curr_visible_landmarks) -> np.ndarray:
-    """
-    Measure the landmark bearing from the satellite to the landmarks and add noise
-    curr_pos represents the ground truth position of the satellite.
-    TODO: Need to make noise multiplicative rather than additive for measurements of type bearing
-    """
-    z_l = np.zeros((len(curr_visible_landmarks) * 3))
-    for i, landmark in enumerate(curr_visible_landmarks):
-        noise = np.random.normal(loc=0, scale=math.sqrt(0), size=(3))
-        vec = curr_pos - landmark.pos + noise
-        vec = vec / np.linalg.norm(vec)
-        # body_R_eci = Rotation.from_quat(curr_quat, scalar_first=True).as_matrix()
-        # body_vec = body_R_eci @ vec
-        z_l[i * 3 : i * 3 + 3] = vec
-    return z_l
-
-
-def run_simulation(landmark_test_objects):
-    dt = 10
-    timesteps = 1000
-
-    ground_truth = np.zeros((timesteps + 1, 6))
-    ground_truth_quat = np.zeros((timesteps + 1, 4))
-
-    orbit_height = 590  # in km
-    init_state = np.array([(R_EARTH + orbit_height * 1000)*1, 0, 0, 0, 10, 7500])
-    init_quat = np.array([1, 0, 0, 0])
-
-    ground_truth[0, :] = init_state
-    ground_truth_quat[0, :] = init_quat
-
-    rot = np.array([0, 0, np.pi / 2])
-
-    for i in range(timesteps):
-        # Using RK4 for state propagation of position and velocity as it's already implemented
-        ground_truth[i + 1, :] = f(ground_truth[i, :], dt)
-        # Using Euler for quaternion state propagation as RK4 doesn't yet exist. Store as float array
-        tmp_quat = quaternion.as_quat_array(ground_truth_quat[i, :])
-        ground_truth_quat[i + 1, :] = quaternion.as_float_array(
-            tmp_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
-        )
-        # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
-
-    # Initialize the IMU
+def imu_init(dt):
+# Initialize the IMU
     bias_params = BiasParams.get_random_params([0, 0], [1e-4, 1e-3])
     sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-4, 5e-4)
     sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-4, 5e-4)
@@ -201,57 +75,97 @@ def run_simulation(landmark_test_objects):
     )
     imu = IMU(dt, imu_noise_params)
 
-    # Initialize the EKF
+    return imu
+
+def run_simulation():
+
+    config = load_config()
+
+    dt = 1 / config["solver"]["world_update_rate"]
+    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
+    N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
+
+    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    data_manager = ODSimulationDataManager(starting_epoch, dt)
+
+
+    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
+    init_rot = quaternion.as_rotation_matrix(quaternion.as_quat_array(np.array([1, 0, 0, 0])))
+
+    data_manager.push_next_state(np.expand_dims(initial_state,axis=0), np.expand_dims(init_rot,axis=0))
+    
+    # Initialize IMU and EKF
+    imu = imu_init(dt)
     ekf = EKF(
-        r=init_state[0:3] + np.random.normal(0, 100, 3),
-        v=init_state[3:6] + np.random.normal(0, 3, 3),
-        q=quaternion.as_quat_array(init_quat),
-        P=np.eye(6) * 10,
+        r=initial_state[0:3] + np.random.normal(0, 100, 3), # TODO: Adjust and tune noise and error init
+        v=initial_state[3:6] + np.random.normal(0, 100, 3),
+        q=quaternion.from_rotation_matrix(init_rot),
+        P=np.eye(6) * 100,
         Q=np.eye(6) * 1e-12,
         R=np.zeros((3, 3)),
         dt=dt,
     )
+    
+    # Fix a constant rotation velocity for the test.
+    rot = np.array([0, 0, np.pi / 2])
 
-    # Run the simulation
-    for i in range(timesteps):
-        print("timestep", i)
-        # Get the IMU measurements
-        imu_update_truth = quaternion.as_quat_array(ground_truth_quat[i + 1, :])  # Stored as float array
-        imu_update_truth = quaternion.as_rotation_vector(imu_update_truth)
-        gyro_meas, _ = imu.update(imu_update_truth, [0, 0, 0])  # Adds noise to the IMU measurements
+    for t in range(0, N-1):
+        # take a set of measurements every minute
+        if t % 1 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[0:3]):
+            data_manager.take_measurement(landmark_bearing_sensor)
+            print(f"Total measurements so far: {data_manager.measurement_count}")
+            print(f"Completion: {100 * t / N:.2f}%")
 
-        # Run EKF prediction step
-        # print(quaternion.from_rotation_vector(gyro_meas))
+        next_state = f(data_manager.latest_state, dt)
+        curr_quat = quaternion.from_rotation_matrix(data_manager.latest_attitude)
+        next_quat = curr_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
+        data_manager.push_next_state(np.expand_dims(next_state,axis=0), np.expand_dims(quaternion.as_rotation_matrix(next_quat),axis=0))
+
+        # EKF prediction step
+        gyro_meas = np.zeros((3))
+        # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
         ekf.predict(u=gyro_meas)
-
-        # Get the measurements
-        # Take the satellite position in ECEF coordinates for the measurement
-        # Ignore the actual attitude of the satellite in the determination of visible landmarks
-        visible_landmarks = visible_landmarks_list(ground_truth[i + 1, :3], landmark_test_objects)
-        z_landmark = measure_z_landmark(
-            ground_truth[i + 1, :3], ground_truth_quat[i + 1, :], visible_landmarks
-        )
-
-        landmark_list = []
-        for _, landmark in enumerate(visible_landmarks):
-            landmark_list.append(landmark.pos)
-        landmark_list = np.array(landmark_list)
-        z = (z_landmark, landmark_list)
-        
-        # Run the EKF post-update step
-        if i == timesteps - 1:
-            print("debug")
-
+        z = (data_manager.current_bearing_unit_vectors, data_manager.current_landmarks)
         ekf.measurement(z)
-        if landmark_list.shape[0] > 0:
-            print("landmark seen")
-        print("error", ekf.r_m - ground_truth[i + 1, :3])
+        #
+
+
+    if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
+        # save measurements to pickle file
+        with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
+            pickle.dump(data_manager, file)
+
+
+    # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
+
+
+    # # Run the simulation
+    # for i in range(timesteps):
+
+    #     # Get the measurements
+    #     # Take the satellite position in ECEF coordinates for the measurement
+    #     # Ignore the actual attitude of the satellite in the determination of visible landmarks
+    #     # visible_landmarks = visible_landmarks_list(ground_truth[i + 1, :3], landmark_test_objects)
+    #     # z_landmark = measure_z_landmark(
+    #     #     ground_truth[i + 1, :3], ground_truth_quat[i + 1, :], visible_landmarks
+    #     # )
+
+    #     landmark_list = []
+    #     for _, landmark in enumerate(visible_landmarks):
+    #         landmark_list.append(landmark.pos)
+    #     landmark_list = np.array(landmark_list)
+    #     z = (z_landmark, landmark_list)
+        
+    #     # Run the EKF post-update step
+    #     if i == timesteps - 1:
+    #         print("debug")
+
+    #     ekf.measurement(z)
+    #     if landmark_list.shape[0] > 0:
+    #         print("landmark seen")
+    #     print("error", ekf.r_m - ground_truth[i + 1, :3])
 
 
 if __name__ == "__main__":
-    # Initialize the landmarks
-    landmark_test_objects = import_landmarks()
-
-    # Initalize the EKF
     # Run state propagation for the satellite based on ICs
-    run_simulation(landmark_test_objects)
+    run_simulation()
