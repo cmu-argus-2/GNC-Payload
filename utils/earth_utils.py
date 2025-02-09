@@ -143,7 +143,7 @@ mgrs_utm_exceptions = [
 ]
 
 
-def calculate_mgrs_zones(latitudes, longitudes):
+def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
     """
     Vectorized computation of MGRS regions for given latitude and longitude arrays.
 
@@ -154,6 +154,8 @@ def calculate_mgrs_zones(latitudes, longitudes):
     Returns:
         np.ndarray: Array of MGRS region identifiers (same shape as input).
     """
+    assert latitudes.shape == longitudes.shape, "latitudes and longitudes must have the same shape"
+
     # Create lookup tables for vectorized latitude band calculation
     latitude_band_names = np.array([band["name"] for band in mgrs_latitude_bands])
     latitude_band_edges = np.array(
@@ -161,8 +163,9 @@ def calculate_mgrs_zones(latitudes, longitudes):
     )
 
     # Flatten lat/lon for processing
-    lat_flat = latitudes.ravel()
-    lon_flat = longitudes.ravel()
+    valid_indices = ~np.isnan(latitudes) & ~np.isnan(longitudes)
+    lat_flat = latitudes[valid_indices]
+    lon_flat = longitudes[valid_indices]
 
     # Determine latitude bands
     lat_bands = np.full(lat_flat.shape, None, dtype=object)
@@ -183,9 +186,11 @@ def calculate_mgrs_zones(latitudes, longitudes):
         utm_zones[mask] = exception["zone"]
 
     # Combine UTM zones and latitude bands
-    mgrs_regions = np.array(
+    mgrs_regions_flat = np.array(
         [f"{zone}{band}" if band is not None else None for zone, band in zip(utm_zones, lat_bands)]
     )
 
     # Reshape to match input lat/lon shape
-    return mgrs_regions.reshape(latitudes.shape)
+    mgrs_regions = np.full(latitudes.shape, None, dtype=object)
+    mgrs_regions[valid_indices] = mgrs_regions_flat
+    return mgrs_regions
