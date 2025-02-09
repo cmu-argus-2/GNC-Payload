@@ -16,6 +16,7 @@ from dynamics.orbital_dynamics import f_jac
 from utils.math_utils import R
 from utils.math_utils import rot_2_q
 
+
 class EKF:
     """
     Extended Kalman Filter
@@ -94,7 +95,8 @@ class EKF:
         # Jacobian
         dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(0.5 * self.dt * wf))
         dadr = (
-            -self.dt * GM_EARTH
+            -self.dt
+            * GM_EARTH
             * (
                 (np.eye(3) / np.linalg.norm(self.r_m) ** 3)
                 - 3 * np.outer(self.r_m, self.r_m) / np.linalg.norm(self.r_m) ** 5
@@ -135,7 +137,7 @@ class EKF:
             #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
             # )
             x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
-            
+
             h = self.h(z[1], x_p)
             H = self.H(z[1], x_p)
 
