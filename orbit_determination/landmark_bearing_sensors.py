@@ -1,7 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, List
 
 import brahe
 import numpy as np
@@ -12,6 +12,7 @@ from image_simulation.earth_vis import EarthImageSimulator
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
+from utils.config_utils import load_config
 
 
 class LandmarkBearingSensor(ABC):
@@ -152,6 +153,63 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
             )
 
         return bearing_unit_vectors_body, landmark_positions_eci
+
+
+class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
+    """
+    A sensor that reads landmark bearing measurements from a CSV file.
+    """
+    INFERENCE_CONFIG_PATH = os.path.abspath(os.path.join(
+        __file__, "../vision_inference/configuration/inference_config.yml"))
+    LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../vision_inference/models/ld"))
+
+    def __init__(self, config):
+        camera_params = config["satellite"]["camera"]
+        self.R_camera_to_body = Rotation.from_quat(
+            np.asarray(camera_params["orientation_in_cubesat_frame"]), scalar_first=True
+        ).as_matrix()
+        self.t_body_to_camera = np.asarray(
+            camera_params["position_in_cubesat_frame"]
+        )  # in the body frame
+
+        self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
+
+    @staticmethod
+    def load_region_landmark_ecef() -> dict[str, np.ndarray]:
+        """
+        Load the ECEF coordinates of the landmarks from the CSV files for all salient regions.
+
+        :return: A dictionary mapping region identifiers to numpy array of shape (N, 3) containing
+                 the coordinates of the landmarks in ECEF.
+        """
+        salient_regions: List[str] = load_config(GroundTruthLandmarkBearingSensor.INFERENCE_CONFIG_PATH)["region_ids"]
+        region_landmarks_ecef = {}
+        for region_id in salient_regions:
+            region_landmarks_csv = os.path.join(
+                GroundTruthLandmarkBearingSensor.LD_MODELS_PATH, f"{region_id}/{region_id}_top_salient.csv"
+            )
+            region_landmarks = np.loadtxt(region_landmarks_csv, delimiter=",", skiprows=1)
+            # TODO: change this to :2 once the lat and lon columns are reordered in the csvs
+            region_landmarks_ecef[region_id] = lat_lon_to_ecef(region_landmarks[:, 1::-1])
+        return region_landmarks_ecef
+
+    def take_measurement(
+            self, epoch: Epoch, cubesat_position: np.ndarray, R_body_to_eci: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Take a set of landmark bearing measurements.
+
+        :param epoch: The epoch as an instance of brahe's Epoch class.
+        :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
+        :param R_body_to_eci: The rotation matrix from the body frame to ECI as a numpy array of shape (3, 3).
+        :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
+                 and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
+        """
+        R_eci_to_ecef = brahe.frames.rECItoECEF(epoch)
+        R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
+        position_ecef = R_eci_to_ecef @ cubesat_position + R_body_to_ecef @ self.t_body_to_camera
+        R_camera_to_ecef = R_body_to_ecef @ self.R_camera_to_body
+        camera_axis_ecef = R_camera_to_ecef[:, 2]
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
