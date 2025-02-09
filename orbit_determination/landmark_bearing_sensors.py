@@ -18,6 +18,7 @@ from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
+from utils.config_utils import load_config
 
 
 # pylint: disable=too-few-public-methods
