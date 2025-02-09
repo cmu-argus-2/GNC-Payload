@@ -157,13 +157,14 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
 
 class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     """
-    A sensor that reads landmark bearing measurements from a CSV file.
+    A sensor that outputs the ground truth landmark bearing to all salient landmarks within a cone centered about the camera's boresight.
+    Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
     INFERENCE_CONFIG_PATH = os.path.abspath(os.path.join(
         __file__, "../vision_inference/configuration/inference_config.yml"))
     LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../vision_inference/models/ld"))
 
-    def __init__(self, config):
+    def __init__(self, config, fov: float = np.deg2rad(20)):
         camera_params = config["satellite"]["camera"]
         self.R_camera_to_body = Rotation.from_quat(
             np.asarray(camera_params["orientation_in_cubesat_frame"]), scalar_first=True
@@ -172,6 +173,8 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
             camera_params["position_in_cubesat_frame"]
         )  # in the body frame
 
+        self.fov = fov
+        self.cos_fov_on_2 = np.cos(fov / 2)
         self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
 
     @staticmethod
@@ -210,6 +213,21 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         position_ecef = R_eci_to_ecef @ cubesat_position + R_body_to_ecef @ self.t_body_to_camera
         R_camera_to_ecef = R_body_to_ecef @ self.R_camera_to_body
         camera_axis_ecef = R_camera_to_ecef[:, 2]
+
+        # TODO: optimize this by using the MGRS regions to filter out landmarks that are definitely not visible
+        all_landmarks_ecef = np.concatenate(list(self.region_landmarks_ecef.values()), axis=0)
+
+        is_same_hemisphere = all_landmarks_ecef @ position_ecef > 0
+        hemisphere_landmarks_ecef = all_landmarks_ecef[is_same_hemisphere, :]
+
+        bearing_vectors_ecef = hemisphere_landmarks_ecef - position_ecef
+        bearing_unit_vectors_ecef = bearing_vectors_ecef / np.linalg.norm(bearing_vectors_ecef, axis=1, keepdims=True)
+
+        is_visible = bearing_unit_vectors_ecef @ camera_axis_ecef > self.cos_fov_on_2
+        visible_landmarks_ecef = hemisphere_landmarks_ecef[is_visible, :]
+
+        bearing_unit_vectors_body = (R_body_to_ecef @ bearing_unit_vectors_ecef[is_visible, :].T).T
+        return bearing_unit_vectors_body, visible_landmarks_ecef
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
