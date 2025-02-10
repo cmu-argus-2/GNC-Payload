@@ -3,6 +3,7 @@ from time import perf_counter
 from time import time
 import yaml
 import pickle
+import os
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -22,13 +23,16 @@ from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 from utils.earth_utils import get_nadir_rotation
 
 
+MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../config.yaml"))
+
+
 def load_config() -> dict[str, Any]:
     """
     Load the configuration file and modify it for the purposes of this test.
 
     :return: The modified configuration file as a dictionary.
     """
-    with open("../config.yaml", "r") as file:
+    with open(MAIN_CONFIG_PATH, "r") as file:
         config = yaml.safe_load(file)
 
     # TODO: move this into the config file itself
