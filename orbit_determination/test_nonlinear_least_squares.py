@@ -39,9 +39,7 @@ def load_config() -> dict[str, Any]:
     with open(MAIN_CONFIG_PATH, "r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
 
-    # pylint: disable=fixme
     # TODO: move this into the config file itself
-    # pylint: enable=fixme
     # decrease world update rate since we only care about position dynamics
     config["solver"]["world_update_rate"] = 1 / 60  # Hz
     config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
