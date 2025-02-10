@@ -75,7 +75,7 @@ def test_od():
 
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    data_manager.push_next_state(np.expand_dims(initial_state,axis=0), np.expand_dims(get_nadir_rotation(initial_state[:3]),axis=0))
+    data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state))
 
     for t in range(0, N - 1):
         # take a set of measurements every 5 minutes
@@ -85,7 +85,7 @@ def test_od():
             print(f"Completion: {100 * t / N:.2f}%")
 
         next_state = f(data_manager.latest_state, dt)
-        data_manager.push_next_state(np.expand_dims(next_state, axis=0), np.expand_dims(get_nadir_rotation(next_state[:3]), axis=0))
+        data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
 
     if data_manager.measurement_count == 0:
         raise ValueError("No measurements taken")
