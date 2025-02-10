@@ -278,7 +278,7 @@ class MLPipeline:
         text_entries = []
         for i, (cls, confidence, (x, y), latlons) in enumerate(top_landmarks):
             latitude = latlons[0].item(0)
-            longitude = latlons[1].item(0)
+            longitude = latlons[0].item(1)
             text = f"Top {i+1}: Region {region}, Conf: {confidence:.2f}, XY: ({int(x)}, {int(y)}), LatLon: ({latitude:.2f}, {longitude:.2f})"
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width
