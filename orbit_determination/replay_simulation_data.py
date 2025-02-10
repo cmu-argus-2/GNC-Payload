@@ -1,7 +1,11 @@
+"""
+Module to replay simulation data and solve the orbit determination problem using non-linear least squares.
+"""
+# pylint: disable=import-error
 import pickle
 
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
+from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
 
 def replay_simulation_data(data_file: str) -> None:

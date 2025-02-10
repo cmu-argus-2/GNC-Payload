@@ -1,30 +1,33 @@
-from typing import Any
-from time import perf_counter
-from time import time
-import yaml
-import pickle
-import os
+"""
+Test the nonlinear least squares orbit determination algorithm.
+"""
 
-import numpy as np
-from scipy.spatial.transform import Rotation
+import os
+import pickle
+from time import perf_counter, time
+from typing import Any
 
 import brahe
+import numpy as np
+import yaml
 from brahe.epoch import Epoch
+from scipy.spatial.transform import Rotation
 
+# pylint: disable=import-error
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
 from dynamics.orbital_dynamics import f
 from orbit_determination.landmark_bearing_sensors import (
+    GroundTruthLandmarkBearingSensor,
     RandomLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
-from orbit_determination.landmark_bearing_sensors import GroundTruthLandmarkBearingSensor
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
-
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
+from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.earth_utils import get_nadir_rotation
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
-
-MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../config.yaml"))
+MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../config.yaml"))
 
 
 def load_config() -> dict[str, Any]:
@@ -33,10 +36,12 @@ def load_config() -> dict[str, Any]:
 
     :return: The modified configuration file as a dictionary.
     """
-    with open(MAIN_CONFIG_PATH, "r") as file:
+    with open(MAIN_CONFIG_PATH, "r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
 
+    # pylint: disable=fixme
     # TODO: move this into the config file itself
+    # pylint: enable=fixme
     # decrease world update rate since we only care about position dynamics
     config["solver"]["world_update_rate"] = 1 / 60  # Hz
     config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
@@ -59,6 +64,9 @@ def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
 
 
 def test_od():
+    """
+    Test OD
+    """
     # update_brahe_data_files()
     config = load_config()
 
@@ -75,7 +83,10 @@ def test_od():
 
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    data_manager.push_next_state(np.expand_dims(initial_state,axis=0), np.expand_dims(get_nadir_rotation(initial_state[:6]),axis=0))
+    data_manager.push_next_state(
+        np.expand_dims(initial_state, axis=0),
+        np.expand_dims(get_nadir_rotation(initial_state[:6]), axis=0),
+    )
 
     for t in range(0, N - 1):
         # take a set of measurements every 5 minutes
@@ -85,13 +96,16 @@ def test_od():
             print(f"Completion: {100 * t / N:.2f}%")
 
         next_state = f(data_manager.latest_state, dt)
-        data_manager.push_next_state(np.expand_dims(next_state, axis=0), np.expand_dims(get_nadir_rotation(next_state[:6]), axis=0))
+        data_manager.push_next_state(
+            np.expand_dims(next_state, axis=0),
+            np.expand_dims(get_nadir_rotation(next_state[:6]), axis=0),
+        )
 
     if data_manager.measurement_count == 0:
         raise ValueError("No measurements taken")
     print(f"Total measurements: {data_manager.measurement_count}")
 
-    if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
+    if landmark_bearing_sensor.isinstance() == SimulatedMLLandmarkBearingSensor:
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)
@@ -147,12 +161,16 @@ def test_od():
 
 
 def load_brahe_data_files():
+    """
+    Load up-to-date brahe files
+    """
     brahe_directory = os.path.dirname(brahe.__file__)
     try:
         print("Updating Brahe data files. Might take a minute ...")
         brahe.utils.download_all_data(brahe_directory + "/data")
+    # pylint: disable=bare-except
     except:
-        pass  # One or the other files always errors out. Not a problem though
+        print("One or the other files always errors out. Not a problem though.")
 
 
 if __name__ == "__main__":
