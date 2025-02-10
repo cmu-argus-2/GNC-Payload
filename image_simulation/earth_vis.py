@@ -8,6 +8,7 @@ from utils.earth_utils import calculate_mgrs_zones
 from utils.earth_utils import convert_to_lat_lon
 from utils.earth_utils import get_nadir_rotation
 from utils.earth_utils import lat_lon_to_ecef
+from utils.config_utils import load_config
 
 
 class EarthImageSimulator:
@@ -353,6 +354,8 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
 
 
 def sweep_lat_lon_test():
+    config = load_config()
+    R_camera_to_body = np.asarray(config["satellite"]["camera"]["R_camera_to_body"])
     simulator = EarthImageSimulator()
 
     latitudes = np.linspace(-90, 90, 90)
@@ -373,7 +376,7 @@ def sweep_lat_lon_test():
         ecef_velocity = np.array([0, 0, 1])
 
         orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-        simulated_image = simulator.simulate_image(ecef_position, orientation)
+        simulated_image = simulator.simulate_image(ecef_position, orientation @ R_camera_to_body)
 
         if j % 20 == 0:
             print(f"{i * i_stride + j}/{total}")
@@ -390,6 +393,8 @@ def sweep_lat_lon_test():
 
 
 def main():
+    config = load_config()
+    R_camera_to_body = np.asarray(config["satellite"]["camera"]["R_camera_to_body"])
     simulator = EarthImageSimulator()
 
     lat_lon = np.array([39.8283, -98.5795])
@@ -399,11 +404,11 @@ def main():
     ecef_velocity = np.array([0, 0, 1])
     orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
-    simulated_image = simulator.simulate_image(ecef_position, orientation)
+    simulated_image = simulator.simulate_image(ecef_position, orientation @ R_camera_to_body)
     print(np.all(simulated_image == 0))
 
 
 if __name__ == "__main__":
-    test_geodetic_conversion()
-    sweep_lat_lon_test()
+    # test_geodetic_conversion()
+    # sweep_lat_lon_test()
     main()
