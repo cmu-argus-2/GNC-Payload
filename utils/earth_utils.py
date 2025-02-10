@@ -88,26 +88,29 @@ def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
     return ecef_flat
 
 
-def get_nadir_rotation(satellite_position):
+def get_nadir_rotation(state: np.ndarray) -> np.ndarray:
     """
-    Get the rotation matrix that points the nadir of the satellite to the center of the Earth.
+    Get the rotation matrix that points the +x camera towards the center of the Earth.
+    The body z-axis will point along the orbital angular momentum vector, the body x-axis will point towards the
+    center of the Earth, and the body y-axis will complete the right-handed orthonormal basis.
+
+    This function is agnostic to the frame of reference of the input state. The output rotation matrix
+    will be from the frame of reference of the input state to the body frame.
 
     Parameters:
-        satellite_position (np.ndarray): Satellite position in ECEF coordinates.
+        state: A numpy array of shape (6,) containing the position and velocity of the satellite.
 
     Returns:
-        np.ndarray (np.ndarray): Rotation matrix of dimension 3x3 that points the nadir of the satellite to the center of the Earth.
+        A numpy array of shape (3, 3) representing the rotation matrix from the input state frame to the body frame.
     """
-    # pointing nadir in world coordinates
-    x, y, z = satellite_position
-    zc = dir_vector = -np.array([x, y, z]) / np.linalg.norm([x, y, z])
-    axis_of_rotation_z = np.cross(np.array([0, 0, 1]), dir_vector)
-    rc = axis_of_rotation_z = axis_of_rotation_z / np.linalg.norm(axis_of_rotation_z)
-    xc = -rc
+    pos, vel = state[:3], state[3:]
+    angular_momentum_dir = np.cross(pos, vel)
 
-    yc = np.cross(rc, zc)
-    R = np.stack([xc, yc, zc], axis=-1)
-    return R
+    x_plus_dir = -pos / np.linalg.norm(pos)
+    z_plus_dir = angular_momentum_dir / np.linalg.norm(angular_momentum_dir)
+    y_plus_dir = np.cross(z_plus_dir, x_plus_dir)
+
+    return np.column_stack([x_plus_dir, y_plus_dir, z_plus_dir])
 
 
 # Define MGRS latitude bands and UTM exceptions
@@ -143,7 +146,7 @@ mgrs_utm_exceptions = [
 ]
 
 
-def calculate_mgrs_zones(latitudes, longitudes):
+def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
     """
     Vectorized computation of MGRS regions for given latitude and longitude arrays.
 
@@ -154,6 +157,8 @@ def calculate_mgrs_zones(latitudes, longitudes):
     Returns:
         np.ndarray: Array of MGRS region identifiers (same shape as input).
     """
+    assert latitudes.shape == longitudes.shape, "latitudes and longitudes must have the same shape"
+
     # Create lookup tables for vectorized latitude band calculation
     latitude_band_names = np.array([band["name"] for band in mgrs_latitude_bands])
     latitude_band_edges = np.array(
@@ -161,8 +166,9 @@ def calculate_mgrs_zones(latitudes, longitudes):
     )
 
     # Flatten lat/lon for processing
-    lat_flat = latitudes.ravel()
-    lon_flat = longitudes.ravel()
+    valid_indices = ~np.isnan(latitudes) & ~np.isnan(longitudes)
+    lat_flat = latitudes[valid_indices]
+    lon_flat = longitudes[valid_indices]
 
     # Determine latitude bands
     lat_bands = np.full(lat_flat.shape, None, dtype=object)
@@ -183,9 +189,11 @@ def calculate_mgrs_zones(latitudes, longitudes):
         utm_zones[mask] = exception["zone"]
 
     # Combine UTM zones and latitude bands
-    mgrs_regions = np.array(
+    mgrs_regions_flat = np.array(
         [f"{zone}{band}" if band is not None else None for zone, band in zip(utm_zones, lat_bands)]
     )
 
     # Reshape to match input lat/lon shape
-    return mgrs_regions.reshape(latitudes.shape)
+    mgrs_regions = np.full(latitudes.shape, None, dtype=object)
+    mgrs_regions[valid_indices] = mgrs_regions_flat
+    return mgrs_regions

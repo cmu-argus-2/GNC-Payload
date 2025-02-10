@@ -3,6 +3,7 @@ from time import perf_counter
 from time import time
 import yaml
 import pickle
+import os
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -20,6 +21,10 @@ from orbit_determination.od_simulation_data_manager import ODSimulationDataManag
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
+from utils.earth_utils import get_nadir_rotation
+
+
+MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../config.yaml"))
 
 
 def load_config() -> dict[str, Any]:
@@ -28,7 +33,7 @@ def load_config() -> dict[str, Any]:
 
     :return: The modified configuration file as a dictionary.
     """
-    with open("config.yaml", "r") as file:
+    with open(MAIN_CONFIG_PATH, "r") as file:
         config = yaml.safe_load(file)
 
     # TODO: move this into the config file itself
@@ -37,21 +42,6 @@ def load_config() -> dict[str, Any]:
     config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
     return config
-
-
-# TODO: consolidate this with the function in utils/earth_utils.py
-def get_nadir_rotation(cubesat_position: np.ndarray) -> np.ndarray:
-    """
-    Get the rotation matrix from the body frame to the ECI frame for a satellite with an orbital angular momentum in the -y direction.
-
-    :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
-    :return: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to the ECI frame.
-    """
-    y_axis = [0, -1, 0]  # along orbital angular momentum
-    z_axis = -cubesat_position / np.linalg.norm(cubesat_position)  # along radial vector
-    x_axis = np.cross(y_axis, z_axis)
-    R_body_to_eci = np.column_stack([x_axis, y_axis, z_axis])
-    return R_body_to_eci
 
 
 def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
