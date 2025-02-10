@@ -107,6 +107,8 @@ def get_nadir_rotation(state: np.ndarray) -> np.ndarray:
     Returns:
         A numpy array of shape (3, 3) representing the rotation matrix from the input state frame to the body frame.
     """
+    assert state.shape == (6,), "state must have shape (6,)"
+
     pos, vel = state[:3], state[3:]
     angular_momentum_dir = np.cross(pos, vel)
 
