@@ -370,8 +370,9 @@ def sweep_lat_lon_test():
     empty_indices = []
     for i, j in np.ndindex(ecef_positions.shape[:2]):
         ecef_position = ecef_positions[i, j, :]
+        ecef_velocity = np.array([0, 0, 1])
 
-        orientation = get_nadir_rotation(ecef_position)
+        orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
         simulated_image = simulator.simulate_image(ecef_position, orientation)
 
         if j % 20 == 0:
@@ -395,7 +396,8 @@ def main():
     ecef_position = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
     R_earth = 6371.0088e3
     ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
-    orientation = get_nadir_rotation(ecef_position)
+    ecef_velocity = np.array([0, 0, 1])
+    orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
     simulated_image = simulator.simulate_image(ecef_position, orientation)
     print(np.all(simulated_image == 0))
