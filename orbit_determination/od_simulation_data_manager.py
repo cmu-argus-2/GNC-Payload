@@ -36,7 +36,7 @@ class ODSimulationDataManager:
     Rs_body_to_eci: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
 
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
-    bearing_unit_vectors: np.ndarray = field(default_factory= lambda: np.zeros(shape=(0, 3)))
+    bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
     @property
