@@ -99,7 +99,7 @@ def test_od():
         raise ValueError("No measurements taken")
     print(f"Total measurements: {data_manager.measurement_count}")
 
-    if landmark_bearing_sensor.isinstance() == SimulatedMLLandmarkBearingSensor:
+    if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)
