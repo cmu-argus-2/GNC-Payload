@@ -161,8 +161,8 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
     INFERENCE_CONFIG_PATH = os.path.abspath(os.path.join(
-        __file__, "../vision_inference/configuration/inference_config.yml"))
-    LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../vision_inference/models/ld"))
+        __file__, "../../vision_inference/configuration/inference_config.yml"))
+    LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../../vision_inference/models/ld"))
 
     def __init__(self, config, fov: float = np.deg2rad(20)):
         camera_params = config["satellite"]["camera"]

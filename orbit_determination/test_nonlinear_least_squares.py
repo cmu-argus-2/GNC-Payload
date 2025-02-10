@@ -15,6 +15,7 @@ from orbit_determination.landmark_bearing_sensors import (
     RandomLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
+from orbit_determination.landmark_bearing_sensors import GroundTruthLandmarkBearingSensor
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 
@@ -27,7 +28,7 @@ def load_config() -> dict[str, Any]:
 
     :return: The modified configuration file as a dictionary.
     """
-    with open("../config.yaml", "r") as file:
+    with open("config.yaml", "r") as file:
         config = yaml.safe_load(file)
 
     # TODO: move this into the config file itself
@@ -76,14 +77,15 @@ def test_od():
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
+    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
     # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
-    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state[:3]))
+    data_manager.push_next_state(np.expand_dims(initial_state,axis=0), np.expand_dims(get_nadir_rotation(initial_state[:3]),axis=0))
 
     for t in range(0, N - 1):
         # take a set of measurements every 5 minutes
@@ -93,7 +95,7 @@ def test_od():
             print(f"Completion: {100 * t / N:.2f}%")
 
         next_state = f(data_manager.latest_state, dt)
-        data_manager.push_next_state(next_state, get_nadir_rotation(next_state[:3]))
+        data_manager.push_next_state(np.expand_dims(next_state, axis=0), np.expand_dims(get_nadir_rotation(next_state[:3]), axis=0))
 
     if data_manager.measurement_count == 0:
         raise ValueError("No measurements taken")
@@ -165,5 +167,5 @@ def load_brahe_data_files():
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    load_brahe_data_files()
+    # load_brahe_data_files()
     test_od()

@@ -61,7 +61,7 @@ def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
         np.ndarray: Array of ECEF coordinates (HxWx3).
     """
     # TODO: generalize this to work with arbitrary arrays of shape (..., 2)
-    H, W, _ = lat_lon.shape
+    # H, W = lat_lon.shape
     lat_lon_flat = lat_lon.reshape(-1, 2)
 
     lat = lat_lon_flat[:, 0]
@@ -83,9 +83,9 @@ def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
     z = (N * (1 - e2)) * np.sin(lat_rad)
 
     ecef_flat = np.column_stack((x, y, z))
-    ecef = ecef_flat.reshape(H, W, 3)
+    # ecef = ecef_flat.reshape(H, W, 3)
 
-    return ecef
+    return ecef_flat
 
 
 def get_nadir_rotation(satellite_position):
