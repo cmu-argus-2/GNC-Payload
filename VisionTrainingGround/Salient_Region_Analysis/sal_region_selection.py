@@ -65,5 +65,24 @@ def select_mgrs_labels(csv_file, n=None):
 
     # Extract just the labels from the result
     final_labels = [r['Label'] for r in result]
-
+    final_labels += ["59G"]
+    # final_labels.remove("1U")
+    old_regions = ["10S", "10T", "11R", "12R", "16T", "17R", "17T", "18S", "32S", "32T", "33S", "33T", "52S", "53S", "54S", "54T"]
+    final_labels.extend(old_regions)
+    final_labels.remove("43V")
+    final_labels.remove("45V")
+    final_labels.remove("13U")
+    final_labels.remove("11U")
+    final_labels.remove("17T")
+    final_labels.remove("17R")
+    final_labels.remove("53S")
+    final_labels.remove("54T")
+    final_labels.remove("41T")
+    final_labels.remove("44T")
+    final_labels.remove("47T")
+    final_labels.remove("34Q")
+    final_labels.remove("31R")
+    final_labels = list(set(final_labels))
+    print(len(final_labels),final_labels)
+    
     return final_labels

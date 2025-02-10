@@ -52,9 +52,9 @@ class ImageClassifier:
         val_dataset = CustomImageDataset(root_dir=data_path + '/val', transform=test_transform)
 
         # Create DataLoader objects for training and testing sets
-        self.train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
-        self.test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
-        self.val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True)
+        self.train_loader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
+        self.test_loader = DataLoader(dataset=test_dataset, batch_size=16, shuffle=False)
+        self.val_loader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=True)
         print("Init Dataloaders")
 
 

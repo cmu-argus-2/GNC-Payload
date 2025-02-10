@@ -1,3 +1,15 @@
+# Datasets
+VisionTrainingGround/RCnet/datasets/train/
+VisionTrainingGround/RCnet/datasets/val/
+VisionTrainingGround/RCnet/datasets/test/
+VisionTrainingGround/Landsat_Data/
+!VisionTrainingGround/Landsat_Data/.gitkeep
+
+# Salient Region Outputs
+VisionTrainingGround/Salient_Region_Analysis/highlighted_map_old.jpg
+VisionTrainingGround/Salient_Region_Analysis/highlighted_map_edited.jpg
+VisionTrainingGround/Salient_Region_Analysis/highlighted_map.jpg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

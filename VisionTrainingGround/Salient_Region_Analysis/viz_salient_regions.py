@@ -51,5 +51,5 @@ def highlight_regions(image_path, output_path, regions):
     # cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    regions_to_highlight = select_mgrs_labels('sorted_region_saliencys_no_cloud.csv', n=40)
-    highlight_regions('world_saliency.jpg', 'highlighted_map_no_cloud.jpg', regions_to_highlight)
+    regions_to_highlight = select_mgrs_labels('sorted_region_saliencys.csv', n=40)
+    highlight_regions('world_saliency.jpg', 'highlighted_map_edited.jpg', regions_to_highlight)
