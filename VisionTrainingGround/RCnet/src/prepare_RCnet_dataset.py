@@ -77,9 +77,9 @@ def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2
         test_class_dir = os.path.join(test_dir, class_name)
 
         # Create class directories in train, val, and test
-        os.makedirs(train_class_dir, exist_ok=True)
-        os.makedirs(val_class_dir, exist_ok=True)
-        os.makedirs(test_class_dir, exist_ok=True)
+        os.makedirs(train_class_dir, exist_ok=False)
+        os.makedirs(val_class_dir, exist_ok=False)
+        os.makedirs(test_class_dir, exist_ok=False)
 
         # Helper function to process files
         def process_files(file_list, target_dir):
