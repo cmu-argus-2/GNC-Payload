@@ -47,12 +47,8 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         :param max_measurements: The number of measurements to attempt to take at once. The actual number may be less.
         """
         camera_params = config["satellite"]["camera"]
-        self.R_camera_to_body = Rotation.from_quat(
-            np.asarray(camera_params["orientation_in_cubesat_frame"]), scalar_first=True
-        ).as_matrix()
-        self.t_body_to_camera = np.asarray(
-            camera_params["position_in_cubesat_frame"]
-        )  # in the body frame
+        self.R_camera_to_body = np.asarray(camera_params["R_camera_to_body"])
+        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
 
         self.max_measurements = max_measurements
         self.fov = fov
@@ -164,12 +160,8 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         :param config: The configuration dictionary.
         """
         camera_params = config["satellite"]["camera"]
-        self.R_camera_to_body = Rotation.from_quat(
-            np.asarray(camera_params["orientation_in_cubesat_frame"]), scalar_first=True
-        ).as_matrix()
-        self.t_body_to_camera = np.asarray(
-            camera_params["position_in_cubesat_frame"]
-        )  # in the body frame
+        self.R_camera_to_body = np.asarray(camera_params["R_camera_to_body"])
+        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
 
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
