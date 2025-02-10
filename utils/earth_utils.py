@@ -53,7 +53,9 @@ def convert_to_lat_lon(
     return lat_lon_flat.reshape(*shape_prefix, 2)
 
 
-def lat_lon_to_ecef(lat_lon: np.ndarray, a=6378137.0, b=6356752.314245) -> np.ndarray:
+def lat_lon_to_ecef(
+    lat_lon: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
+) -> np.ndarray:
     """
     Convert latitude and longitude to ECEF (Earth-Centered, Earth-Fixed) coordinates.
 
