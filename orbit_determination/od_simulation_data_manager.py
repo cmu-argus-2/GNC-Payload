@@ -107,9 +107,16 @@ class ODSimulationDataManager:
             np.diff(self.measurement_indices) >= 0
         ), "measurement_indices must be non-strictly increasing"
 
-    def push_next_state(self, state, R_body_to_eci) -> None:
-        self.states = np.concatenate((self.states, state), axis=0)
-        self.Rs_body_to_eci = np.concatenate((self.Rs_body_to_eci, R_body_to_eci), axis=0)
+    def push_next_state(self, state: np.ndarray, R_body_to_eci: np.ndarray) -> None:
+        """
+        Append a new state to the simulation data.
+
+        Args:
+            state: A numpy array of shape (6,) containing the position and velocity of the satellite.
+            R_body_to_eci: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
+        """
+        self.states = np.row_stack((self.states, state))
+        self.Rs_body_to_eci = np.concatenate((self.Rs_body_to_eci, R_body_to_eci[np.newaxis, ...]), axis=0)
 
         self.assert_invariants()
 
