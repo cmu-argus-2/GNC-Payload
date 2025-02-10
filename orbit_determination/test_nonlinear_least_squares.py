@@ -21,6 +21,7 @@ from orbit_determination.landmark_bearing_sensors import (
     SimulatedMLLandmarkBearingSensor,
 )
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
+from orbit_determination.landmark_bearing_sensors import GroundTruthLandmarkBearingSensor
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
@@ -152,5 +153,5 @@ def load_brahe_data_files() -> None:
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    load_brahe_data_files()
+    # load_brahe_data_files()
     test_od()
