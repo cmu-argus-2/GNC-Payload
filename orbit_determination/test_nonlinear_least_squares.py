@@ -26,25 +26,7 @@ from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.earth_utils import get_nadir_rotation
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
-
-MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../config.yaml"))
-
-
-def load_config() -> dict[str, Any]:
-    """
-    Load the configuration file and modify it for the purposes of this test.
-
-    :return: The modified configuration file as a dictionary.
-    """
-    with open(MAIN_CONFIG_PATH, "r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    # TODO: move this into the config file itself
-    # decrease world update rate since we only care about position dynamics
-    config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
-
-    return config
+from utils.config_utils import load_config
 
 
 def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
@@ -67,6 +49,11 @@ def test_od():
     """
     # update_brahe_data_files()
     config = load_config()
+
+    # TODO: move this into the config file itself
+    # decrease world update rate since we only care about position dynamics
+    config["solver"]["world_update_rate"] = 1 / 60  # Hz
+    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
     # set up simulation parameters
     dt = 1 / config["solver"]["world_update_rate"]
