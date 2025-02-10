@@ -1,18 +1,18 @@
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Tuple, List
+from typing import List, Tuple
 
 import brahe
 import numpy as np
-from brahe import Epoch, R_EARTH
+from brahe import R_EARTH, Epoch
 from scipy.spatial.transform import Rotation
 
 from image_simulation.earth_vis import EarthImageSimulator
+from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
-from utils.config_utils import load_config
 
 
 class LandmarkBearingSensor(ABC):
@@ -156,18 +156,16 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     A sensor that outputs the ground truth landmark bearing to all salient landmarks within a cone centered about the camera's boresight.
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
-    INFERENCE_CONFIG_PATH = os.path.abspath(os.path.join(
-        __file__, "../../vision_inference/configuration/inference_config.yml"))
+
+    INFERENCE_CONFIG_PATH = os.path.abspath(
+        os.path.join(__file__, "../../vision_inference/configuration/inference_config.yml")
+    )
     LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../../vision_inference/models/ld"))
 
-    def __init__(self, config, fov: float = np.deg2rad(20)):
+    def __init__(self, config, fov: float = np.deg2rad(100)):
         camera_params = config["satellite"]["camera"]
-        self.R_camera_to_body = Rotation.from_quat(
-            np.asarray(camera_params["orientation_in_cubesat_frame"]), scalar_first=True
-        ).as_matrix()
-        self.t_body_to_camera = np.asarray(
-            camera_params["position_in_cubesat_frame"]
-        )  # in the body frame
+        self.R_camera_to_body = np.asarray(camera_params["R_camera_to_body"])
+        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
 
         self.fov = fov
         self.cos_fov_on_2 = np.cos(fov / 2)
@@ -181,11 +179,14 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A dictionary mapping region identifiers to numpy array of shape (N, 3) containing
                  the coordinates of the landmarks in ECEF.
         """
-        salient_regions: List[str] = load_config(GroundTruthLandmarkBearingSensor.INFERENCE_CONFIG_PATH)["region_ids"]
+        salient_regions: List[str] = load_config(
+            GroundTruthLandmarkBearingSensor.INFERENCE_CONFIG_PATH
+        )["region_ids"]
         region_landmarks_ecef = {}
         for region_id in salient_regions:
             region_landmarks_csv = os.path.join(
-                GroundTruthLandmarkBearingSensor.LD_MODELS_PATH, f"{region_id}/{region_id}_top_salient.csv"
+                GroundTruthLandmarkBearingSensor.LD_MODELS_PATH,
+                f"{region_id}/{region_id}_top_salient.csv",
             )
             region_landmarks = np.loadtxt(region_landmarks_csv, delimiter=",", skiprows=1)
             # TODO: change this to :2 once the lat and lon columns are reordered in the csvs
@@ -193,7 +194,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         return region_landmarks_ecef
 
     def take_measurement(
-            self, epoch: Epoch, cubesat_position: np.ndarray, R_body_to_eci: np.ndarray
+        self, epoch: Epoch, cubesat_position: np.ndarray, R_body_to_eci: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -217,7 +218,9 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         hemisphere_landmarks_ecef = all_landmarks_ecef[is_same_hemisphere, :]
 
         bearing_vectors_ecef = hemisphere_landmarks_ecef - position_ecef
-        bearing_unit_vectors_ecef = bearing_vectors_ecef / np.linalg.norm(bearing_vectors_ecef, axis=1, keepdims=True)
+        bearing_unit_vectors_ecef = bearing_vectors_ecef / np.linalg.norm(
+            bearing_vectors_ecef, axis=1, keepdims=True
+        )
 
         is_visible = bearing_unit_vectors_ecef @ camera_axis_ecef > self.cos_fov_on_2
         visible_landmarks_ecef = hemisphere_landmarks_ecef[is_visible, :]
