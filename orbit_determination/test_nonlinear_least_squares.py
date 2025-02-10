@@ -152,5 +152,5 @@ def load_brahe_data_files() -> None:
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    load_brahe_data_files()
+    # load_brahe_data_files()
     test_od()
