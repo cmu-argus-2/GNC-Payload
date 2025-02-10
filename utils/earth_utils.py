@@ -50,18 +50,19 @@ def convert_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
     return lat_lon_flat.reshape(H, W, 2)
 
 
-def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
+def lat_lon_to_ecef(lat_lon: np.ndarray, a=6378137.0, b=6356752.314245) -> np.ndarray:
     """
     Convert latitude and longitude to ECEF (Earth-Centered, Earth-Fixed) coordinates.
 
     Parameters:
-        lat_lon (np.ndarray): Array of latitude and longitude (HxWx2).
+        lat_lon: A numpy array of shape (..., 2) consisting of latitudes and longitudes.
 
     Returns:
-        np.ndarray: Array of ECEF coordinates (HxWx3).
+        np.ndarray: A numpy array of shape (..., 3) consisting of ECEF coordinates.
     """
-    # TODO: generalize this to work with arbitrary arrays of shape (..., 2)
-    # H, W = lat_lon.shape
+    assert lat_lon.shape[-1] == 2, "Input must have shape (..., 2)"
+
+    shape_prefix = lat_lon.shape[:-1]
     lat_lon_flat = lat_lon.reshape(-1, 2)
 
     lat = lat_lon_flat[:, 0]
@@ -83,9 +84,7 @@ def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):
     z = (N * (1 - e2)) * np.sin(lat_rad)
 
     ecef_flat = np.column_stack((x, y, z))
-    # ecef = ecef_flat.reshape(H, W, 3)
-
-    return ecef_flat
+    return ecef_flat.reshape(*shape_prefix, 3)
 
 
 def get_nadir_rotation(state: np.ndarray) -> np.ndarray:
