@@ -17,7 +17,8 @@ Date: [Creation or Last Update Date]
 
 import os
 from time import perf_counter
-from typing import Tuple
+from typing import Tuple, List
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -29,32 +30,76 @@ from vision_inference.logger import Logger
 from vision_inference.frame import Frame
 
 
-class Landmark:
+@dataclass
+class LandmarkDetections:
     """
-    A class to store landmark info including centroid coordinates, geographic coordinates, and classes.
+    A class to store info about landmark detections.
 
     Attributes:
-        centroid_xy (list of tuples): The centroid coordinates (x, y) of detected landmarks.
-        centroid_latlons (list of tuples): The geographic coordinates (latitude, longitude) of detected landmarks.
-        landmark_classes (list): The classes of the detected landmarks.
+        centroid_xys: A numpy array of shape (N, 2) containing the x and y image coordinates for each detected landmark's centroid.
+        centroid_latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
+        landmark_classes: A numpy array of shape (N,) containing the class IDs for each detected landmark.
+        confidence_scores: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
     """
+    centroid_xys: np.ndarray
+    centroid_latlons: np.ndarray
+    landmark_classes: np.ndarray
+    confidence_scores: np.ndarray
 
-    def __init__(self, centroid_xy, centroid_latlons, landmark_classes, confidence_scores):
+    @property
+    def detection_count(self) -> int:
         """
-        Initializes the Landmark
+        :return: The number of landmark detections.
+        """
+        return len(self.landmark_classes)
+
+    @staticmethod
+    def empty() -> "LandmarkDetections":
+        """
+        Creates an empty LandmarkDetections object.
+
+        Returns:
+            A LandmarkDetections object with empty arrays of the correct shape for all attributes.
+        """
+        return LandmarkDetections(
+            centroid_xys=np.zeros((0, 2)),
+            centroid_latlons=np.zeros((0, 2)),
+            landmark_classes=np.zeros(0, dtype=int),
+            confidence_scores=np.zeros(0)
+        )
+
+    def assert_invariants(self) -> None:
+        """
+        Validates the invariants of the landmark detections.
+
+        :raises AssertionError: If any of the invariants are violated.
+        """
+        assert len(self.centroid_xys.shape) == 2, "centroid_xy should be a 2D array."
+        assert self.centroid_xys.shape[1] == 2, "centroid_xy should have 2 columns."
+        assert len(self.centroid_latlons.shape) == 2, "centroid_latlons should be a 2D array."
+        assert self.centroid_latlons.shape[1] == 2, "centroid_latlons should have 2 columns."
+        assert len(self.landmark_classes.shape) == 1, "landmark_classes should be a 1D array."
+        assert len(self.confidence_scores.shape) == 1, "confidence_scores should be a 1D array."
+
+        assert self.centroid_xys.shape[0] == self.centroid_latlons.shape[0] == len(self.landmark_classes) == len(self.confidence_scores), "All arrays should have the same length."
+
+    @staticmethod
+    def stack(detections: List["LandmarkDetections"]) -> "LandmarkDetections":
+        """
+        Stack multiple LandmarkDetections into a single LandmarkDetections object.
 
         Args:
-            centroid_xy (list of tuples): Centroid coordinates (x, y) of detected landmarks.
-            centroid_latlons (list of tuples): Geographic coordinates (latitude, longitude) of detected landmarks.
-            landmark_classes (list): Classes of detected landmarks.
-        """
-        self.centroid_xy = centroid_xy
-        self.centroid_latlons = centroid_latlons
-        self.landmark_classes = landmark_classes
-        self.confidence_scores = confidence_scores
+            detections: A list of LandmarkDetections objects.
 
-    def __repr__(self):
-        return f"Landmark(centroid_xy={self.centroid_xy}, centroid_latlons={self.centroid_latlons}, landmark_classes={self.landmark_classes}, confidence_scores={self.confidence_scores})"
+        Returns:
+            A LandmarkDetections object containing the stacked data.
+        """
+        return LandmarkDetections(
+            centroid_xys=np.row_stack([detection.centroid_xys for detection in detections]),
+            centroid_latlons=np.row_stack([detection.centroid_latlons for detection in detections]),
+            landmark_classes=np.concatenate([detection.landmark_classes for detection in detections]),
+            confidence_scores=np.concatenate([detection.confidence_scores for detection in detections])
+        )
 
 
 class LandmarkDetector:

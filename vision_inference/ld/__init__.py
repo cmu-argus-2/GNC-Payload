@@ -1,1 +1,1 @@
-from .landmark_detector import Landmark, LandmarkDetector
+from .landmark_detector import LandmarkDetections, LandmarkDetector

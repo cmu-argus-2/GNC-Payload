@@ -293,7 +293,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
             landmark_positions_ecef = np.concatenate(
                 (landmark_positions_ecef, centroids_ecef), axis=0
             )
-            pixel_coordinates = np.concatenate((pixel_coordinates, landmarks.centroid_xy), axis=0)
+            pixel_coordinates = np.concatenate((pixel_coordinates, landmarks.centroid_xys), axis=0)
             confidence_scores = np.concatenate(
                 (confidence_scores, landmarks.confidence_scores), axis=0
             )

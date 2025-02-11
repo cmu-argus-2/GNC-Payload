@@ -15,7 +15,7 @@ from typing import Tuple, List
 
 import cv2
 
-from vision_inference.ld import Landmark, LandmarkDetector
+from vision_inference.ld import LandmarkDetections, LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.rc import RegionClassifier
 from vision_inference.frame import Frame
@@ -87,7 +87,7 @@ class MLPipeline:
                 centroid_xy, centroid_latlons, landmark_classes, confidence_scores = (
                     detector.detect_landmarks(frame_obj.frame)
                 )
-                landmark = Landmark(
+                landmark = LandmarkDetections(
                     centroid_xy, centroid_latlons, landmark_classes, confidence_scores
                 )
                 frame_results.append((region, landmark))
@@ -127,7 +127,7 @@ class MLPipeline:
                 and centroid_latlons is not None
                 and landmark_classes is not None
             ):
-                landmark = Landmark(
+                landmark = LandmarkDetections(
                     centroid_xy, centroid_latlons, landmark_classes, confidence_scores
                 )
                 frame_results.append((region, landmark))
@@ -190,7 +190,7 @@ class MLPipeline:
             region_color_map[region] = base_color
 
             for (x, y), confidence, cls in zip(
-                detection_result.centroid_xy,
+                detection_result.centroid_xys,
                 detection_result.confidence_scores,
                 detection_result.landmark_classes,
             ):
