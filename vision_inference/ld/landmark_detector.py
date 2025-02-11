@@ -72,12 +72,12 @@ class LandmarkDetector:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
-    def detect_landmarks(self, frame_obj: Frame):
+    def detect_landmarks(self, frame: Frame):
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
 
         Args:
-            img (np.ndarray): The input image array on which to perform landmark detection.
+            frame: The input Frame on which to perform landmark detection.
 
         Returns:
             tuple: A tuple containing several numpy arrays:
@@ -90,12 +90,12 @@ class LandmarkDetector:
         """
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Starting the landmark detection process.",
+            f"[Camera {frame.camera_id} frame {frame.frame_id}] Starting the landmark detection process.",
         )
 
         try:
             # Detect landmarks using the YOLO model
-            img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
+            img = Image.fromarray(cv2.cvtColor(frame.frame, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
             results: Results = self.model.predict(img, conf=LandmarkDetector.CONFIDENCE_THRESHOLD, imgsz=(1088, 1920), verbose=False)
             inference_time = perf_counter() - start_time
@@ -131,7 +131,7 @@ class LandmarkDetector:
             if len(landmark_classes) == 0:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.",
+                    f"[Camera {frame.camera_id} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
                 )
                 return None, None, None, None
 
@@ -140,19 +140,19 @@ class LandmarkDetector:
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_classes)} landmarks detected.",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] {len(landmark_classes)} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
             )
             for cls, (x, y), (lat, lon), conf in zip(landmark_classes, centroid_xys, centroid_latlons, confidence_scores):
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
+                    f"[Camera {frame.camera_id} frame {frame.frame_id}] {cls}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
                 )
 
             return centroid_xys, centroid_latlons, landmark_classes, confidence_scores
