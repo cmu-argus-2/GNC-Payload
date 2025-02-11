@@ -28,19 +28,6 @@ from utils.config_utils import load_config
 
 NUM_CLASSES = 16
 
-# Define error and info messages
-error_messages = {
-    "CONFIGURATION_ERROR": "Configuration error.",
-    "MODEL_LOADING_FAILED": "Failed to load model.",
-    "CLASSIFICATION_FAILED": "Classification process failed.",
-}
-
-info_messages = {
-    "INITIALIZATION_START": "Initializing RegionClassifier.",
-    "MODEL_LOADED": "Model loaded successfully.",
-    "CLASSIFICATION_START": "Starting the classification process.",
-}
-
 
 class ClassifierEfficient(nn.Module):
     def __init__(self):
@@ -70,7 +57,7 @@ class RegionClassifier:
     MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, f"model_effnet_0.997_acc.pth")
 
     def __init__(self):
-        Logger.log("INFO", info_messages["INITIALIZATION_START"])
+        Logger.log("INFO", "Initializing RegionClassifier.")
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -81,10 +68,10 @@ class RegionClassifier:
                 torch.load(RegionClassifier.MODEL_WEIGHTS_PATH, map_location=self.device)
             )
             self.model.eval()
-            Logger.log("INFO", info_messages["MODEL_LOADED"])
+            Logger.log("INFO", "Model loaded successfully.")
 
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['MODEL_LOADING_FAILED']}: {e}")
+            Logger.log("ERROR", f"Failed to load model: {e}")
             raise
 
         # Define the preprocessing
@@ -106,13 +93,13 @@ class RegionClassifier:
             config = load_config()
             return config["vision"]["salient_mgrs_region_ids"]
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
+            Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
     def classify_region(self, frame_obj: Frame) -> List[str]:
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['CLASSIFICATION_START']}",
+            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Starting the classification process.",
         )
         try:
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
@@ -129,7 +116,7 @@ class RegionClassifier:
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
 
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['CLASSIFICATION_FAILED']}: {e}")
+            Logger.log("ERROR", f"Classification process failed: {e}")
             raise
 
         Logger.log(
