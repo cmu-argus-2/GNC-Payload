@@ -72,8 +72,12 @@ class RegionClassifier:
         try:
             config = load_config()
             region_ids = config["vision"]["salient_mgrs_region_ids"]
-            assert len(region_ids) == RegionClassifier.NUM_CLASSES, "Incorrect number of region IDs."
-            assert len(set(region_ids)) == RegionClassifier.NUM_CLASSES, "Duplicate region IDs detected."
+            assert (
+                len(region_ids) == RegionClassifier.NUM_CLASSES
+            ), "Incorrect number of region IDs."
+            assert (
+                len(set(region_ids)) == RegionClassifier.NUM_CLASSES
+            ), "Duplicate region IDs detected."
             return region_ids
         except Exception as e:
             Logger.log("ERROR", f"Configuration error: {e}")
