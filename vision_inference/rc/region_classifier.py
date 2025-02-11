@@ -13,16 +13,15 @@ Date: [Creation or Last Update Date]
 """
 
 import os
-import yaml
 import cv2
 from time import perf_counter
 import torch
 import torch.nn as nn
-from torchvision import models, transforms
+from torchvision import transforms
 from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from PIL import Image
 from vision_inference.logger import Logger
-from typing import Tuple, List
+from typing import List
 
 from vision_inference.frame import Frame
 from utils.config_utils import load_config
