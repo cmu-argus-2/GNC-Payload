@@ -32,6 +32,7 @@ from vision_inference.frame import Frame
 
 class LandmarkDetector:
     CONFIDENCE_THRESHOLD = 0.5
+    IMAGE_SIZE = (1088, 1920)
     MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/ld"))
 
     def __init__(self, region_id: str):
@@ -100,7 +101,12 @@ class LandmarkDetector:
             # Detect landmarks using the YOLO model
             img = Image.fromarray(cv2.cvtColor(frame.frame, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
-            results: Results = self.model.predict(img, conf=LandmarkDetector.CONFIDENCE_THRESHOLD, imgsz=(1088, 1920), verbose=False)
+            results: Results = self.model.predict(
+                img,
+                conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
+                imgsz=LandmarkDetector.IMAGE_SIZE,
+                verbose=False,
+            )
             inference_time = perf_counter() - start_time
 
             centroid_xys = []
@@ -152,7 +158,9 @@ class LandmarkDetector:
                 "INFO",
                 f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlon\tconfidence",
             )
-            for cls, (x, y), (lat, lon), conf in zip(landmark_classes, centroid_xys, centroid_latlons, confidence_scores):
+            for cls, (x, y), (lat, lon), conf in zip(
+                landmark_classes, centroid_xys, centroid_latlons, confidence_scores
+            ):
                 Logger.log(
                     "INFO",
                     f"[Camera {frame.camera_id} frame {frame.frame_id}] {cls}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
