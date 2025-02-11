@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Tuple
 
 import numpy as np
 from brahe.epoch import Epoch
@@ -71,6 +72,14 @@ class ODSimulationDataManager:
         :return: The latest attitude in the simulation data, as a rotation matrix from the body frame to ECI.
         """
         return self.Rs_body_to_eci[-1, ...]
+
+    @property
+    def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
+        """
+        indices = self.measurement_indices == self.state_count - 1
+        return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
 
     def assert_invariants(self) -> None:
         """
