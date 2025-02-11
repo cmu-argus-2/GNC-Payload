@@ -30,25 +30,9 @@ from sensors.imu import IMU
 from sensors.sensor import SensorNoiseParams
 from sensors.bias import BiasParams
 from sensors.imu import IMUNoiseParams
+from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state
 from utils.orbit_utils import is_over_daytime
-
-
-def load_config() -> dict[str, Any]:
-    """
-    Load the configuration file and modify it for the purposes of this test.
-
-    :return: The modified configuration file as a dictionary.
-    """
-    with open("config.yaml", "r") as file:
-        config = yaml.safe_load(file)
-
-    # TODO: move this into the config file itself
-    # decrease world update rate since we only care about position dynamics
-    config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
-
-    return config
 
 
 def imu_init(dt):
@@ -84,6 +68,9 @@ def run_simulation():
 
     config = load_config()
 
+    config["solver"]["world_update_rate"] = 1 / 60  # Hz
+    config["mission"]["duration"] = 3 * 90 * 600  # s, roughly 1 orbit
+
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
@@ -101,13 +88,14 @@ def run_simulation():
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
-        r=initial_state[0:3] + np.random.normal(0, 0, 3),  # TODO: Adjust and tune noise and error init
-        v=initial_state[3:6] + np.random.normal(0, 0, 3),
+        r=initial_state[0:3] + np.random.normal(0, 10, 3),  # TODO: Adjust and tune noise and error init
+        v=initial_state[3:6] + np.random.normal(0, 10, 3),
         q=quaternion.from_rotation_matrix(init_rot),
-        P=np.eye(6) * 1,
+        P=np.eye(6) * 10,
         Q=np.eye(6) * 1e-12,
         R=np.zeros((3, 3)),
         dt=dt,
+        config=config,
     )
 
     # Fix a constant rotation velocity for the test.
@@ -125,18 +113,25 @@ def run_simulation():
             np.expand_dims(next_state, axis=0),
             np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
         )
-        
-        if t % 1 == 0:
+
+        gyro_meas = np.zeros((3)) # TEMPORARY 
+        # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
+        ekf.predict(u=gyro_meas)
+
+        if t % 10 == 0:
             data_manager.take_measurement(landmark_bearing_sensor)
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
-        # EKF prediction step
-        gyro_meas = np.zeros((3))
-        # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
-        ekf.predict(u=gyro_meas)
-        z = (data_manager.curr_bearing_unit_vectors, data_manager.curr_landmarks)
-        ekf.measurement(z)
+            # EKF prediction step
+            z = (data_manager.curr_bearing_unit_vectors, data_manager.curr_landmarks)
+            if z[0].shape[0] > 0:
+                ekf.measurement(z, landmark_bearing_sensor, data_manager)
+            else:
+                ekf.no_measurement()
+        else: 
+            ekf.no_measurement()
+
         
         error.append(ekf.r_m - next_state[0:3])
 
