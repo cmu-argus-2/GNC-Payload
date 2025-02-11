@@ -41,6 +41,7 @@ class LandmarkDetections:
         landmark_classes: A numpy array of shape (N,) containing the class IDs for each detected landmark.
         confidence_scores: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
     """
+
     centroid_xys: np.ndarray
     centroid_latlons: np.ndarray
     landmark_classes: np.ndarray
@@ -65,7 +66,7 @@ class LandmarkDetections:
             centroid_xys=np.zeros((0, 2)),
             centroid_latlons=np.zeros((0, 2)),
             landmark_classes=np.zeros(0, dtype=int),
-            confidence_scores=np.zeros(0)
+            confidence_scores=np.zeros(0),
         )
 
     def assert_invariants(self) -> None:
@@ -81,7 +82,12 @@ class LandmarkDetections:
         assert len(self.landmark_classes.shape) == 1, "landmark_classes should be a 1D array."
         assert len(self.confidence_scores.shape) == 1, "confidence_scores should be a 1D array."
 
-        assert self.centroid_xys.shape[0] == self.centroid_latlons.shape[0] == len(self.landmark_classes) == len(self.confidence_scores), "All arrays should have the same length."
+        assert (
+            self.centroid_xys.shape[0]
+            == self.centroid_latlons.shape[0]
+            == len(self.landmark_classes)
+            == len(self.confidence_scores)
+        ), "All arrays should have the same length."
 
     @staticmethod
     def stack(detections: List["LandmarkDetections"]) -> "LandmarkDetections":
@@ -95,10 +101,10 @@ class LandmarkDetections:
             A LandmarkDetections object containing the stacked data.
         """
         return LandmarkDetections(
-            centroid_xys=np.row_stack([detection.centroid_xys for detection in detections]),
-            centroid_latlons=np.row_stack([detection.centroid_latlons for detection in detections]),
-            landmark_classes=np.concatenate([detection.landmark_classes for detection in detections]),
-            confidence_scores=np.concatenate([detection.confidence_scores for detection in detections])
+            centroid_xys=np.row_stack([det.centroid_xys for det in detections]),
+            centroid_latlons=np.row_stack([det.centroid_latlons for det in detections]),
+            landmark_classes=np.concatenate([det.landmark_classes for det in detections]),
+            confidence_scores=np.concatenate([det.confidence_scores for det in detections]),
         )
 
 
