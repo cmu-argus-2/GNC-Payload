@@ -17,7 +17,7 @@ Date: [Creation or Last Update Date]
 
 import os
 from time import perf_counter
-from typing import Tuple, List
+from typing import List
 from dataclasses import dataclass
 
 import cv2
