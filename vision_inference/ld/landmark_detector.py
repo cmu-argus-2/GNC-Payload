@@ -30,6 +30,7 @@ from vision_inference.frame import Frame
 
 
 class LandmarkDetector:
+    CONFIDENCE_THRESHOLD = 0.5
     MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/ld"))
 
     def __init__(self, region_id: str):
@@ -95,7 +96,7 @@ class LandmarkDetector:
             # Detect landmarks using the YOLO model
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
-            results = self.model.predict(img, conf=0.5, imgsz=(1088, 1920), verbose=False)
+            results = self.model.predict(img, conf=LandmarkDetector.CONFIDENCE_THRESHOLD, imgsz=(1088, 1920), verbose=False)
             inference_time = perf_counter() - start_time
 
             landmark_list = []
