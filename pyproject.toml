@@ -15,3 +15,46 @@ exclude = '''
     | dist
 )/
 '''
+
+[tool.mypy]
+# Specify the Python version to type-check against
+python_version = "3.12"
+
+# Turn on "strict optional" (None-checks)
+strict_optional = true
+
+# Disallow functions without type hints (return + arguments)
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+# Warn about casts that are redundant
+warn_redundant_casts = true
+
+# Warn about unreachable code
+warn_unreachable = true
+
+# Warn about unused "ignore" comments
+warn_unused_ignores = true
+
+# Complain if we can't find type hints for dependencies
+ignore_missing_imports = false
+
+
+[tool.isort]
+# Use the "black" profile to align with Black's formatting style
+profile = "black"
+
+# The maximum line length for wrapping
+line_length = 100
+
+# Organize imports in a single or multi-line format
+multi_line_output = 3
+
+# Add trailing commas to multi-line imports
+include_trailing_comma = true
+
+# Keep imports sorted alphabetically, ignoring case
+case_sensitive = false
+
+# Whether to skip file(s) matching patterns from .gitignore
+skip_gitignore = true

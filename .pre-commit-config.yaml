@@ -5,6 +5,26 @@ repos:
       - id: black
         language_version: python3.12  # or "default"
 
+
+  # Add isort
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0  # use the latest stable version
+    hooks:
+      - id: isort
+        name: isort
+        language_version: python3.12  # or "default"
+
+
+  # Add mypy (using the mirrors-mypy repo)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.0.1  # use a specific tag/commit for reproducibility
+    hooks:
+      - id: mypy
+        name: mypy
+        language_version: python3.12  # or "default"
+        args: ["--config-file=pyproject.toml"]
+
+
   - repo: local
     hooks:
       - id: pylint
