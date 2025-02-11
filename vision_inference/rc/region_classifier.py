@@ -26,7 +26,6 @@ from typing import List
 from vision_inference.frame import Frame
 from utils.config_utils import load_config
 
-LD_MODEL_SUF = ".pth"
 NUM_CLASSES = 16
 
 # Define error and info messages
@@ -68,6 +67,7 @@ class RegionClassifier:
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
     MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/rc"))
+    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, f"model_effnet_0.997_acc.pth")
 
     def __init__(self):
         Logger.log("INFO", info_messages["INITIALIZATION_START"])
@@ -77,10 +77,9 @@ class RegionClassifier:
             self.model = ClassifierEfficient().to(self.device)
 
             # Load Custom model weights
-            model_weights_path = os.path.join(
-                RegionClassifier.MODEL_DIR, f"model_effnet_0.997_acc{LD_MODEL_SUF}"
+            self.model.load_state_dict(
+                torch.load(RegionClassifier.MODEL_WEIGHTS_PATH, map_location=self.device)
             )
-            self.model.load_state_dict(torch.load(model_weights_path, map_location=self.device))
             self.model.eval()
             Logger.log("INFO", info_messages["MODEL_LOADED"])
 
