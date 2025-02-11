@@ -22,9 +22,9 @@ from dynamics.orbital_dynamics import f
 from dynamics.orbital_dynamics import f_jac
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import SimulatedMLLandmarkBearingSensor
+from orbit_determination.landmark_bearing_sensors import GroundTruthLandmarkBearingSensor
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 import quaternion
-from sensors.imu import IMU
 from sensors.imu import IMU
 from sensors.sensor import SensorNoiseParams
 from sensors.bias import BiasParams
@@ -134,7 +134,7 @@ def run_simulation():
         gyro_meas = np.zeros((3))
         # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
         ekf.predict(u=gyro_meas)
-        z = (data_manager.current_bearing_unit_vectors, data_manager.current_landmarks)
+        z = data_manager.latest_measurements
         ekf.measurement(z)
         #
 
