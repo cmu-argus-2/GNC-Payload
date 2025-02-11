@@ -84,10 +84,16 @@ class ODSimulationDataManager:
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
+        Return the bearing unit vectors and landmarks corresponding to the latest state.
+
+        This property finds all measurements that were taken at the most recent state time step.
         """
-        indices = self.measurement_indices == self.state_count - 1
-        return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
+        latest_idx = self.state_count - 1
+        # Create a boolean mask for measurements taken at the latest state index.
+        mask = self.measurement_indices == latest_idx
+        latest_bearings = self.bearing_unit_vectors[mask, :]
+        latest_landmarks = self.landmarks[mask, :]
+        return latest_bearings, latest_landmarks
 
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:

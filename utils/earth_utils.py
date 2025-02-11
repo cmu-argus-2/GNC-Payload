@@ -208,6 +208,10 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     )
 
     # Reshape to match input lat/lon shape
+    mgrs_regions = np.full(latitudes.shape, None, dtype=object)
+    mgrs_regions[valid_indices] = mgrs_regions_flat
+
+    # Reshape to match input lat/lon shape
     return mgrs_regions.reshape(latitudes.shape)
 
 
