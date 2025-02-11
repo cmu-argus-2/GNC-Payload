@@ -99,7 +99,9 @@ class LandmarkDetector:
             results = self.model.predict(img, conf=LandmarkDetector.CONFIDENCE_THRESHOLD, imgsz=(1088, 1920), verbose=False)
             inference_time = perf_counter() - start_time
 
-            landmark_list = []
+            centroid_xys = []
+            landmark_classes = []
+            confidence_scores = []
 
             for result in results:
                 landmarks = result.boxes
@@ -117,50 +119,47 @@ class LandmarkDetector:
                             )
                             continue
 
-                        landmark_list.append([x, y, cls, w, h, conf])
+                        landmark_classes.append(cls)
+                        centroid_xys.append([x, y])
+                        confidence_scores.append(conf)
 
-            if not landmark_list:
+            landmark_classes = np.array(landmark_classes, dtype=int)
+            centroid_xys = np.array(centroid_xys)
+            confidence_scores = np.array(confidence_scores)
+
+            if len(landmark_classes) == 0:
                 Logger.log(
                     "INFO",
                     f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.",
                 )
                 return None, None, None, None
 
-            landmark_arr = np.array(landmark_list)
-
-            centroid_xy = landmark_arr[:, :2]
-            landmark_class = landmark_arr[:, 2].astype(int)
-            confidence_scores = landmark_arr[:, 5]  # Confidence scores
-
             # Additional processing to calculate bounding box corners and lat/lon coordinates
-            centroid_latlons = self.ground_truth[landmark_class, :2]
+            centroid_latlons = self.ground_truth[landmark_classes, :2]
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_list)} landmarks detected.",
+                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_classes)} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
-            if landmark_arr.size > 0:
+            if len(landmark_classes) > 0:
                 Logger.log(
                     "INFO",
                     f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
                 )
-                for i in range(len(landmark_list)):
-                    # Class ID, convert to int for cleaner logging
-                    cls = int(landmark_arr[i, 2])
-                    x, y = int(landmark_arr[i, 0]), int(
-                        landmark_arr[i, 1]
+                for cls, centroid_xy, centroid_latlon, conf in zip(landmark_classes, centroid_xys, centroid_latlons, confidence_scores):
+                    x, y = int(centroid_xy[0]), int(
+                        centroid_xy[1]
                     )  # Centroid coordinates, convert to int for cleaner logging
-                    lat, lon = centroid_latlons[i]
-                    conf = confidence_scores[i]
+                    lat, lon = centroid_latlon[0], centroid_latlon[1]
                     Logger.log(
                         "INFO",
                         f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x}, {y})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
                     )
 
-            return centroid_xy, centroid_latlons, landmark_class, confidence_scores
+            return centroid_xys, centroid_latlons, landmark_classes, confidence_scores
 
         except Exception as e:
             Logger.log("ERROR", f"Detection process failed: {str(e)}")
