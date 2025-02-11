@@ -7,6 +7,7 @@ import sys
 from time import time
 from typing import Any
 from typing import List
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -87,7 +88,7 @@ def run_simulation():
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
@@ -100,11 +101,10 @@ def run_simulation():
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
-        r=initial_state[0:3]
-        + np.random.normal(0, 100, 3),  # TODO: Adjust and tune noise and error init
-        v=initial_state[3:6] + np.random.normal(0, 100, 3),
+        r=initial_state[0:3] + np.random.normal(0, 0, 3),  # TODO: Adjust and tune noise and error init
+        v=initial_state[3:6] + np.random.normal(0, 0, 3),
         q=quaternion.from_rotation_matrix(init_rot),
-        P=np.eye(6) * 100,
+        P=np.eye(6) * 1,
         Q=np.eye(6) * 1e-12,
         R=np.zeros((3, 3)),
         dt=dt,
@@ -113,14 +113,10 @@ def run_simulation():
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 2])
 
+    error = []
+
     for t in range(0, N - 1):
         # take a set of measurements every minute
-        if t % 1 == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[0:3]
-        ):
-            data_manager.take_measurement(landmark_bearing_sensor)
-            print(f"Total measurements so far: {data_manager.measurement_count}")
-            print(f"Completion: {100 * t / N:.2f}%")
 
         next_state = f(data_manager.latest_state, dt)
         curr_quat = quaternion.from_rotation_matrix(data_manager.latest_attitude)
@@ -129,20 +125,28 @@ def run_simulation():
             np.expand_dims(next_state, axis=0),
             np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
         )
+        
+        if t % 1 == 0:
+            data_manager.take_measurement(landmark_bearing_sensor)
+            print(f"Total measurements so far: {data_manager.measurement_count}")
+            print(f"Completion: {100 * t / N:.2f}%")
 
         # EKF prediction step
         gyro_meas = np.zeros((3))
         # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
         ekf.predict(u=gyro_meas)
-        z = data_manager.latest_measurements
+        z = (data_manager.curr_bearing_unit_vectors, data_manager.curr_landmarks)
         ekf.measurement(z)
-        #
+        
+        error.append(ekf.r_m - next_state[0:3])
 
     if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)
 
+    plt.plot(error)
+    plt.show()
     # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
 
     # # Run the simulation

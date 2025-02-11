@@ -1,5 +1,6 @@
 """ Extended Kalman Filter for orbit determination """
 
+import math
 from typing import Any
 from typing import Tuple
 
@@ -33,6 +34,7 @@ class EKF:
         Q: np.ndarray,
         R: np.ndarray,
         dt: float,
+        config: dict,
     ) -> None:
         """
         Initialize the EKF
@@ -73,6 +75,10 @@ class EKF:
         self.R = R
         self.dt = dt
 
+        camera_params = config["satellite"]["camera"]
+        self.R_camera_to_body = np.asarray(camera_params["R_camera_to_body"])
+        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])
+
         self.cond_threshold = 1e15
 
     def predict(self, u: np.ndarray) -> None:
@@ -111,12 +117,14 @@ class EKF:
         #         [dadr, np.zeros((3, 3)), np.eye(3)],
         #     ]
         # )
-        A = np.block(
-            [
-                [np.eye(3), self.dt * np.eye(3)],
-                [dadr, np.eye(3)],
-            ]
-        )
+        # A = np.block(
+        #     [
+        #         [np.eye(3), self.dt * np.eye(3)],
+        #         [dadr, np.eye(3)],
+        #     ]
+        # )
+        x = np.append(self.r_m, self.v_m)
+        A = f_jac(x, self.dt)
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -136,6 +144,10 @@ class EKF:
             # x_p = jnp.array(
             #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
             # )
+            z0 = z[0][:int(math.floor(z[0].shape[0]/20)), 0:3]
+            z1 = z[1][:int(math.floor(z[0].shape[0]/20)), 0:3]
+            z = (z0, z1)
+
             x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
 
             h = self.h(z[1], x_p)
@@ -144,7 +156,7 @@ class EKF:
             z = z[0].reshape(-1)  # Flatten the measurement vector
 
             # Let R take the dimensionality of the number of measurements
-            self.R = np.diag([1] * z.shape[0])
+            self.R = np.diag([1e-5] * z.shape[0])
 
             S = H @ self.P_p @ H.T + self.R
             cond = np.linalg.cond(S)
