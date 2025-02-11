@@ -306,11 +306,11 @@ if not args.custom_mosaics:
         if not args.crs:
             crs = 'EPSG:4326'
         task_config = {
-            'scale': scale,
-            'fileFormat': out_format,
-            'region': region_rect,
-            'driveFolder': out_path,  # TODO: allow specifying folder to put this in
-            'crs': crs
+            "scale": scale,
+            "fileFormat": out_format,
+            "region": region_rect,
+            "driveFolder": out_path,  # TODO: allow specifying folder to put this in
+            "crs": crs,
         }
         task = ee.batch.Export.image(composite, out_name, task_config)
         task_list.append(task)
