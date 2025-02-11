@@ -86,6 +86,14 @@ class ODSimulationDataManager:
         indices = self.measurement_indices == self.state_count - 1
         return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
 
+    @property
+    def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
+        """
+        indices = self.measurement_indices == self.state_count - 1
+        return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
+
     def assert_invariants(self) -> None:
         """
         Validates the invariants of the simulation data.
