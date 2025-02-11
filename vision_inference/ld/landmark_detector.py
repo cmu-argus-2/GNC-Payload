@@ -145,9 +145,7 @@ class LandmarkDetector:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
-    def detect_landmarks(
-        self, frame: Frame
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def detect_landmarks(self, frame: Frame) -> LandmarkDetections:
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
 
@@ -158,11 +156,7 @@ class LandmarkDetector:
             frame: The input Frame on which to perform landmark detection.
 
         Returns:
-            A tuple containing the following numpy arrays:
-                - centroid_xys: A numpy array of shape (N, 2) containing the x and y image coordinates for each detected landmark's centroid.
-                - centroid_latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
-                - landmark_classes: A numpy array of shape (N,) containing the class IDs for each detected landmark.
-                - confidence_scores: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
+            A LandmarkDetections object containing the detected landmarks and associated data.
         """
         Logger.log(
             "INFO",
@@ -181,9 +175,7 @@ class LandmarkDetector:
             )
             inference_time = perf_counter() - start_time
 
-            centroid_xys = []
-            landmark_classes = []
-            confidence_scores = []
+            landmark_detections = []
 
             for result in results:
                 landmarks = result.boxes
@@ -201,27 +193,27 @@ class LandmarkDetector:
                             )
                             continue
 
-                        landmark_classes.append(cls)
-                        centroid_xys.append([x, y])
-                        confidence_scores.append(conf)
+                        landmark_detections.append(
+                            LandmarkDetections(
+                                centroid_xys=np.array([[x, y]]),
+                                centroid_latlons=self.ground_truth[cls, :2],
+                                landmark_classes=np.array([cls], dtype=int),
+                                confidence_scores=np.array([conf]),
+                            )
+                        )
 
-            landmark_classes = np.array(landmark_classes, dtype=int)
-            centroid_xys = np.array(centroid_xys)
-            confidence_scores = np.array(confidence_scores)
+            landmark_detections = LandmarkDetections.stack(landmark_detections)
 
-            if len(landmark_classes) == 0:
+            if landmark_detections.detection_count == 0:
                 Logger.log(
                     "INFO",
                     f"[Camera {frame.camera_id} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
                 )
-                return None, None, None, None
-
-            # Additional processing to calculate bounding box corners and lat/lon coordinates
-            centroid_latlons = self.ground_truth[landmark_classes, :2]
+                return LandmarkDetections.empty()
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] {len(landmark_classes)} landmarks detected.",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] {landmark_detections.detection_count} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
@@ -231,14 +223,17 @@ class LandmarkDetector:
                 f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlon\tconfidence",
             )
             for cls, (x, y), (lat, lon), conf in zip(
-                landmark_classes, centroid_xys, centroid_latlons, confidence_scores
+                landmark_detections.landmark_classes,
+                landmark_detections.centroid_xys,
+                landmark_detections.centroid_latlons,
+                landmark_detections.confidence_scores,
             ):
                 Logger.log(
                     "INFO",
                     f"[Camera {frame.camera_id} frame {frame.frame_id}] {cls}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
                 )
 
-            return centroid_xys, centroid_latlons, landmark_classes, confidence_scores
+            return landmark_detections
 
         except Exception as e:
             Logger.log("ERROR", f"Detection process failed: {e}")

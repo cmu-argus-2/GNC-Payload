@@ -84,13 +84,8 @@ class MLPipeline:
             frame_results = []
             for region in pred_regions:
                 detector = LandmarkDetector(region_id=region)
-                centroid_xy, centroid_latlons, landmark_classes, confidence_scores = (
-                    detector.detect_landmarks(frame_obj.frame)
-                )
-                landmark = LandmarkDetections(
-                    centroid_xy, centroid_latlons, landmark_classes, confidence_scores
-                )
-                frame_results.append((region, landmark))
+                landmark_detections = detector.detect_landmarks(frame_obj.frame)
+                frame_results.append((region, landmark_detections))
             results.append((frame_obj.camera_id, frame_results))
         return results
 
@@ -119,20 +114,8 @@ class MLPipeline:
         frame_results = []
         for region in pred_regions:
             detector = LandmarkDetector(region_id=region)
-            centroid_xy, centroid_latlons, landmark_classes, confidence_scores = (
-                detector.detect_landmarks(frame_obj)
-            )
-            if (
-                centroid_xy is not None
-                and centroid_latlons is not None
-                and landmark_classes is not None
-            ):
-                landmark = LandmarkDetections(
-                    centroid_xy, centroid_latlons, landmark_classes, confidence_scores
-                )
-                frame_results.append((region, landmark))
-            else:
-                continue
+            landmark_detections = detector.detect_landmarks(frame_obj)
+            frame_results.append((region, landmark_detections))
         # Use the class method to update landmarks
         frame_obj.update_landmarks(frame_results)
         return frame_results
