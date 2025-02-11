@@ -13,6 +13,7 @@ from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.camera import Frame
 from vision_inference.ml_pipeline import MLPipeline
+from vision_inference.landmark_detector import LandmarkDetector
 
 
 class LandmarkBearingSensor(ABC):
@@ -157,8 +158,6 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
 
-    LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../../vision_inference/models/ld"))
-
     def __init__(self, config, fov: float = np.deg2rad(100)):
         camera_params = config["satellite"]["camera"]
         self.R_camera_to_body = np.asarray(camera_params["R_camera_to_body"])
@@ -180,7 +179,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         region_landmarks_ecef = {}
         for region_id in salient_regions:
             region_landmarks_csv = os.path.join(
-                GroundTruthLandmarkBearingSensor.LD_MODELS_PATH,
+                LandmarkDetector.MODEL_DIR,
                 f"{region_id}/{region_id}_top_salient.csv",
             )
             region_landmarks = np.loadtxt(region_landmarks_csv, delimiter=",", skiprows=1)

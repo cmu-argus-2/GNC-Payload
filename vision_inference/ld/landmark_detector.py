@@ -48,22 +48,22 @@ info_messages = {
 
 
 class LandmarkDetector:
+    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/ld"))
 
-    def __init__(self, region_id: str, model_path: str = None):
+    def __init__(self, region_id: str):
         """
-        Initialize the LandmarkDetector with a specific region ID and model path
+        Initialize the LandmarkDetector with a specific region ID
         The YOLO object is created with the path to a specific pretrained model
         """
-        if model_path is None:
-            model_path = os.path.abspath(os.path.join(__file__, "../../models/ld"))
-
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
 
         self.region_id = region_id
         try:
-            self.model = YOLO(os.path.join(model_path, region_id, f"{region_id}_nadir.pt"))
+            self.model = YOLO(
+                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_nadir.pt")
+            )
             self.ground_truth = LandmarkDetector.load_ground_truth(
-                os.path.join(model_path, region_id, f"{region_id}_top_salient.csv")
+                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_top_salient.csv")
             )
         except Exception as e:
             Logger.log("ERROR", f"{error_messages['LOADING_FAILED']}: {e}")
