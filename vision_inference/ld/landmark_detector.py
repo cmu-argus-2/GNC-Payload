@@ -62,11 +62,11 @@ class LandmarkDetector:
 
         Returns:
             A numpy array of shape (N, 6) containing the following for each landmark:
-            (centroid_lon, centroid_lat, top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat).
+            (centroid_lat, centroid_lon, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon).
         """
         try:
             # TODO: change csvs to have lat, lon instead of lon, lat for consistency
-            return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)
+            return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)[:, [1, 0, 3, 2, 5, 4]]
         except Exception as e:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
