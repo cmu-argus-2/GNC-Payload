@@ -158,5 +158,5 @@ class LandmarkDetector:
             return centroid_xys, centroid_latlons, landmark_classes, confidence_scores
 
         except Exception as e:
-            Logger.log("ERROR", f"Detection process failed: {str(e)}")
+            Logger.log("ERROR", f"Detection process failed: {e}")
             raise
