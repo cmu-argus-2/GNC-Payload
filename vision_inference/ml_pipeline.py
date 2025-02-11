@@ -83,18 +83,17 @@ class MLPipeline:
         """
         self.region_classifier = RegionClassifier()
 
-    def classify_frame(self, frame_obj: Frame) -> List[str]:
+    def classify_frame(self, frame: Frame) -> List[str]:
         """
         Classifies a frame to identify geographic regions using the region classifier.
 
         Args:
-            frame_obj (Frame): The Frame object to classify.
+            frame: The Frame object to classify.
 
         Returns:
-            list: A list of predicted region IDs classified from the frame.
+            A list of predicted region IDs classified from the frame.
         """
-        predicted_list = self.region_classifier.classify_region(frame_obj)
-        return predicted_list
+        return self.region_classifier.classify_region(frame)
 
     def run_ml_pipeline_on_batch(self, frames: List[Frame]):
         """
