@@ -71,14 +71,14 @@ def test_od():
     data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state))
 
     for t in range(0, N - 1):
+        next_state = f(data_manager.latest_state, dt)
+        data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
+
         # take a set of measurements every 5 minutes
         if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
             data_manager.take_measurement(landmark_bearing_sensor)
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
-
-        next_state = f(data_manager.latest_state, dt)
-        data_manager.push_next_state(next_state, get_nadir_rotation(next_state[:6]))
 
     if data_manager.measurement_count == 0:
         raise ValueError("No measurements taken")
