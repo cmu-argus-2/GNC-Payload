@@ -26,29 +26,9 @@ from typing import List
 from vision_inference.frame import Frame
 from utils.config_utils import load_config
 
-NUM_CLASSES = 16
-
-
-class ClassifierEfficient(nn.Module):
-    def __init__(self):
-        super(ClassifierEfficient, self).__init__()
-        # Using new weights system
-        # This uses the most up-to-date weights
-        weights = EfficientNet_B0_Weights.DEFAULT
-        self.efficientnet = efficientnet_b0(weights=weights)
-        for param in self.efficientnet.features[:3].parameters():
-            param.requires_grad = False
-        num_features = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier[1] = nn.Linear(num_features, NUM_CLASSES)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.efficientnet(x)
-        x = self.sigmoid(x)
-        return x
-
 
 class RegionClassifier:
+    NUM_CLASSES = 16
     CONFIDENCE_THRESHOLD = 0.55
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
@@ -125,3 +105,22 @@ class RegionClassifier:
         )
         Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids
+
+
+class ClassifierEfficient(nn.Module):
+    def __init__(self):
+        super(ClassifierEfficient, self).__init__()
+        # Using new weights system
+        # This uses the most up-to-date weights
+        weights = EfficientNet_B0_Weights.DEFAULT
+        self.efficientnet = efficientnet_b0(weights=weights)
+        for param in self.efficientnet.features[:3].parameters():
+            param.requires_grad = False
+        num_features = self.efficientnet.classifier[1].in_features
+        self.efficientnet.classifier[1] = nn.Linear(num_features, RegionClassifier.NUM_CLASSES)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.efficientnet(x)
+        x = self.sigmoid(x)
+        return x
