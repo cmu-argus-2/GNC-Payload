@@ -4,6 +4,7 @@ import math
 from typing import Any
 from typing import Tuple
 
+import brahe
 from brahe.constants import GM_EARTH
 import jax
 import jax.numpy as jnp
@@ -128,56 +129,65 @@ class EKF:
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
-    def measurement(self, z: Tuple[np.ndarray, np.ndarray]) -> None:
+    def no_measurement(self) -> None:
+        self.r_m = self.r_p
+        # self.q_m = self.q_p
+        self.v_m = self.v_p
+        self.P_m = self.P_p
+
+
+    def measurement(self, z: Tuple[np.ndarray, np.ndarray], landmark_bearing_sensor, data_manager) -> None:
         """
         Update the state estimate based on the measurement. This corresponds to the posterior update step in the EKF algorithm.
 
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the landmark positions in ECI coordinates with shape (N, 3)
         """
-        if z[0].shape[0] == 0:
-            self.r_m = self.r_p
-            self.q_m = self.q_p
-            self.v_m = self.v_p
-            self.P_m = self.P_p
+        # x_p = jnp.array(
+        #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
+        # )
 
-        else:
-            # x_p = jnp.array(
-            #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
-            # )
-            z0 = z[0][:int(math.floor(z[0].shape[0]/20)), 0:3]
-            z1 = z[1][:int(math.floor(z[0].shape[0]/20)), 0:3]
-            z = (z0, z1)
+        x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
 
-            x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
+        # Select a fraction of the measurements to use to speed up computations
+        z0 = z[0][:int(math.ceil(z[0].shape[0] * 0.01))]
+        z1 = z[1][:int(math.ceil(z[1].shape[0] * 0.01))]
+        
+        z = (z0, z1)
 
-            h = self.h(z[1], x_p)
-            H = self.H(z[1], x_p)
+        h = self.h(z[1], data_manager, x_p)
+        H = self.H(z[1], data_manager, x_p)
 
-            z = z[0].reshape(-1)  # Flatten the measurement vector
+        z = z[0].reshape(-1)  # Flatten the measurement vector
 
-            # Let R take the dimensionality of the number of measurements
-            self.R = np.diag([1e-5] * z.shape[0])
+        # Let R take the dimensionality of the number of measurements
+        self.R = np.diag([1e-5] * z.shape[0])
 
-            S = H @ self.P_p @ H.T + self.R
+        S = H @ self.P_p @ H.T + self.R
+
+        if S.shape[0] != 0:
             cond = np.linalg.cond(S)
 
-            # Check for ill-conditioned matrix and add regularization if necessary
-            if cond > self.cond_threshold:
-                S += np.eye(S.shape[0]) * 1e-6
+        # else: 
+        #     cond = 0
 
-            K = self.P_p @ H.T @ np.linalg.inv(S)
+        # Check for ill-conditioned matrix and add regularization if necessary
+        if cond > self.cond_threshold:
+            S += np.eye(S.shape[0]) * 1e-6
 
-            delta = K @ (z - h)
+        K = self.P_p @ H.T @ np.linalg.inv(S)
 
-            self.r_m = self.r_p + delta[0:3]
-            # self.q_m = self.q_p * quaternion.from_rotation_vector(delta[3:6])
-            self.v_m = self.v_p + delta[3:6]
+        delta = K @ (z - h)
 
-            self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
-                np.eye(self.P_m.shape[0]) - K @ H
-            ).T + K @ self.R @ K.T  # Joseph form covariance update
+        self.r_m = self.r_p + delta[0:3]
+        # self.q_m = self.q_p * quaternion.from_rotation_vector(delta[3:6])
+        self.v_m = self.v_p + delta[3:6]
 
-    def H(self, z: np.ndarray, x_p: jnp.ndarray) -> np.ndarray:
+        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
+            np.eye(self.P_m.shape[0]) - K @ H
+        ).T + K @ self.R @ K.T  # Joseph form covariance update
+
+
+    def H(self, z: np.ndarray, data_manager, x_p: jnp.ndarray) -> np.ndarray:
         """
         Calculate the Jacobian of the measurement model with respect to the state.
 
@@ -186,14 +196,14 @@ class EKF:
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
-        jac = jax.jacobian(self.h, argnums=1)(z, x_p)
+        jac = jax.jacobian(self.h, argnums=2)(z, data_manager, x_p)
         # J = np.zeros((len(z) * 3, 6))
         # for i, land_pos in enumerate(z):
         #     deriv = np.eye(3)/np.linalg.norm(x_p[0:3] - land_pos) - np.outer(x_p[0:3] - land_pos, x_p[0:3] - land_pos)/(np.linalg.norm(x_p[0:3] - land_pos)**3)
 
         return jac
 
-    def h(self, z: np.ndarray, x_p: np.ndarray) -> np.ndarray:
+    def h(self, z: np.ndarray, data_manager, x_p: np.ndarray) -> np.ndarray:
         """
         Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide a bearing estimate.
 
@@ -202,14 +212,39 @@ class EKF:
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
         """
+        """
+        TODO:
+        Transform landmark positions from ECI to ECEF
+        Transform r_p from ECI to ECEF
+        Calculate bearing vectors in ECEF
+        Transform bearing vectors from ECEF to body frame
+        """
         estimate = jnp.zeros((len(z) * 3))
 
-        for i, land_pos in enumerate(z):
-            vec = x_p[:3] - land_pos
+        # Define rotation matrices
+        t_idx = data_manager.state_count - 1
+        R_body_to_eci = data_manager.Rs_body_to_eci[t_idx, ...] # TODO: Fix using attitude state
+        R_eci_to_ecef = brahe.frames.rECItoECEF(data_manager.latest_epoch)
+        R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
+        R_ecef_to_body = R_body_to_ecef.T
+
+        # Transform landmarks and position from ECI to ECEF
+        landmarks_ecef = (R_eci_to_ecef @ z.T).T
+        position_ecef = R_eci_to_ecef @ x_p[0:3] + R_body_to_ecef @ self.t_body_to_camera
+
+        # Calculate estimated bearing unit vectors in ECEF and transform to body frame
+        for i, land_pos in enumerate(landmarks_ecef):
+            vec = land_pos - position_ecef
             vec /= jnp.linalg.norm(vec)
-            # body_R_eci = R(rot_2_q(x_p[3:6]))
-            # body_vec = body_R_eci @ vec
-            estimate = estimate.at[i * 3 : i * 3 + 3].set(vec)
+            body_vec = R_ecef_to_body @ vec
+            estimate = estimate.at[i * 3 : i * 3 + 3].set(body_vec)
+        # for i, land_pos in enumerate(z):
+        #     vec = x_p[:3] - land_pos
+        #     vec /= jnp.linalg.norm(vec)
+        #     # body_R_eci = R(rot_2_q(x_p[3:6]))
+        #     # body_vec = body_R_eci @ vec
+        #     estimate = estimate.at[i * 3 : i * 3 + 3].set(vec)
+
         return estimate
 
 
