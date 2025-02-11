@@ -57,23 +57,24 @@ class MLPipeline:
     Attributes:
         region_classifier (RegionClassifier): An instance of RegionClassifier for classifying geographic regions in frames.
     """
+
     REGION_TO_LOCATION = {
-        '10S': 'California',
-        '10T': 'Washington / Oregon',
-        '11R': 'Baja California, Mexico',
-        '12R': 'Sonora, Mexico',
-        '16T': 'Minnesota / Wisconsin / Iowa / Illinois',
-        '17R': 'Florida',
-        '17T': 'Toronto, Canada / Michigan / OH / PA',
-        '18S': 'New Jersey / Washington DC',
-        '32S': 'Tunisia (North Africa near Tyrrhenian Sea)',
-        '32T': 'Switzerland / Italy / Tyrrhenian Sea',
-        '33S': 'Sicilia, Italy',
-        '33T': 'Italy / Adriatic Sea',
-        '52S': 'Korea / Kumamoto, Japan',
-        '53S': 'Hiroshima to Nagoya, Japan',
-        '54S': 'Tokyo to Hachinohe, Japan',
-        '54T': 'Sapporo, Japan'
+        "10S": "California",
+        "10T": "Washington / Oregon",
+        "11R": "Baja California, Mexico",
+        "12R": "Sonora, Mexico",
+        "16T": "Minnesota / Wisconsin / Iowa / Illinois",
+        "17R": "Florida",
+        "17T": "Toronto, Canada / Michigan / OH / PA",
+        "18S": "New Jersey / Washington DC",
+        "32S": "Tunisia (North Africa near Tyrrhenian Sea)",
+        "32T": "Switzerland / Italy / Tyrrhenian Sea",
+        "33S": "Sicilia, Italy",
+        "33T": "Italy / Adriatic Sea",
+        "52S": "Korea / Kumamoto, Japan",
+        "53S": "Hiroshima to Nagoya, Japan",
+        "54S": "Tokyo to Hachinohe, Japan",
+        "54T": "Sapporo, Japan",
     }
 
     def __init__(self):
@@ -151,9 +152,9 @@ class MLPipeline:
                 detector.detect_landmarks(frame_obj)
             )
             if (
-                    centroid_xy is not None
-                    and centroid_latlons is not None
-                    and landmark_classes is not None
+                centroid_xy is not None
+                and centroid_latlons is not None
+                and landmark_classes is not None
             ):
                 landmark = Landmark(
                     centroid_xy, centroid_latlons, landmark_classes, confidence_scores
@@ -284,7 +285,9 @@ class MLPipeline:
         text_entries = []
         for i, (cls, confidence, (x, y), latlons) in enumerate(top_landmarks):
             latitude = latlons[0].item(0)
-            longitude = latlons[1].item(0)  # TODO: bug fix: index 1 is out of range for dimension of size 1
+            longitude = latlons[1].item(
+                0
+            )  # TODO: bug fix: index 1 is out of range for dimension of size 1
             text = f"Top {i + 1}: Region {region}, Conf: {confidence:.2f}, XY: ({int(x)}, {int(y)}), LatLon: ({latitude:.2f}, {longitude:.2f})"
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width

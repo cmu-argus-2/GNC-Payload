@@ -82,9 +82,7 @@ def test_od():
     od = OrbitDetermination(dt=1 / config["solver"]["world_update_rate"])
 
     # set up initial state
-    starting_epoch = Epoch(
-        *brahe.time.mjd_to_caldate(config["mission"]["start_date"])
-    )
+    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] * config["solver"]["world_update_rate"]))
     states = np.zeros((N, 6))
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
@@ -108,16 +106,20 @@ def test_od():
         position = states[t_idx, :3]
         R_body_to_eci = get_nadir_rotation(position)
 
-        measurement_bearing_unit_vectors, measurement_landmarks = landmark_bearing_sensor.take_measurement(epoch, position, R_body_to_eci)
+        measurement_bearing_unit_vectors, measurement_landmarks = (
+            landmark_bearing_sensor.take_measurement(epoch, position, R_body_to_eci)
+        )
         measurement_count = measurement_bearing_unit_vectors.shape[0]
         assert measurement_landmarks.shape[0] == measurement_count
 
         nonlocal times, Rs_body_to_eci, bearing_unit_vectors, landmarks
         times = np.concatenate((times, np.repeat(t_idx, measurement_count)))
-        Rs_body_to_eci = np.concatenate((Rs_body_to_eci,
-                                         np.tile(R_body_to_eci, (measurement_count, 1, 1))),
-                                        axis=0)
-        bearing_unit_vectors = np.concatenate((bearing_unit_vectors, measurement_bearing_unit_vectors), axis=0)
+        Rs_body_to_eci = np.concatenate(
+            (Rs_body_to_eci, np.tile(R_body_to_eci, (measurement_count, 1, 1))), axis=0
+        )
+        bearing_unit_vectors = np.concatenate(
+            (bearing_unit_vectors, measurement_bearing_unit_vectors), axis=0
+        )
         landmarks = np.concatenate((landmarks, measurement_landmarks), axis=0)
         print(f"Total measurements so far: {len(times)}")
         print(f"Completion: {100 * t_idx / N:.2f}%")
@@ -125,7 +127,9 @@ def test_od():
     for t in range(0, N - 1):
         states[t + 1, :] = f(states[t, :], od.dt)
 
-        if t % 5 == 0 and is_over_daytime(epoch, states[t, :3]):  # take a set of measurements every 5 minutes
+        if t % 5 == 0 and is_over_daytime(
+            epoch, states[t, :3]
+        ):  # take a set of measurements every 5 minutes
             take_measurement(t)
 
         epoch = increment_epoch(epoch, 1 / config["solver"]["world_update_rate"])
@@ -137,13 +141,16 @@ def test_od():
     if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
         # save measurements to pickle file
         with open(f"measurements-{time()}.pkl", "wb") as file:
-            pickle.dump({
-                "times": times,
-                "states": states,
-                "Rs_body_to_eci": Rs_body_to_eci,
-                "bearing_unit_vectors": bearing_unit_vectors,
-                "landmarks": landmarks
-            }, file)
+            pickle.dump(
+                {
+                    "times": times,
+                    "states": states,
+                    "Rs_body_to_eci": Rs_body_to_eci,
+                    "bearing_unit_vectors": bearing_unit_vectors,
+                    "landmarks": landmarks,
+                },
+                file,
+            )
 
     # for i, attitude_noise in enumerate(attitude_noises):
     #     so3_noise_matrices = get_SO3_noise_matrices(len(times), np.deg2rad(attitude_noise))
@@ -175,7 +182,7 @@ def test_od():
     print(f"Elapsed time: {perf_counter() - start_time:.2f} s")
 
     position_errors = np.linalg.norm(states[:, :3] - estimated_states[:, :3], axis=1)
-    rms_position_error = np.sqrt(np.mean(position_errors ** 2))
+    rms_position_error = np.sqrt(np.mean(position_errors**2))
     print(f"RMS position error: {rms_position_error}")
 
     # fig = plt.figure()

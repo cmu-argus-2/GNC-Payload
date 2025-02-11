@@ -34,7 +34,10 @@ class Frame:
     def update_landmarks(self, new_landmarks):
         """Update the frame with new landmark data."""
         self.landmarks = new_landmarks
-        Logger.log("INFO", f"[Camera {self.camera_id} frame {self.frame_id}] Landmarks updated on Frame object.")
+        Logger.log(
+            "INFO",
+            f"[Camera {self.camera_id} frame {self.frame_id}] Landmarks updated on Frame object.",
+        )
 
     def save(self):
         pass

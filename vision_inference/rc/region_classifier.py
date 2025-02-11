@@ -92,7 +92,9 @@ class RegionClassifier:
             [
                 transforms.Resize(RegionClassifier.DOWNSAMPLED_SIZE),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=RegionClassifier.IMAGE_NET_MEAN, std=RegionClassifier.IMAGE_NET_STD),
+                transforms.Normalize(
+                    mean=RegionClassifier.IMAGE_NET_MEAN, std=RegionClassifier.IMAGE_NET_STD
+                ),
             ]
         )
 

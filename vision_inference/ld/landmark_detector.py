@@ -129,14 +129,18 @@ class LandmarkDetector:
                         conf = landmark.conf[0].item()
 
                         if w < 0 or h < 0:
-                            Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
+                            Logger.log(
+                                "INFO", "Skipping landmark with invalid bounding box dimensions."
+                            )
                             continue
 
                         landmark_list.append([x, y, cls, w, h, conf])
 
             if not landmark_list:
-                Logger.log("INFO",
-                           f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.")
+                Logger.log(
+                    "INFO",
+                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.",
+                )
                 return None, None, None, None
 
             landmark_arr = np.array(landmark_list)
@@ -152,10 +156,7 @@ class LandmarkDetector:
                 "INFO",
                 f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_list)} landmarks detected.",
             )
-            Logger.log(
-                "INFO",
-                f"Inference completed in {inference_time:.2f} seconds."
-            )
+            Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
             if landmark_arr.size > 0:
