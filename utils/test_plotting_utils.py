@@ -26,7 +26,7 @@ def test_plot_ground_track():
         epoch = increment_epoch(epoch, dt)
         ecef_positions[i + 1, :] = brahe.rECItoECEF(epoch) @ state[:3]
 
-    lat_lons = ecef_to_lat_lon(ecef_positions[np.newaxis, ...])[0, ...]
+    lat_lons = ecef_to_lat_lon(ecef_positions)
     plot_ground_track(lat_lons)
 
 
