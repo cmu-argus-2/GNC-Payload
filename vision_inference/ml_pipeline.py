@@ -67,28 +67,6 @@ class MLPipeline:
         """
         return self.region_classifier.classify_region(frame)
 
-    def run_ml_pipeline_on_batch(self, frames: List[Frame]):
-        """
-        Processes a series of frames, classifying each for geographic regions and detecting landmarks,
-        and returns the detection results along with camera IDs.
-
-        Args:
-            frames (list of Frame): A list of Frame objects.
-
-        Returns:
-            list of tuples: Each tuple consists of the camera ID and the landmark detection results for that frame.
-        """
-        results = []
-        for frame_obj in frames:
-            pred_regions = self.classify_frame(frame_obj)
-            frame_results = []
-            for region in pred_regions:
-                detector = LandmarkDetector(region_id=region)
-                landmark_detections = detector.detect_landmarks(frame_obj.frame)
-                frame_results.append((region, landmark_detections))
-            results.append((frame_obj.camera_id, frame_results))
-        return results
-
     def run_ml_pipeline_on_single(self, frame_obj: Frame):
         """
         Processes a single frame, classifying it for geographic regions and detecting landmarks,
