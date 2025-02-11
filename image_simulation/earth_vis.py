@@ -8,6 +8,7 @@ from utils.earth_utils import calculate_mgrs_zones
 from utils.earth_utils import ecef_to_lat_lon
 from utils.earth_utils import get_nadir_rotation
 from utils.earth_utils import lat_lon_to_ecef
+from utils.config_utils import load_config
 
 
 class EarthImageSimulator:

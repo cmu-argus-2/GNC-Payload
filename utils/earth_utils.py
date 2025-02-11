@@ -6,23 +6,26 @@ import numpy as np
 
 
 # TODO: use brahe constants instead of hardcoding
-def ecef_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
+def ecef_to_lat_lon(
+    intersection_points: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
+) -> np.ndarray:
     """
     Convert intersection points (ECEF) to latitude and longitude.
 
     Parameters:
-        intersection_points (np.ndarray): Array of intersection points (HxWx3) in ECEF coordinates.
+        intersection_points: A numpy array of shape (..., 3) consisting of ECEF coordinates.
 
     Returns:
-        np.ndarray: Array of latitude and longitude (HxWx2), or NaN for invalid points.
+        A numpy array of shape (..., 2) consisting of latitudes and longitudes, or NaN for invalid points.
     """
-    # TODO: generalize this to work with arbitrary arrays of shape (..., 2)
-    H, W, _ = intersection_points.shape
+    assert intersection_points.shape[-1] == 3, "Input must have shape (..., 3)"
+
+    shape_prefix = intersection_points.shape[:-1]
     intersection_points_flat = intersection_points.reshape(-1, 3)
 
     valid_mask = ~np.isnan(intersection_points_flat).any(axis=1)
 
-    lat_lon_flat = np.full((H * W, 2), np.nan)
+    lat_lon_flat = np.full((np.prod(shape_prefix), 2), np.nan)
 
     valid_points = intersection_points_flat[valid_mask]
 
@@ -47,7 +50,7 @@ def ecef_to_lat_lon(intersection_points, a=6378137.0, b=6356752.314245):
     lat_lon_flat[valid_mask, 0] = lat
     lat_lon_flat[valid_mask, 1] = lon
 
-    return lat_lon_flat.reshape(H, W, 2)
+    return lat_lon_flat.reshape(*shape_prefix, 2)
 
 
 def lat_lon_to_ecef(lat_lon, a=6378137.0, b=6356752.314245):

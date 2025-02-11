@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Tuple
 
 import numpy as np
-
 from brahe.epoch import Epoch
 
 from orbit_determination.landmark_bearing_sensors import LandmarkBearingSensor
@@ -31,12 +31,12 @@ class ODSimulationDataManager:
     starting_epoch: Epoch
     dt: float
 
-    states: np.ndarray = np.zeros(shape=(0, 6))
-    Rs_body_to_eci: np.ndarray = np.zeros(shape=(0, 3, 3))
+    states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 6)))
+    Rs_body_to_eci: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
 
-    measurement_indices: np.ndarray = np.array([], dtype=int)
-    bearing_unit_vectors: np.ndarray = np.zeros(shape=(0, 3))
-    landmarks: np.ndarray = np.zeros(shape=(0, 3))
+    measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
+    bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+    landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
     @property
     def state_count(self) -> int:
@@ -73,6 +73,14 @@ class ODSimulationDataManager:
         """
         return self.Rs_body_to_eci[-1, ...]
 
+    @property
+    def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
+        """
+        indices = self.measurement_indices == self.state_count - 1
+        return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
+
     def assert_invariants(self) -> None:
         """
         Validates the invariants of the simulation data.
@@ -106,9 +114,16 @@ class ODSimulationDataManager:
             np.diff(self.measurement_indices) >= 0
         ), "measurement_indices must be non-strictly increasing"
 
-    def push_next_state(self, state, R_body_to_eci) -> None:
-        self.states = np.concatenate((self.states, state), axis=0)
-        self.Rs_body_to_eci = np.concatenate((self.Rs_body_to_eci, R_body_to_eci), axis=0)
+    def push_next_state(self, state: np.ndarray, R_body_to_eci: np.ndarray) -> None:
+        """
+        Append a new state to the simulation data.
+
+        Args:
+            state: A numpy array of shape (6,) containing the position and velocity of the satellite.
+            R_body_to_eci: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
+        """
+        self.states = np.row_stack((self.states, state))
+        self.Rs_body_to_eci = np.concatenate((self.Rs_body_to_eci, R_body_to_eci[np.newaxis, ...]), axis=0)
 
         self.assert_invariants()
 
