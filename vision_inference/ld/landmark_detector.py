@@ -24,6 +24,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
+from ultralytics.engine.results import Results
 
 from vision_inference.logger import Logger
 from vision_inference.frame import Frame
@@ -96,7 +97,7 @@ class LandmarkDetector:
             # Detect landmarks using the YOLO model
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
-            results = self.model.predict(img, conf=LandmarkDetector.CONFIDENCE_THRESHOLD, imgsz=(1088, 1920), verbose=False)
+            results: Results = self.model.predict(img, conf=LandmarkDetector.CONFIDENCE_THRESHOLD, imgsz=(1088, 1920), verbose=False)
             inference_time = perf_counter() - start_time
 
             centroid_xys = []
