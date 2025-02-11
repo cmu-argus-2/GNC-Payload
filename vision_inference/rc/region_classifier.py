@@ -25,6 +25,7 @@ from vision_inference.logger import Logger
 from typing import Tuple, List
 
 from vision_inference.frame import Frame
+from utils.config_utils import load_config
 
 LD_MODEL_SUF = ".pth"
 NUM_CLASSES = 16
@@ -67,18 +68,19 @@ class RegionClassifier:
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
+    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/rc"))
 
     def __init__(self):
         Logger.log("INFO", info_messages["INITIALIZATION_START"])
-
-        model_path, config_path = RegionClassifier.construct_paths()
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.model = ClassifierEfficient().to(self.device)
 
             # Load Custom model weights
-            model_weights_path = os.path.join(model_path, "model_effnet_0.997_acc" + LD_MODEL_SUF)
+            model_weights_path = os.path.join(
+                RegionClassifier.MODEL_DIR, f"model_effnet_0.997_acc{LD_MODEL_SUF}"
+            )
             self.model.load_state_dict(torch.load(model_weights_path, map_location=self.device))
             self.model.eval()
             Logger.log("INFO", info_messages["MODEL_LOADED"])
@@ -98,21 +100,13 @@ class RegionClassifier:
             ]
         )
 
-        self.region_ids = RegionClassifier.load_region_ids(config_path)
+        self.region_ids = RegionClassifier.load_region_ids()
 
     @staticmethod
-    def construct_paths() -> Tuple[str, str]:
-        root = os.path.abspath(os.path.join(__file__, "../../"))
-        model_path = os.path.join(root, "models", "rc")
-        config_path = os.path.join(root, "configuration", "inference_config.yml")
-        return model_path, config_path
-
-    @staticmethod
-    def load_region_ids(config_path: str) -> List[str]:
+    def load_region_ids() -> List[str]:
         try:
-            with open(config_path, "r") as file:
-                config = yaml.safe_load(file)
-            return config.get("region_ids", [])
+            config = load_config()
+            return config["vision"]["salient_mgrs_region_ids"]
         except Exception as e:
             Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
             raise

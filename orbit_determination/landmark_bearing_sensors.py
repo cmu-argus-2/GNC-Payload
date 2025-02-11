@@ -157,9 +157,6 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
 
-    INFERENCE_CONFIG_PATH = os.path.abspath(
-        os.path.join(__file__, "../../vision_inference/configuration/inference_config.yml")
-    )
     LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../../vision_inference/models/ld"))
 
     def __init__(self, config, fov: float = np.deg2rad(100)):
@@ -179,9 +176,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A dictionary mapping region identifiers to numpy array of shape (N, 3) containing
                  the coordinates of the landmarks in ECEF.
         """
-        salient_regions: List[str] = load_config(
-            GroundTruthLandmarkBearingSensor.INFERENCE_CONFIG_PATH
-        )["region_ids"]
+        salient_regions: List[str] = load_config()["vision"]["salient_mgrs_region_ids"]
         region_landmarks_ecef = {}
         for region_id in salient_regions:
             region_landmarks_csv = os.path.join(
