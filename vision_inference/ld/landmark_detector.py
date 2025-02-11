@@ -72,21 +72,24 @@ class LandmarkDetector:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
-    def detect_landmarks(self, frame: Frame):
+    def detect_landmarks(
+        self, frame: Frame
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
+
+        The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions.
+        It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
 
         Args:
             frame: The input Frame on which to perform landmark detection.
 
         Returns:
-            tuple: A tuple containing several numpy arrays:
-                - centroid_xy (np.ndarray): Array of [x, y] coordinates for the centroids of detected landmarks.
-                - centroid_latlons (np.ndarray): Array of geographical coordinates [latitude, longitude] for each detected landmark's centroid, based on class ID.
-                - landmark_class (np.ndarray): Array of class IDs for each detected landmark.
-                - confidence_scores
-
-        The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions. It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
+            A tuple containing the following numpy arrays:
+                - centroid_xys: A numpy array of shape (N, 2) containing the x and y image coordinates for each detected landmark's centroid.
+                - centroid_latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
+                - landmark_classes: A numpy array of shape (N,) containing the class IDs for each detected landmark.
+                - confidence_scores: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
         """
         Logger.log(
             "INFO",
@@ -147,7 +150,7 @@ class LandmarkDetector:
             # Logging details for each detected landmark
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlon\tconfidence",
             )
             for cls, (x, y), (lat, lon), conf in zip(landmark_classes, centroid_xys, centroid_latlons, confidence_scores):
                 Logger.log(
