@@ -71,7 +71,10 @@ class RegionClassifier:
     def load_region_ids() -> List[str]:
         try:
             config = load_config()
-            return config["vision"]["salient_mgrs_region_ids"]
+            region_ids = config["vision"]["salient_mgrs_region_ids"]
+            assert len(region_ids) == RegionClassifier.NUM_CLASSES, "Incorrect number of region IDs."
+            assert len(set(region_ids)) == RegionClassifier.NUM_CLASSES, "Duplicate region IDs detected."
+            return region_ids
         except Exception as e:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
