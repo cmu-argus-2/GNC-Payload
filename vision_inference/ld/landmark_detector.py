@@ -28,24 +28,6 @@ from ultralytics import YOLO
 from vision_inference.logger import Logger
 from vision_inference.frame import Frame
 
-LD_MODEL_SUF = "_nadir.pt"
-
-# Define error and info messages
-error_messages = {
-    "CONFIGURATION_ERROR": "Configuration error.",
-    "LOADING_FAILED": "Failed to load necessary data.",
-    "DETECTION_FAILED": "Detection process failed.",
-    "INVALID_DIMENSIONS": "Invalid bounding box dimensions detected.",
-    "LOW_CONFIDENCE": "Skipping low confidence landmark.",
-    "EMPTY_DETECTION": "No landmark detected.",
-}
-
-info_messages = {
-    "INITIALIZATION_START": "Initializing LandmarkDetector.",
-    "DETECTION_START": "Starting the landmark detection process.",
-    "DETECTION_COMPLETE": "Landmark detection completed successfully.",
-}
-
 
 class LandmarkDetector:
     MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/ld"))
@@ -66,7 +48,7 @@ class LandmarkDetector:
                 os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_top_salient.csv")
             )
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['LOADING_FAILED']}: {e}")
+            Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
 
     @staticmethod
@@ -85,7 +67,7 @@ class LandmarkDetector:
             # TODO: change csvs to have lat, lon instead of lon, lat for consistency
             return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
+            Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
     def detect_landmarks(self, frame_obj: Frame):
@@ -106,7 +88,7 @@ class LandmarkDetector:
         """
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['DETECTION_START']}",
+            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Starting the landmark detection process.",
         )
 
         try:
@@ -180,5 +162,5 @@ class LandmarkDetector:
             return centroid_xy, centroid_latlons, landmark_class, confidence_scores
 
         except Exception as e:
-            Logger.log("ERROR", f"Detection failed: {str(e)}")
+            Logger.log("ERROR", f"Detection process failed: {str(e)}")
             raise
