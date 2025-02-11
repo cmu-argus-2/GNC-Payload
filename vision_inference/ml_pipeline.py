@@ -15,38 +15,10 @@ from typing import Tuple, List
 
 import cv2
 
-from vision_inference.ld import LandmarkDetector
+from vision_inference.ld import Landmark, LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.rc import RegionClassifier
 from vision_inference.frame import Frame
-
-
-class Landmark:
-    """
-    A class to store landmark info including centroid coordinates, geographic coordinates, and classes.
-
-    Attributes:
-        centroid_xy (list of tuples): The centroid coordinates (x, y) of detected landmarks.
-        centroid_latlons (list of tuples): The geographic coordinates (latitude, longitude) of detected landmarks.
-        landmark_classes (list): The classes of the detected landmarks.
-    """
-
-    def __init__(self, centroid_xy, centroid_latlons, landmark_classes, confidence_scores):
-        """
-        Initializes the Landmark
-
-        Args:
-            centroid_xy (list of tuples): Centroid coordinates (x, y) of detected landmarks.
-            centroid_latlons (list of tuples): Geographic coordinates (latitude, longitude) of detected landmarks.
-            landmark_classes (list): Classes of detected landmarks.
-        """
-        self.centroid_xy = centroid_xy
-        self.centroid_latlons = centroid_latlons
-        self.landmark_classes = landmark_classes
-        self.confidence_scores = confidence_scores
-
-    def __repr__(self):
-        return f"Landmark(centroid_xy={self.centroid_xy}, centroid_latlons={self.centroid_latlons}, landmark_classes={self.landmark_classes}, confidence_scores={self.confidence_scores})"
 
 
 class MLPipeline:
