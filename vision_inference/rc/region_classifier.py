@@ -118,11 +118,10 @@ class RegionClassifier:
 
             with torch.no_grad():
                 start_time = time.time()
-                outputs = self.model(img)
+                probabilities = self.model(img)
                 end_time = time.time()
                 inference_time = end_time - start_time
 
-                probabilities = torch.sigmoid(outputs)
                 predicted = (probabilities > 0.55).float()
                 predicted_indices = predicted.nonzero(as_tuple=True)[1]
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
