@@ -15,10 +15,9 @@ Author: Eddie, Haochen
 Date: [Creation or Last Update Date]
 """
 
-import csv
 import os
 from time import perf_counter
-from typing import Tuple, List
+from typing import Tuple
 
 import cv2
 import numpy as np
