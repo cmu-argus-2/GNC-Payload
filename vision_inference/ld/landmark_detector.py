@@ -110,6 +110,7 @@ class LandmarkDetections:
 
 class LandmarkDetector:
     CONFIDENCE_THRESHOLD = 0.5
+    # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
     IMAGE_SIZE = (1088, 1920)
     MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/ld"))
 
@@ -199,6 +200,7 @@ class LandmarkDetector:
                             )
                             continue
 
+                        # TODO: can we process all landmarks at once instead of one by one?
                         landmark_detections.append(
                             LandmarkDetections(
                                 centroid_xys=np.array([[x, y]]),
