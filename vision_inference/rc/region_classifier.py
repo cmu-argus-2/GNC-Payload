@@ -16,7 +16,7 @@ import os
 import cv2
 from time import perf_counter
 import torch
-import torch.nn as nn
+from torch import nn
 from torchvision import transforms
 from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from PIL import Image
@@ -34,7 +34,7 @@ class RegionClassifier:
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
     MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/rc"))
-    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, f"model_effnet_0.997_acc.pth")
+    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, "model_effnet_0.997_acc.pth")
 
     def __init__(self):
         Logger.log("INFO", "Initializing RegionClassifier.")
@@ -117,7 +117,7 @@ class RegionClassifier:
 
 class ClassifierEfficient(nn.Module):
     def __init__(self):
-        super(ClassifierEfficient, self).__init__()
+        super().__init__()
         # Using new weights system
         # This uses the most up-to-date weights
         weights = EfficientNet_B0_Weights.DEFAULT

@@ -1,11 +1,10 @@
-from brahe.constants import GM_EARTH
-import numpy as np
-
-
 """
 Functions for implementing orbital position dynamics and its jacobian under just the force of gravity.
 J2 perturbations are not included.
 """
+
+from brahe.constants import GM_EARTH
+import numpy as np
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:
