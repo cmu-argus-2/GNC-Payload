@@ -17,7 +17,7 @@ Date: [Creation or Last Update Date]
 
 import os
 from time import perf_counter
-from typing import List
+from typing import List, Sequence
 from dataclasses import dataclass
 
 import cv2
@@ -53,12 +53,12 @@ class LandmarkDetections:
         """
         return len(self.landmark_classes)
 
-    def __getitem__(self, index: int | slice) -> "LandmarkDetections":
+    def __getitem__(self, index: int | slice | Sequence[int] | np.ndarray) -> "LandmarkDetections":
         """
         Get a subset of the landmark detections from this LandmarkDetections object.
 
         Args:
-            index: The index or slice of the landmark detections to retrieve.
+            index: The index of the landmark detections to retrieve.
 
         Returns:
             A LandmarkDetections object containing the specified entries.
