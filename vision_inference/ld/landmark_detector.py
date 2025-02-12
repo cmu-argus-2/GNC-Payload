@@ -261,12 +261,7 @@ class LandmarkDetector:
                 "INFO",
                 f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlon\tconfidence",
             )
-            for cls, (x, y), (lat, lon), conf in zip(
-                landmark_detections.landmark_classes,
-                landmark_detections.centroid_xys,
-                landmark_detections.centroid_latlons,
-                landmark_detections.confidence_scores,
-            ):
+            for (x, y), (lat, lon), cls, conf in landmark_detections:
                 Logger.log(
                     "INFO",
                     f"[Camera {frame.camera_id} frame {frame.frame_id}] {cls}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
