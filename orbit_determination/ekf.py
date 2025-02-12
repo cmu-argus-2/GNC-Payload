@@ -1,8 +1,6 @@
 """ Extended Kalman Filter for orbit determination """
 
 import math
-import os
-import sys
 from typing import Any, Tuple
 
 import brahe
@@ -14,9 +12,8 @@ import yaml
 from brahe.constants import GM_EARTH
 from scipy.spatial.transform import Rotation
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from dynamics.orbital_dynamics import f, f_jac
+from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.math_utils import R, rot_2_q
 
 
@@ -29,7 +26,7 @@ class EKF:
         self,
         r: np.ndarray,
         v: np.ndarray,
-        q: np.quaternion,
+        q: Any, # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
         # a_b: np.ndarray,
         # w_b: np.ndarray,
         P: np.ndarray,
@@ -51,9 +48,9 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param R: Measurement noise covariance with shape (3, 3)
         :param dt: The amount of time between each time step.
-        """
 
-        """
+        :return: None
+
         Note on R matrix dimensionality: As the number of landmarks observed will change between individual time steps, 
         the R matrix needs to be constructed at each time step where the vision pipeline is used.
         """
@@ -78,7 +75,6 @@ class EKF:
         self.dt = dt
 
         camera_params = config["satellite"]["camera"]
-        self.R_camera_to_body = np.asarray(camera_params["R_camera_to_body"])
         self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])
 
         self.cond_threshold = 1e15
@@ -88,6 +84,10 @@ class EKF:
         Predict the next prior state. This corresponds to the prior update step in the EKF algorithm.
         Using Zac Manchester's formulation as defined in his inertial filter examples notebook
         https://github.com/RoboticExplorationLab/inertial-filter-examples
+
+        :param u: IMU measurements consisting of angular velocity and linear acceleration with shape (6,)
+
+        :return: None
         """
 
         # TODO: Use IMU measurements and update quaternion estimate
@@ -126,18 +126,26 @@ class EKF:
         self.P_p = A @ self.P_m @ A.T + self.Q
 
     def no_measurement(self) -> None:
+        """
+        If no measurements are taken, just take the prior state to be the posterior state.
+        """
         self.r_m = self.r_p
         # self.q_m = self.q_p
         self.v_m = self.v_p
         self.P_m = self.P_p
 
     def measurement(
-        self, z: Tuple[np.ndarray, np.ndarray], landmark_bearing_sensor, data_manager
+        self, z: Tuple[np.ndarray, np.ndarray], data_manager: ODSimulationDataManager
     ) -> None:
         """
-        Update the state estimate based on the measurement. This corresponds to the posterior update step in the EKF algorithm.
+        Update the state estimate based on the measurement. This corresponds to the posterior update step
+        in the EKF algorithm.
 
-        :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the landmark positions in ECI coordinates with shape (N, 3)
+        :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the
+        landmark positions in ECI coordinates with shape (N, 3)
+        :param data_manager: The ODSimulationDataManager object containing the simulation data.
+
+        :return: None
         """
         # x_p = jnp.array(
         #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
@@ -149,15 +157,14 @@ class EKF:
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.01))]
         z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.01))]
 
-        z = (z0, z1)
+        h = self.h(z1, data_manager, x_p)
+        H = self.H(z1, data_manager, x_p)
 
-        h = self.h(z[1], data_manager, x_p)
-        H = self.H(z[1], data_manager, x_p)
-
-        z = z[0].reshape(-1)  # Flatten the measurement vector
+        # z = (z0, z1)
+        z0 = np.array(z0.reshape(-1))  # Flatten the measurement vector and cast to jax array
 
         # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([1e-5] * z.shape[0])
+        self.R = np.diag([1e-5] * z0.shape[0])
 
         S = H @ self.P_p @ H.T + self.R
 
@@ -170,7 +177,7 @@ class EKF:
 
         K = self.P_p @ H.T @ np.linalg.inv(S)
 
-        delta = K @ (z - h)
+        delta = K @ (z0 - h)
 
         self.r_m = self.r_p + delta[0:3]
         # self.q_m = self.q_p * quaternion.from_rotation_vector(delta[3:6])
@@ -180,11 +187,14 @@ class EKF:
             np.eye(self.P_m.shape[0]) - K @ H
         ).T + K @ self.R @ K.T  # Joseph form covariance update
 
-    def H(self, z: np.ndarray, data_manager, x_p: jnp.ndarray) -> np.ndarray:
+    def H(
+        self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
+    ) -> jnp.ndarray:
         """
         Calculate the Jacobian of the measurement model with respect to the state.
 
         :param z: Measurement consisting of the landmark locations in ECI coordinates.
+        :param data_manager: The ODSimulationDataManager object containing the simulation data.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (10,)
 
         :return: The Jacobian of the measurement model with respect to the state.
@@ -192,44 +202,42 @@ class EKF:
         jac = jax.jacobian(self.h, argnums=2)(z, data_manager, x_p)
         # J = np.zeros((len(z) * 3, 6))
         # for i, land_pos in enumerate(z):
-        #     deriv = np.eye(3)/np.linalg.norm(x_p[0:3] - land_pos) - np.outer(x_p[0:3] - land_pos, x_p[0:3] - land_pos)/(np.linalg.norm(x_p[0:3] - land_pos)**3)
+        #     deriv = np.eye(3)/np.linalg.norm(x_p[0:3] - land_pos) - np.outer(x_p[0:3] - land_pos, x_p[0:3] /
+        #   - land_pos)/(np.linalg.norm(x_p[0:3] - land_pos)**3)
 
         return jac
 
-    def h(self, z: np.ndarray, data_manager, x_p: np.ndarray) -> np.ndarray:
+    def h(
+        self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
+    ) -> jnp.ndarray:
         """
-        Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide a bearing estimate.
+        Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide
+        a bearing estimate.
 
-        :param z: Measurements of the landmarks in frame, consisting of just the ECI coordinates of the landmarks with shape (N, 3)
+        :param z: Measurements of the landmarks in frame, consisting of just the ECI coordinates of the landmarks
+        with shape (N, 3)
+        :param data_manager: The ODSimulationDataManager object containing the simulation data.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (10,)
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
-        """
-        """
-        TODO:
-        Transform landmark positions from ECI to ECEF
-        Transform r_p from ECI to ECEF
-        Calculate bearing vectors in ECEF
-        Transform bearing vectors from ECEF to body frame
         """
         estimate = jnp.zeros((len(z) * 3))
 
         # Define rotation matrices
         t_idx = data_manager.state_count - 1
-        R_body_to_eci = data_manager.Rs_body_to_eci[t_idx, ...]  # TODO: Fix using attitude state
-        R_eci_to_ecef = brahe.frames.rECItoECEF(data_manager.latest_epoch)
-        R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
-        R_ecef_to_body = R_body_to_ecef.T
+        eci_R_body = data_manager.eci_Rs_body[t_idx, ...]  # TODO: Fix using attitude state
+        ecef_R_eci = brahe.frames.rECItoECEF(data_manager.latest_epoch)
+        ecef_R_body = ecef_R_eci @ eci_R_body
 
         # Transform landmarks and position from ECI to ECEF
-        landmarks_ecef = (R_eci_to_ecef @ z.T).T
-        position_ecef = R_eci_to_ecef @ x_p[0:3] + R_body_to_ecef @ self.t_body_to_camera
+        landmarks_ecef = (ecef_R_eci @ z.T).T
+        position_ecef = ecef_R_eci @ x_p[0:3] + ecef_R_body @ self.t_body_to_camera
 
         # Calculate estimated bearing unit vectors in ECEF and transform to body frame
-        for i, land_pos in enumerate(landmarks_ecef):
-            vec = land_pos - position_ecef
-            vec /= jnp.linalg.norm(vec)
-            body_vec = R_ecef_to_body @ vec
+        for i, land_pos_ecef in enumerate(landmarks_ecef):
+            vec_ecef = land_pos_ecef - position_ecef
+            vec_ecef /= jnp.linalg.norm(vec_ecef)
+            body_vec = ecef_R_body.T @ vec_ecef
             estimate = estimate.at[i * 3 : i * 3 + 3].set(body_vec)
         # for i, land_pos in enumerate(z):
         #     vec = x_p[:3] - land_pos
@@ -239,19 +247,3 @@ class EKF:
         #     estimate = estimate.at[i * 3 : i * 3 + 3].set(vec)
 
         return estimate
-
-
-def load_config() -> dict[str, Any]:
-    """
-    Load the configuration file
-
-    :return: The modified configuration file as a dictionary.
-    """
-    with open("../config.yaml", "r") as file:
-        config = yaml.safe_load(file)
-
-    # decrease world update rate since we only care about position dynamics
-    config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
-
-    return config

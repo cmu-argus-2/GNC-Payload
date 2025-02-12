@@ -2,25 +2,16 @@
 Testing the EKF class.
 """
 
-import os
-import sys
-from time import time
-from typing import Any, List
-
-import matplotlib.pyplot as plt
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import pickle
+from time import time
 
 import brahe
+from brahe.epoch import Epoch
+import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
-import yaml
-from brahe.constants import GM_EARTH, R_EARTH
-from brahe.epoch import Epoch
 
-from dynamics.orbital_dynamics import f, f_jac
+from dynamics.orbital_dynamics import f  # , f_jac
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -31,10 +22,17 @@ from sensors.bias import BiasParams
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.config_utils import load_config
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
+from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
 
-def imu_init(dt):
+def imu_init(dt: float) -> IMU:
+    """
+    Initializes the IMU.
+
+    :param dt: The time step for the simulation.
+
+    :return: The initialized IMU.
+    """
     # Initialize the IMU
     bias_params = BiasParams.get_random_params([0, 0], [1e-4, 1e-3])
     sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-4, 5e-4)
@@ -63,12 +61,17 @@ def imu_init(dt):
     return imu
 
 
-def run_simulation():
+def run_simulation() -> None:
+    """
+    Run the simulation.
+
+    :return: None
+    """
 
     config = load_config()
 
     config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 600  # s, roughly 1 orbit
+    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -85,7 +88,7 @@ def run_simulation():
     )
 
     # Initialize IMU and EKF
-    imu = imu_init(dt)
+    # imu = imu_init(dt)
     ekf = EKF(
         r=initial_state[0:3]
         + np.random.normal(0, 800, 3),  # TODO: Adjust and tune noise and error init
@@ -126,7 +129,7 @@ def run_simulation():
             # EKF prediction step
             z = (data_manager.curr_bearing_unit_vectors, data_manager.curr_landmarks)
             if z[0].shape[0] > 0:
-                ekf.measurement(z, landmark_bearing_sensor, data_manager)
+                ekf.measurement(z, data_manager)
             else:
                 ekf.no_measurement()
         else:
@@ -140,6 +143,10 @@ def run_simulation():
             pickle.dump(data_manager, file)
 
     plt.plot(error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Position error [m]")
+    plt.title("EKF Position Error")
     plt.show()
     # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
 
