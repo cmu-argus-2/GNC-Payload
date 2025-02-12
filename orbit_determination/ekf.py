@@ -160,8 +160,8 @@ class EKF:
         h = self.h(z1, data_manager, x_p)
         H = self.H(z1, data_manager, x_p)
 
-        # z = (z0, z1)
-        z0 = np.array(z0.reshape(-1))  # Flatten the measurement vector and cast to jax array
+        # Flatten the measurement vector
+        z0 = np.array(z0.reshape(-1))  
 
         # Let R take the dimensionality of the number of measurements
         self.R = np.diag([1e-5] * z0.shape[0])
