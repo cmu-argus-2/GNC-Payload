@@ -2,8 +2,6 @@ import hashlib
 
 import cv2
 
-from vision_inference.logger import Logger
-
 
 class Frame:
     def __init__(self, frame, camera_id, timestamp):
@@ -12,7 +10,6 @@ class Frame:
         self.timestamp = timestamp
         # Generate ID by hashing the timestamp
         self.frame_id = Frame.generate_frame_id(timestamp)
-        self.landmarks = []
 
     @staticmethod
     def generate_frame_id(timestamp):
@@ -30,14 +27,6 @@ class Frame:
         hash_object = hashlib.sha1(timestamp_str.encode())  # Using SHA-1
         frame_id = hash_object.hexdigest()
         return frame_id[:16]  # Optionally still shorten if needed
-
-    def update_landmarks(self, new_landmarks):
-        """Update the frame with new landmark data."""
-        self.landmarks = new_landmarks
-        Logger.log(
-            "INFO",
-            f"[Camera {self.camera_id} frame {self.frame_id}] Landmarks updated on Frame object.",
-        )
 
     def save(self):
         pass

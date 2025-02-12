@@ -107,8 +107,6 @@ class MLPipeline:
             total_detections += len(detections)
         landmark_detections = LandmarkDetections.stack(landmark_detections)
 
-        # Use the class method to update landmarks
-        frame_obj.update_landmarks(landmark_detections)
         return landmark_detections, region_slices
 
     @staticmethod
