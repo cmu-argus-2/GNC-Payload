@@ -214,29 +214,32 @@ class LandmarkDetector:
 
             for result in results:
                 landmarks = result.boxes
+                if len(landmarks) == 0:
+                    continue
 
-                if landmarks:  # Sanity Check
-                    # Iterate over each detected bounding box (landmark)
-                    for landmark in landmarks:
-                        x, y, w, h = landmark.xywh[0]
-                        cls = landmark.cls[0].item()
-                        conf = landmark.conf[0].item()
+                xywh = np.asarray(landmarks.xywh)
+                classes = np.asarray(landmarks.cls, dtype=int)
+                confidences = np.asarray(landmarks.conf)
 
-                        if w < 0 or h < 0:
-                            Logger.log(
-                                "INFO", "Skipping landmark with invalid bounding box dimensions."
-                            )
-                            continue
+                valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
+                if not np.all(valid_indices):
+                    Logger.log(
+                        "INFO", "Skipping landmark with invalid bounding box dimensions."
+                    )
+                    if not np.any(valid_indices):
+                        continue
+                    xywh = xywh[valid_indices]
+                    classes = classes[valid_indices]
+                    confidences = confidences[valid_indices]
 
-                        # TODO: can we process all landmarks at once instead of one by one?
-                        landmark_detections.append(
-                            LandmarkDetections(
-                                centroid_xys=np.array([[x, y]]),
-                                centroid_latlons=self.ground_truth[cls, :2],
-                                landmark_classes=np.array([cls], dtype=int),
-                                confidence_scores=np.array([conf]),
-                            )
-                        )
+                landmark_detections.append(
+                    LandmarkDetections(
+                        centroid_xys=xywh[:, :2],
+                        centroid_latlons=self.ground_truth[classes, :2],
+                        landmark_classes=classes,
+                        confidence_scores=confidences,
+                    )
+                )
 
             landmark_detections = LandmarkDetections.stack(landmark_detections)
 
