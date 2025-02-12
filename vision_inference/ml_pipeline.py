@@ -193,7 +193,7 @@ class MLPipeline:
                 adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
-        # Sort landmarks by confidence, descending, and keep the top 5
+        # Sort landmarks by confidence, descending, and keep the top few
         LANDMARK_DISPLAY_COUNT = 5
         top_landmark_indices = np.argsort(landmark_detections.confidences)[
             -LANDMARK_DISPLAY_COUNT:
