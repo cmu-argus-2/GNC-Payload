@@ -189,11 +189,7 @@ class MLPipeline:
             base_color = colors[idx % len(colors)]
             region_color_map[region_id] = base_color
 
-            for (x, y), confidence, cls in zip(
-                landmark_detections.centroid_xys,
-                landmark_detections.confidence_scores,
-                landmark_detections.landmark_classes,
-            ):
+            for (x, y), _, cls, confidence in landmark_detections:
                 adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
