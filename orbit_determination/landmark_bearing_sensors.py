@@ -218,9 +218,10 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
 
         is_visible = bearing_unit_vectors_ecef @ camera_axis_ecef > self.cos_fov_on_2
         visible_landmarks_ecef = hemisphere_landmarks_ecef[is_visible, :]
+        visible_landmarks_eci = (R_eci_to_ecef.T @ visible_landmarks_ecef.T).T
 
-        bearing_unit_vectors_body = (R_body_to_ecef @ bearing_unit_vectors_ecef[is_visible, :].T).T
-        return bearing_unit_vectors_body, visible_landmarks_ecef
+        bearing_unit_vectors_body = (R_body_to_ecef.T @ bearing_unit_vectors_ecef[is_visible, :].T).T
+        return bearing_unit_vectors_body, visible_landmarks_eci
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
