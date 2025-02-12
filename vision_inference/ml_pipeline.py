@@ -67,16 +67,20 @@ class MLPipeline:
         """
         return self.region_classifier.classify_region(frame)
 
-    def run_ml_pipeline_on_single(self, frame_obj: Frame):
+    def run_ml_pipeline_on_single(
+        self, frame_obj: Frame
+    ) -> Tuple[LandmarkDetections, dict[str, slice]]:
         """
         Processes a single frame, classifying it for geographic regions and detecting landmarks,
-        and returns the detection result along with the camera ID.
+        and returns the detection results.
 
         Args:
             frame_obj (Frame): The Frame object to process.
 
         Returns:
-            tuple: The camera ID and the landmark detection results for the frame.
+            A Tuple containing:
+            - The LandmarkDetections object containing the landmark detection results.
+            - A dictionary mapping region IDs to slices of the landmark detections.
         """
         Logger.log(
             "INFO",
@@ -88,15 +92,23 @@ class MLPipeline:
                 "INFO",
                 f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No salient regions detected. ",
             )
-            return None
-        frame_results = []
-        for region in pred_regions:
-            detector = LandmarkDetector(region_id=region)
-            landmark_detections = detector.detect_landmarks(frame_obj)
-            frame_results.append((region, landmark_detections))
+            return LandmarkDetections.empty(), {}
+
+        region_slices = {}
+        landmark_detections = []
+        total_detections = 0
+        for region_id in pred_regions:
+            detector = LandmarkDetector(region_id)
+            detections = detector.detect_landmarks(frame_obj)
+
+            landmark_detections.append(detections)
+            region_slices[region_id] = slice(total_detections, total_detections + len(detections))
+            total_detections += len(detections)
+        landmark_detections = LandmarkDetections.stack(landmark_detections)
+
         # Use the class method to update landmarks
-        frame_obj.update_landmarks(frame_results)
-        return frame_results
+        frame_obj.update_landmarks(landmark_detections)
+        return landmark_detections, region_slices
 
     @staticmethod
     def adjust_color(color: Tuple[int, int, int], confidence):
@@ -118,7 +130,13 @@ class MLPipeline:
         return adjusted_color
 
     # TODO: Improve the readability of this method.
-    def visualize_landmarks(self, frame_obj, regions_and_landmarks, save_dir):
+    @staticmethod
+    def visualize_landmarks(
+        frame_obj: Frame,
+        landmark_detections: LandmarkDetections,
+        region_slices: dict[str, slice],
+        save_dir: str,
+    ) -> None:
         """
         Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent boxes,
         and saves the image. Also displays camera metadata on the image.
@@ -146,21 +164,23 @@ class MLPipeline:
 
         top_landmarks = []  # List to store top landmarks for display
 
-        for idx, (region, detection_result) in enumerate(regions_and_landmarks):
+        for idx, (region_id, slice_) in enumerate(region_slices.items()):
+            landmark_detections = landmark_detections[slice_]
+
             base_color = colors[idx % len(colors)]
-            region_color_map[region] = base_color
+            region_color_map[region_id] = base_color
 
             for (x, y), confidence, cls in zip(
-                detection_result.centroid_xys,
-                detection_result.confidence_scores,
-                detection_result.landmark_classes,
+                landmark_detections.centroid_xys,
+                landmark_detections.confidence_scores,
+                landmark_detections.landmark_classes,
             ):
                 adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
                 # Collect data for top landmarks
                 top_landmarks.append(
-                    (region, confidence, (x, y), detection_result.centroid_latlons)
+                    (region_id, confidence, (x, y), landmark_detections.centroid_latlons)
                 )
 
         # Sort landmarks by confidence, descending, and keep the top 5

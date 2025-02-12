@@ -268,10 +268,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         # run the ML pipeline on the image
         frame = Frame(image, 0, datetime.now())
         # TODO: queue requests to the model and send them in batches as the sim runs
-        regions_and_landmarks = self.ml_pipeline.run_ml_pipeline_on_single(frame)
-        if regions_and_landmarks is None:
-            print("No salient regions detected")
-            return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
+        landmark_detections, region_slices = self.ml_pipeline.run_ml_pipeline_on_single(frame)
 
         # save the image with the detected landmarks
         epoch_str = str(epoch).replace(":", "_").replace(" ", "_").replace(".", "_")
@@ -279,32 +276,19 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
             os.path.join(__file__, f"../log/simulated_images/seed_69420_epoch_{epoch_str}/")
         )
         os.makedirs(output_dir, exist_ok=True)
-        self.ml_pipeline.visualize_landmarks(frame, regions_and_landmarks, output_dir)
+        MLPipeline.visualize_landmarks(frame, landmark_detections, region_slices, output_dir)
 
-        landmark_positions_ecef = np.zeros(shape=(0, 3))
-        pixel_coordinates = np.zeros(shape=(0, 2))
-        confidence_scores = np.zeros(shape=(0,))
-
-        for region, landmarks in regions_and_landmarks:
-            centroids_ecef = lat_lon_to_ecef(landmarks.centroid_latlons[np.newaxis, ...]).reshape(
-                -1, 3
-            )
-
-            landmark_positions_ecef = np.concatenate(
-                (landmark_positions_ecef, centroids_ecef), axis=0
-            )
-            pixel_coordinates = np.concatenate((pixel_coordinates, landmarks.centroid_xys), axis=0)
-            confidence_scores = np.concatenate(
-                (confidence_scores, landmarks.confidence_scores), axis=0
-            )
-
-        if len(confidence_scores) == 0:
+        if len(region_slices) is None:
+            print("No salient regions detected")
+            return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
+        if len(landmark_detections) == 0:
             print("No landmarks detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
+        landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.centroid_latlons)
         landmark_positions_eci = (R_eci_to_ecef.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(
-            pixel_coordinates
+            landmark_detections.centroid_xys
         )
         bearing_unit_vectors_body = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
 
