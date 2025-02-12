@@ -1,26 +1,30 @@
 import hashlib
+from datetime import datetime
+from dataclasses import dataclass, field
 
 import cv2
+import numpy as np
 
-
+@dataclass
 class Frame:
-    def __init__(self, frame, camera_id, timestamp):
-        self.camera_id = camera_id
-        self.frame = frame
-        self.timestamp = timestamp
-        # Generate ID by hashing the timestamp
-        self.frame_id = Frame.generate_frame_id(timestamp)
+    frame: np.ndarray
+    camera_id: int
+    timestamp: datetime
+    frame_id: str = field(init=False)
+
+    def __post_init__(self):
+        self.frame_id = Frame.generate_frame_id(self.timestamp)
 
     @staticmethod
-    def generate_frame_id(timestamp):
+    def generate_frame_id(timestamp: datetime) -> str:
         """
         Generates a unique frame ID using the hash of the timestamp.
 
         Args:
-            timestamp (datetime): The timestamp associated with the frame.
+            timestamp: The timestamp associated with the frame.
 
         Returns:
-            str: A hexadecimal string representing the hash of the timestamp.
+            A hexadecimal string representing the hash of the timestamp.
         """
         # Convert the timestamp to string and encode it to bytes, then hash it
         timestamp_str = str(timestamp)
