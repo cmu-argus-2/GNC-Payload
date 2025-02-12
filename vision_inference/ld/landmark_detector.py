@@ -70,6 +70,13 @@ class LandmarkDetections:
             confidence_scores=self.confidence_scores[index],
         )
 
+    def __iter__(self):
+        """
+        :return: A generator that yields Tuples containing the centroid_xy, centroid_latlon, class, and confidence for each landmark.
+        """
+        for i in range(len(self)):
+            yield self.centroid_xys[i, :], self.centroid_latlons[i, :], self.landmark_classes[i], self.confidence_scores[i]
+
     @staticmethod
     def empty() -> "LandmarkDetections":
         """
