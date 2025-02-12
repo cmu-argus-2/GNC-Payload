@@ -47,12 +47,28 @@ class LandmarkDetections:
     landmark_classes: np.ndarray
     confidence_scores: np.ndarray
 
-    @property
-    def detection_count(self) -> int:
+    def __len__(self) -> int:
         """
         :return: The number of landmark detections.
         """
         return len(self.landmark_classes)
+
+    def __getitem__(self, index: int | slice) -> "LandmarkDetections":
+        """
+        Get a subset of the landmark detections from this LandmarkDetections object.
+
+        Args:
+            index: The index or slice of the landmark detections to retrieve.
+
+        Returns:
+            A LandmarkDetections object containing the specified entries.
+        """
+        return LandmarkDetections(
+            centroid_xys=self.centroid_xys[index, :],
+            centroid_latlons=self.centroid_latlons[index, :],
+            landmark_classes=self.landmark_classes[index],
+            confidence_scores=self.confidence_scores[index],
+        )
 
     @staticmethod
     def empty() -> "LandmarkDetections":
@@ -212,7 +228,7 @@ class LandmarkDetector:
 
             landmark_detections = LandmarkDetections.stack(landmark_detections)
 
-            if landmark_detections.detection_count == 0:
+            if len(landmark_detections) == 0:
                 Logger.log(
                     "INFO",
                     f"[Camera {frame.camera_id} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
@@ -221,7 +237,7 @@ class LandmarkDetector:
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] {landmark_detections.detection_count} landmarks detected.",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] {len(landmark_detections)} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
