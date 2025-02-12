@@ -1,13 +1,22 @@
+"""
+Module to simulate and visualize Earth images from satellite data.
+"""
+
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
-from utils.earth_utils import calculate_mgrs_zones
-from utils.earth_utils import convert_to_lat_lon
-from utils.earth_utils import get_nadir_rotation
-from utils.earth_utils import lat_lon_to_ecef
+from utils.config_utils import load_config
+
+# pylint: disable=import-error
+from utils.earth_utils import (
+    calculate_mgrs_zones,
+    convert_to_lat_lon,
+    get_nadir_rotation,
+    lat_lon_to_ecef,
+)
 
 
 class EarthImageSimulator:
@@ -99,7 +108,12 @@ class EarthImageSimulator:
 
 
 class GeoTIFFCache:
-    def __init__(self, geotiff_folder):
+    def __init__(self, geotiff_folder: str):
+        """
+        Initialize the GeoTIFF cache.
+
+        Parameters: geotiff_folder (str): Path to the folder containing GeoTIFF files.
+        """
         self.geotiff_folder = geotiff_folder
         self.cache = {}
 
@@ -353,6 +367,8 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
 
 
 def sweep_lat_lon_test():
+    config = load_config()
+    body_R_camera = np.asarray(config["satellite"]["camera"]["body_R_camera"])
     simulator = EarthImageSimulator()
 
     latitudes = np.linspace(-90, 90, 90)
@@ -370,9 +386,10 @@ def sweep_lat_lon_test():
     empty_indices = []
     for i, j in np.ndindex(ecef_positions.shape[:2]):
         ecef_position = ecef_positions[i, j, :]
+        ecef_velocity = np.array([0, 0, 1])
 
-        orientation = get_nadir_rotation(ecef_position)
-        simulated_image = simulator.simulate_image(ecef_position, orientation)
+        orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
+        simulated_image = simulator.simulate_image(ecef_position, orientation @ body_R_camera)
 
         if j % 20 == 0:
             print(f"{i * i_stride + j}/{total}")
@@ -389,19 +406,22 @@ def sweep_lat_lon_test():
 
 
 def main():
+    config = load_config()
+    body_R_camera = np.asarray(config["satellite"]["camera"]["body_R_camera"])
     simulator = EarthImageSimulator()
 
     lat_lon = np.array([39.8283, -98.5795])
     ecef_position = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
     R_earth = 6371.0088e3
     ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
-    orientation = get_nadir_rotation(ecef_position)
+    ecef_velocity = np.array([0, 0, 1])
+    orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
-    simulated_image = simulator.simulate_image(ecef_position, orientation)
+    simulated_image = simulator.simulate_image(ecef_position, orientation @ body_R_camera)
     print(np.all(simulated_image == 0))
 
 
 if __name__ == "__main__":
-    test_geodetic_conversion()
-    sweep_lat_lon_test()
+    # test_geodetic_conversion()
+    # sweep_lat_lon_test()
     main()
