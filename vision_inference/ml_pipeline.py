@@ -193,9 +193,7 @@ class MLPipeline:
 
         # Sort landmarks by confidence, descending, and keep the top few
         LANDMARK_DISPLAY_COUNT = 5
-        top_landmark_indices = np.argsort(landmark_detections.confidences)[
-            -LANDMARK_DISPLAY_COUNT:
-        ]
+        top_landmark_indices = np.argsort(landmark_detections.confidences)[-LANDMARK_DISPLAY_COUNT:]
         top_landmark_regions = [
             MLPipeline.get_region_id(index, region_slices, len(landmark_detections))
             for index in top_landmark_indices
