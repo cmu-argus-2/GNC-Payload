@@ -5,11 +5,9 @@ Test the nonlinear least squares orbit determination algorithm.
 import os
 import pickle
 from time import perf_counter, time
-from typing import Any
 
 import brahe
 import numpy as np
-import yaml
 from brahe.epoch import Epoch
 from scipy.spatial.transform import Rotation
 
@@ -24,9 +22,9 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
-from utils.config_utils import load_config
 
 
 def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
@@ -43,7 +41,7 @@ def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
     return Rotation.from_rotvec(magnitudes[:, np.newaxis] * directions).as_matrix()
 
 
-def test_od():
+def test_od() -> None:
     """
     Test OD
     """
@@ -139,7 +137,7 @@ def test_od():
     # plt.show()
 
 
-def load_brahe_data_files():
+def load_brahe_data_files() -> None:
     """
     Load up-to-date brahe files
     """

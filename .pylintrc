@@ -124,7 +124,7 @@ argument-naming-style=snake_case
 # Regular expression matching correct argument names. Overrides argument-
 # naming-style. If left empty, argument names will be checked with the set
 # naming style.
-#argument-rgx=
+argument-rgx=^(?:[a-z_][a-z0-9_]*(?:_R[a-z]*_[a-z0-9_]*)*|[A-Z])$
 
 # Naming style matching correct attribute names.
 attr-naming-style=snake_case
@@ -132,7 +132,8 @@ attr-naming-style=snake_case
 # Regular expression matching correct attribute names. Overrides attr-naming-
 # style. If left empty, attribute names will be checked with the set naming
 # style.
-#attr-rgx=
+attr-rgx=^(?:[a-z_][a-z0-9_]*(?:_R[a-z]*_[a-z0-9_]*)*|[A-Z])$
+
 
 # Bad variable names which should always be refused, separated by a comma.
 bad-names=foo,
@@ -248,12 +249,13 @@ property-classes=abc.abstractproperty
 #typevar-rgx=
 
 # Naming style matching correct variable names.
-variable-naming-style=snake_case
+# variable-naming-style=snake_case
 
 # Regular expression matching correct variable names. Overrides variable-
 # naming-style. If left empty, variable names will be checked with the set
 # naming style.
-#variable-rgx=
+variable-rgx=^(?:[a-z_][a-z0-9_]*(?:_R[a-z]*_[a-z0-9_]*)*|[A-Z])$
+
 
 
 [CLASSES]

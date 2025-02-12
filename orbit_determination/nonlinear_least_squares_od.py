@@ -1,3 +1,7 @@
+"""
+Module to solve the orbit determination problem using non-linear least squares.
+"""
+
 from collections.abc import Callable
 
 import numpy as np
@@ -5,6 +9,7 @@ from brahe.constants import GM_EARTH, R_EARTH
 from scipy.optimize import least_squares
 from scipy.stats import circmean, circvar
 
+# pylint: disable=import-error
 from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
@@ -22,6 +27,8 @@ class OrbitDetermination:
         """
         self.dt = dt
 
+    # pylint: disable=too-many-locals
+    # pylint: disable=unreachable
     def fit_circular_orbit(
         self, measurement_indices: np.ndarray, positions: np.ndarray
     ) -> Callable[[np.ndarray], np.ndarray]:
@@ -40,14 +47,14 @@ class OrbitDetermination:
         assert (
             len(measurement_indices) == positions.shape[0]
         ), "measurement_indices and positions must have the same length"
-
+        # pylint: disable=pointless-string-statement
         """
         We want to solve for the unit normal vector of the best fit plane that passes through the origin. 
         This means we want to minimize np.linalg.norm(positions @ normal) subject to np.linalg.norm(normal) == 1.
         This is solved by computing the right singular vector corresponding to the smallest singular value of positions.
         """
-        *_, Vt = np.linalg.svd(positions)
-        normal = Vt[-1, :]
+        *_, vt = np.linalg.svd(positions)
+        normal = vt[-1, :]
 
         projected_positions = positions - np.outer(positions @ normal, normal)
         orbital_radius = np.mean(np.linalg.norm(projected_positions, axis=1))
@@ -124,11 +131,9 @@ class OrbitDetermination:
         N = data_manager.state_count
         M = data_manager.measurement_count
 
-        measurement_Rs_body_to_eci = data_manager.Rs_body_to_eci[
-            data_manager.measurement_indices, ...
-        ]
+        measurement_eci_Rs_body = data_manager.eci_Rs_body[data_manager.measurement_indices, ...]
         bearing_unit_vectors_wf = np.einsum(
-            "ijk,ik->ij", measurement_Rs_body_to_eci, data_manager.bearing_unit_vectors
+            "ijk,ik->ij", measurement_eci_Rs_body, data_manager.bearing_unit_vectors
         )
 
         def residuals(X: np.ndarray) -> np.ndarray:
@@ -165,7 +170,7 @@ class OrbitDetermination:
             print(np.sum(res**2))
             return res
 
-        def residual_jac(X: np.ndarray):
+        def residual_jac(X: np.ndarray) -> np.ndarray:
             """
             Compute the Jacobian of the residuals of the non-linear least squares problem.
 
@@ -209,6 +214,7 @@ class OrbitDetermination:
         model = self.fit_circular_orbit(
             data_manager.measurement_indices, semi_major_axis_guess * altitude_normalized_landmarks
         )
+        # pylint: disable=no-member
         initial_guess = model(np.arange(N)).flatten()
 
         result = least_squares(residuals, initial_guess, method="lm", jac=residual_jac)

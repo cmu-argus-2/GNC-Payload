@@ -37,7 +37,10 @@ warn_unreachable = true
 warn_unused_ignores = true
 
 # Complain if we can't find type hints for dependencies
-ignore_missing_imports = false
+ignore_missing_imports = true
+
+# Force mypy to analyze the library as best as it can
+follow_untyped_imports = true
 
 
 [tool.isort]
