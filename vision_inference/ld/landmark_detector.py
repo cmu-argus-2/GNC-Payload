@@ -36,22 +36,22 @@ class LandmarkDetections:
     A class to store info about landmark detections.
 
     Attributes:
-        centroid_xys: A numpy array of shape (N, 2) containing the x and y image coordinates for each detected landmark's centroid.
-        centroid_latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
-        landmark_classes: A numpy array of shape (N,) containing the class IDs for each detected landmark.
-        confidence_scores: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
+        pixel_coordinates: A numpy array of shape (N, 2) containing the x and y pixel coordinates for each detected landmark's centroid.
+        latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
+        class_ids: A numpy array of shape (N,) containing the class IDs for each detected landmark.
+        confidences: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
     """
 
-    centroid_xys: np.ndarray
-    centroid_latlons: np.ndarray
-    landmark_classes: np.ndarray
-    confidence_scores: np.ndarray
+    pixel_coordinates: np.ndarray
+    latlons: np.ndarray
+    class_ids: np.ndarray
+    confidences: np.ndarray
 
     def __len__(self) -> int:
         """
         :return: The number of landmark detections.
         """
-        return len(self.landmark_classes)
+        return len(self.class_ids)
 
     def __getitem__(self, index: int | slice | Sequence[int] | np.ndarray) -> "LandmarkDetections":
         """
@@ -64,22 +64,22 @@ class LandmarkDetections:
             A LandmarkDetections object containing the specified entries.
         """
         return LandmarkDetections(
-            centroid_xys=self.centroid_xys[index, :],
-            centroid_latlons=self.centroid_latlons[index, :],
-            landmark_classes=self.landmark_classes[index],
-            confidence_scores=self.confidence_scores[index],
+            pixel_coordinates=self.pixel_coordinates[index, :],
+            latlons=self.latlons[index, :],
+            class_ids=self.class_ids[index],
+            confidences=self.confidences[index],
         )
 
     def __iter__(self):
         """
-        :return: A generator that yields Tuples containing the centroid_xy, centroid_latlon, class, and confidence for each landmark.
+        :return: A generator that yields Tuples containing the pixel_coordinates, latlon, class_id, and confidence for each landmark.
         """
         for i in range(len(self)):
             yield (
-                self.centroid_xys[i, :],
-                self.centroid_latlons[i, :],
-                self.landmark_classes[i],
-                self.confidence_scores[i],
+                self.pixel_coordinates[i, :],
+                self.latlons[i, :],
+                self.class_ids[i],
+                self.confidences[i],
             )
 
     @staticmethod
@@ -91,10 +91,10 @@ class LandmarkDetections:
             A LandmarkDetections object with empty arrays of the correct shape for all attributes.
         """
         return LandmarkDetections(
-            centroid_xys=np.zeros((0, 2)),
-            centroid_latlons=np.zeros((0, 2)),
-            landmark_classes=np.zeros(0, dtype=int),
-            confidence_scores=np.zeros(0),
+            pixel_coordinates=np.zeros((0, 2)),
+            latlons=np.zeros((0, 2)),
+            class_ids=np.zeros(0, dtype=int),
+            confidences=np.zeros(0),
         )
 
     def assert_invariants(self) -> None:
@@ -103,18 +103,18 @@ class LandmarkDetections:
 
         :raises AssertionError: If any of the invariants are violated.
         """
-        assert len(self.centroid_xys.shape) == 2, "centroid_xy should be a 2D array."
-        assert self.centroid_xys.shape[1] == 2, "centroid_xy should have 2 columns."
-        assert len(self.centroid_latlons.shape) == 2, "centroid_latlons should be a 2D array."
-        assert self.centroid_latlons.shape[1] == 2, "centroid_latlons should have 2 columns."
-        assert len(self.landmark_classes.shape) == 1, "landmark_classes should be a 1D array."
-        assert len(self.confidence_scores.shape) == 1, "confidence_scores should be a 1D array."
+        assert len(self.pixel_coordinates.shape) == 2, "pixel_coordinates should be a 2D array."
+        assert self.pixel_coordinates.shape[1] == 2, "pixel_coordinates should have 2 columns."
+        assert len(self.latlons.shape) == 2, "latlons should be a 2D array."
+        assert self.latlons.shape[1] == 2, "latlons should have 2 columns."
+        assert len(self.class_ids.shape) == 1, "class_ids should be a 1D array."
+        assert len(self.confidences.shape) == 1, "confidences should be a 1D array."
 
         assert (
-            self.centroid_xys.shape[0]
-            == self.centroid_latlons.shape[0]
-            == len(self.landmark_classes)
-            == len(self.confidence_scores)
+            self.pixel_coordinates.shape[0]
+            == self.latlons.shape[0]
+            == len(self.class_ids)
+            == len(self.confidences)
         ), "All arrays should have the same length."
 
     @staticmethod
@@ -129,10 +129,10 @@ class LandmarkDetections:
             A LandmarkDetections object containing the stacked data.
         """
         return LandmarkDetections(
-            centroid_xys=np.row_stack([det.centroid_xys for det in detections]),
-            centroid_latlons=np.row_stack([det.centroid_latlons for det in detections]),
-            landmark_classes=np.concatenate([det.landmark_classes for det in detections]),
-            confidence_scores=np.concatenate([det.confidence_scores for det in detections]),
+            pixel_coordinates=np.row_stack([det.pixel_coordinates for det in detections]),
+            latlons=np.row_stack([det.latlons for det in detections]),
+            class_ids=np.concatenate([det.class_ids for det in detections]),
+            confidences=np.concatenate([det.confidences for det in detections]),
         )
 
 
@@ -218,7 +218,7 @@ class LandmarkDetector:
                     continue
 
                 xywh = np.asarray(landmarks.xywh)
-                classes = np.asarray(landmarks.cls, dtype=int)
+                class_ids = np.asarray(landmarks.cls, dtype=int)
                 confidences = np.asarray(landmarks.conf)
 
                 valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
@@ -227,15 +227,15 @@ class LandmarkDetector:
                     if not np.any(valid_indices):
                         continue
                     xywh = xywh[valid_indices]
-                    classes = classes[valid_indices]
+                    class_ids = class_ids[valid_indices]
                     confidences = confidences[valid_indices]
 
                 landmark_detections.append(
                     LandmarkDetections(
-                        centroid_xys=xywh[:, :2],
-                        centroid_latlons=self.ground_truth[classes, :2],
-                        landmark_classes=classes,
-                        confidence_scores=confidences,
+                        pixel_coordinates=xywh[:, :2],
+                        latlons=self.ground_truth[class_ids, :2],
+                        class_ids=class_ids,
+                        confidences=confidences,
                     )
                 )
 
@@ -257,12 +257,12 @@ class LandmarkDetector:
             # Logging details for each detected landmark
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] class\tcentroid_xy\tcentroid_latlon\tconfidence",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] class_id\tpixel_coordinates\tlatlon\tconfidence",
             )
-            for (x, y), (lat, lon), cls, conf in landmark_detections:
+            for (x, y), (lat, lon), class_id, confidence in landmark_detections:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame.camera_id} frame {frame.frame_id}] {cls}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{conf:.2f}",
+                    f"[Camera {frame.camera_id} frame {frame.frame_id}] {class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
                 )
 
             return landmark_detections

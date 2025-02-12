@@ -189,13 +189,13 @@ class MLPipeline:
             base_color = colors[idx % len(colors)]
             region_color_map[region_id] = base_color
 
-            for (x, y), _, cls, confidence in landmark_detections:
+            for (x, y), _, class_id, confidence in landmark_detections:
                 adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
         # Sort landmarks by confidence, descending, and keep the top 5
         LANDMARK_DISPLAY_COUNT = 5
-        top_landmark_indices = np.argsort(landmark_detections.confidence_scores)[
+        top_landmark_indices = np.argsort(landmark_detections.confidences)[
             -LANDMARK_DISPLAY_COUNT:
         ]
         top_landmark_regions = [

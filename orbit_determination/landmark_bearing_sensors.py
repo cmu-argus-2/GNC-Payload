@@ -286,14 +286,14 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
             print("No landmarks detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
-        landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.centroid_latlons)
+        landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.latlons)
         landmark_positions_eci = (R_eci_to_ecef.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(
-            landmark_detections.centroid_xys
+            landmark_detections.pixel_coordinates
         )
         bearing_unit_vectors_body = (self.R_camera_to_body @ bearing_unit_vectors_cf.T).T
 
         print(f"Detected {len(landmark_positions_eci)} landmarks")
 
-        # TODO: output confidence_scores too
+        # TODO: output confidences too
         return bearing_unit_vectors_body, landmark_positions_eci
