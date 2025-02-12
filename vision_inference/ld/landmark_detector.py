@@ -223,9 +223,7 @@ class LandmarkDetector:
 
                 valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
                 if not np.all(valid_indices):
-                    Logger.log(
-                        "INFO", "Skipping landmark with invalid bounding box dimensions."
-                    )
+                    Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
                     if not np.any(valid_indices):
                         continue
                     xywh = xywh[valid_indices]
