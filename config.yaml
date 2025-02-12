@@ -27,7 +27,7 @@ satellite:
                          [ 0, 10000, 360 ],
                          [ 0, 0, 1 ]]  # 3x3 matrix representing the intrinsic parameters of the camera
             t_body_to_camera: [ 0.05, 0.0, 0.0 ]  # m, position of camera in the satellite's body frame
-            R_camera_to_body: [[0,0,1], [-1,0,0], [0,-1,0]]  # rotation matrix representing a transformation from camera-frame to body-frame
+            body_R_camera: [[0,0,1], [-1,0,0], [0,-1,0]]  # rotation matrix representing a transformation from camera-frame to body-frame
 
 
 solver:
