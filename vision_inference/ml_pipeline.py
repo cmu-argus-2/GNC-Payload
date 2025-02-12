@@ -199,7 +199,9 @@ class MLPipeline:
 
         # Sort landmarks by confidence, descending, and keep the top 5
         LANDMARK_DISPLAY_COUNT = 5
-        top_landmark_indices = np.argsort(landmark_detections.confidence_scores)[-LANDMARK_DISPLAY_COUNT:]
+        top_landmark_indices = np.argsort(landmark_detections.confidence_scores)[
+            -LANDMARK_DISPLAY_COUNT:
+        ]
         top_landmark_regions = [
             MLPipeline.get_region_id(index, region_slices, len(landmark_detections))
             for index in top_landmark_indices
@@ -254,7 +256,9 @@ class MLPipeline:
         total_height = 0
 
         text_entries = []
-        for i, (region_id, ((x, y), (lat, lon), _, conf)) in enumerate(zip(top_landmark_regions, top_landmarks)):
+        for i, (region_id, ((x, y), (lat, lon), _, conf)) in enumerate(
+            zip(top_landmark_regions, top_landmarks)
+        ):
             text = f"Top {i + 1}: Region {region_id}, Conf: {conf:.2f}, XY: ({x:.0f}, {y:.0f}), LatLon: ({lat:.2f}, {lon:.2f})"
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width
