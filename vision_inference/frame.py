@@ -28,6 +28,6 @@ class Frame:
         frame_id = hash_object.hexdigest()
         return frame_id[:16]  # Optionally still shorten if needed
 
-    @classmethod
-    def resize(cls, img, width=640, height=480):
+    @staticmethod
+    def resize(img, width=640, height=480):
         return cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
