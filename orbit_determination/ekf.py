@@ -1,22 +1,23 @@
 """ Extended Kalman Filter for orbit determination """
 
 import math
-from typing import Any
-from typing import Tuple
+import os
+import sys
+from typing import Any, Tuple
 
 import brahe
-from brahe.constants import GM_EARTH
 import jax
 import jax.numpy as jnp
 import numpy as np
 import quaternion
-from scipy.spatial.transform import Rotation
 import yaml
+from brahe.constants import GM_EARTH
+from scipy.spatial.transform import Rotation
 
-from dynamics.orbital_dynamics import f
-from dynamics.orbital_dynamics import f_jac
-from utils.math_utils import R
-from utils.math_utils import rot_2_q
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from dynamics.orbital_dynamics import f, f_jac
+from utils.math_utils import R, rot_2_q
 
 
 class EKF:
@@ -89,26 +90,18 @@ class EKF:
         https://github.com/RoboticExplorationLab/inertial-filter-examples
         """
 
-        wf = u[0:3]  # angular velocity measurement from IMU
-        self.r_p = self.r_m + self.dt * self.v_m
-        self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
-        self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
-
-        # print(quaternion.as_rotation_vector(self.q_p))
-
+        # TODO: Use IMU measurements and update quaternion estimate
         # Using RK4 TODO: Add quaternion dynamics into orbit_dynamics.py so we can use the f and f_jac functions
-        # A = f_jac(self.x_m, self.dt)
+
+        # wf = u[0:3]  # angular velocity measurement from IMU
+        # self.r_p = self.r_m + self.dt * self.v_m
+        # self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
+        # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
+
+        # A = f_jac(self.x_m, self.dt) # TODO: Fix to include attitude
 
         # Jacobian
-        dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(0.5 * self.dt * wf))
-        dadr = (
-            -self.dt
-            * GM_EARTH
-            * (
-                (np.eye(3) / np.linalg.norm(self.r_m) ** 3)
-                - 3 * np.outer(self.r_m, self.r_m) / np.linalg.norm(self.r_m) ** 5
-            )
-        )  # Derivative of v_dot w.r.t r
+        # dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(0.5 * self.dt * wf))
         # dadq is zero as velocity in inertial frame not coupled to quaternion
 
         # A = np.block(
@@ -126,6 +119,9 @@ class EKF:
         # )
         x = np.append(self.r_m, self.v_m)
         A = f_jac(x, self.dt)
+        x_new = f(x, self.dt)
+        self.r_p = x_new[0:3]
+        self.v_p = x_new[3:6]
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -135,8 +131,9 @@ class EKF:
         self.v_m = self.v_p
         self.P_m = self.P_p
 
-
-    def measurement(self, z: Tuple[np.ndarray, np.ndarray], landmark_bearing_sensor, data_manager) -> None:
+    def measurement(
+        self, z: Tuple[np.ndarray, np.ndarray], landmark_bearing_sensor, data_manager
+    ) -> None:
         """
         Update the state estimate based on the measurement. This corresponds to the posterior update step in the EKF algorithm.
 
@@ -149,9 +146,9 @@ class EKF:
         x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
 
         # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][:int(math.ceil(z[0].shape[0] * 0.01))]
-        z1 = z[1][:int(math.ceil(z[1].shape[0] * 0.01))]
-        
+        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.01))]
+        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.01))]
+
         z = (z0, z1)
 
         h = self.h(z[1], data_manager, x_p)
@@ -164,15 +161,12 @@ class EKF:
 
         S = H @ self.P_p @ H.T + self.R
 
-        if S.shape[0] != 0:
-            cond = np.linalg.cond(S)
-
-        # else: 
-        #     cond = 0
+        cond = np.linalg.cond(S)
 
         # Check for ill-conditioned matrix and add regularization if necessary
         if cond > self.cond_threshold:
             S += np.eye(S.shape[0]) * 1e-6
+            print("Ill-conditioned matrix detected. Regularization applied.")
 
         K = self.P_p @ H.T @ np.linalg.inv(S)
 
@@ -185,7 +179,6 @@ class EKF:
         self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
             np.eye(self.P_m.shape[0]) - K @ H
         ).T + K @ self.R @ K.T  # Joseph form covariance update
-
 
     def H(self, z: np.ndarray, data_manager, x_p: jnp.ndarray) -> np.ndarray:
         """
@@ -223,7 +216,7 @@ class EKF:
 
         # Define rotation matrices
         t_idx = data_manager.state_count - 1
-        R_body_to_eci = data_manager.Rs_body_to_eci[t_idx, ...] # TODO: Fix using attitude state
+        R_body_to_eci = data_manager.Rs_body_to_eci[t_idx, ...]  # TODO: Fix using attitude state
         R_eci_to_ecef = brahe.frames.rECItoECEF(data_manager.latest_epoch)
         R_body_to_ecef = R_eci_to_ecef @ R_body_to_eci
         R_ecef_to_body = R_body_to_ecef.T
