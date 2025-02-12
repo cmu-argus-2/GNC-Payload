@@ -14,6 +14,7 @@ import os
 from typing import Tuple, List
 
 import cv2
+import numpy as np
 
 from vision_inference.ld import LandmarkDetections, LandmarkDetector
 from vision_inference.logger import Logger
@@ -129,6 +130,26 @@ class MLPipeline:
 
         return adjusted_color
 
+    @staticmethod
+    def get_region_id(
+        index: int, region_slices: dict[str, slice], sequence_length: int
+    ) -> str | None:
+        """
+        Returns the region ID for a given index within a sequence of landmark detections.
+
+        Args:
+            index: The index to find the region ID for.
+            region_slices: The dictionary mapping region IDs to slices of the landmark detections.
+            sequence_length: The total length of the sequence of landmark detections.
+
+        Returns:
+            The region ID for the given index, or None if the index is not within any region slice.
+        """
+        for region_id, slice_ in region_slices.items():
+            if index in range(*slice_.indices(sequence_length)):
+                return region_id
+        return None
+
     # TODO: Improve the readability of this method.
     @staticmethod
     def visualize_landmarks(
@@ -162,8 +183,6 @@ class MLPipeline:
         circle_radius = 15
         circle_thickness = -1
 
-        top_landmarks = []  # List to store top landmarks for display
-
         for idx, (region_id, slice_) in enumerate(region_slices.items()):
             landmark_detections = landmark_detections[slice_]
 
@@ -178,14 +197,14 @@ class MLPipeline:
                 adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
-                # Collect data for top landmarks
-                top_landmarks.append(
-                    (region_id, confidence, (x, y), landmark_detections.centroid_latlons)
-                )
-
         # Sort landmarks by confidence, descending, and keep the top 5
-        top_landmarks.sort(key=lambda x: x[1], reverse=True)
-        top_landmarks = top_landmarks[:5]
+        LANDMARK_DISPLAY_COUNT = 5
+        top_landmark_indices = np.argsort(landmark_detections.confidence_scores)[-LANDMARK_DISPLAY_COUNT:]
+        top_landmark_regions = [
+            MLPipeline.get_region_id(index, region_slices, len(landmark_detections))
+            for index in top_landmark_indices
+        ]
+        top_landmarks = landmark_detections[top_landmark_indices]
 
         # ========================== Metadata displaying ========================================
         # Metadata drawing first to determine right edge for alignment
@@ -235,12 +254,8 @@ class MLPipeline:
         total_height = 0
 
         text_entries = []
-        for i, (cls, confidence, (x, y), latlons) in enumerate(top_landmarks):
-            latitude = latlons[0].item(0)
-            longitude = latlons[1].item(
-                0
-            )  # TODO: bug fix: index 1 is out of range for dimension of size 1
-            text = f"Top {i + 1}: Region {region}, Conf: {confidence:.2f}, XY: ({int(x)}, {int(y)}), LatLon: ({latitude:.2f}, {longitude:.2f})"
+        for i, (region_id, ((x, y), (lat, lon), _, conf)) in enumerate(zip(top_landmark_regions, top_landmarks)):
+            text = f"Top {i + 1}: Region {region_id}, Conf: {conf:.2f}, XY: ({x:.0f}, {y:.0f}), LatLon: ({lat:.2f}, {lon:.2f})"
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width
             total_height += entry_height
