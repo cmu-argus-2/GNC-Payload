@@ -3,8 +3,8 @@ Functions for implementing orbital position dynamics and its jacobian under just
 J2 perturbations are not included.
 """
 
-from brahe.constants import GM_EARTH
 import numpy as np
+from brahe.constants import GM_EARTH
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:

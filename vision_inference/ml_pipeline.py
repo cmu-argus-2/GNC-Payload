@@ -11,15 +11,15 @@ Date: January 27, 2025
 """
 
 import os
-from typing import Tuple, List
+from typing import List, Tuple
 
 import cv2
 import numpy as np
 
+from vision_inference.frame import Frame
 from vision_inference.ld import LandmarkDetections, LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.rc import RegionClassifier
-from vision_inference.frame import Frame
 
 
 class MLPipeline:

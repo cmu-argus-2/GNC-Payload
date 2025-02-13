@@ -16,9 +16,9 @@ Date: [Creation or Last Update Date]
 """
 
 import os
+from dataclasses import dataclass
 from time import perf_counter
 from typing import List, Sequence
-from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -26,8 +26,8 @@ from PIL import Image
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
-from vision_inference.logger import Logger
 from vision_inference.frame import Frame
+from vision_inference.logger import Logger
 
 
 @dataclass

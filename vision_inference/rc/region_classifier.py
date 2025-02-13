@@ -13,18 +13,19 @@ Date: [Creation or Last Update Date]
 """
 
 import os
-import cv2
 from time import perf_counter
-import torch
-from torch import nn
-from torchvision import transforms
-from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
-from PIL import Image
-from vision_inference.logger import Logger
 from typing import List
 
-from vision_inference.frame import Frame
+import cv2
+import torch
+from PIL import Image
+from torch import nn
+from torchvision import transforms
+from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
+
 from utils.config_utils import load_config
+from vision_inference.frame import Frame
+from vision_inference.logger import Logger
 
 
 class RegionClassifier:

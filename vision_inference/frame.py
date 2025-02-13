@@ -1,6 +1,6 @@
 import hashlib
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
 
 import cv2
 import numpy as np

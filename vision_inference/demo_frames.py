@@ -1,6 +1,6 @@
 import datetime
-from itertools import cycle
 import os
+from itertools import cycle
 
 import cv2
 

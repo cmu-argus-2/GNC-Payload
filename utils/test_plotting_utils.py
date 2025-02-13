@@ -1,12 +1,12 @@
 import brahe
-from brahe import Epoch
 import numpy as np
+from brahe import Epoch
+from orbit_utils import get_sso_orbit_state
 
 from dynamics.orbital_dynamics import f
-from orbit_utils import get_sso_orbit_state
+from orbit_determination.test_nonlinear_least_squares import load_config
 from utils.brahe_utils import increment_epoch
 from utils.earth_utils import ecef_to_lat_lon
-from orbit_determination.test_nonlinear_least_squares import load_config
 from utils.plotting_utils import plot_ground_track
 
 

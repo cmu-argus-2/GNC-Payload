@@ -6,6 +6,7 @@ Author: Kyle McCleary
 """
 
 import argparse
+
 import numpy as np
 
 LONSTEP = 6

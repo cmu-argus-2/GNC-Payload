@@ -1,4 +1,5 @@
 from functools import cache
+
 import numpy as np
 from brahe import R_EARTH
 from matplotlib import pyplot as plt
