@@ -38,7 +38,7 @@ class ODSimulationDataManager:
 
     states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 6)))
     eci_Rs_body: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
-
+      
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
@@ -84,16 +84,11 @@ class ODSimulationDataManager:
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Return the bearing unit vectors and landmarks corresponding to the latest state.
 
-        This property finds all measurements that were taken at the most recent state time step.
+        :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
         """
-        latest_idx = self.state_count - 1
-        # Create a boolean mask for measurements taken at the latest state index.
-        mask = self.measurement_indices == latest_idx
-        latest_bearings = self.bearing_unit_vectors[mask, :]
-        latest_landmarks = self.landmarks[mask, :]
-        return latest_bearings, latest_landmarks
+        indices = self.measurement_indices == self.state_count - 1
+        return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
 
     def assert_invariants(self) -> None:
         """
@@ -138,6 +133,7 @@ class ODSimulationDataManager:
         """
         self.states = np.row_stack((self.states, state))
         self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body), axis=0)
+
 
         self.assert_invariants()
 
