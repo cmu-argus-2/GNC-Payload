@@ -42,6 +42,7 @@ class LandmarkBearingSensor(ABC):
         in the body frame and a numpy array of shape (N, 3) containing the landmark positions in
         ECI coordinates.
         """
+        pass
 
 
 class RandomLandmarkBearingSensor(LandmarkBearingSensor):
