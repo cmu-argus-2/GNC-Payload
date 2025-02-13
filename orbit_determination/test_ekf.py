@@ -87,22 +87,24 @@ def run_simulation() -> None:
         np.expand_dims(initial_state, axis=0), np.expand_dims(init_rot, axis=0)
     )
 
+    # Fix a constant rotation velocity for the test.
+    rot = np.array([0, 0, np.pi / 2])
+
     # Initialize IMU and EKF
     # imu = imu_init(dt)
     ekf = EKF(
-        r=initial_state[0:3]
-        + np.random.normal(0, 800, 3),  # TODO: Adjust and tune noise and error init
+        # TODO: Adjust and tune noise and error init
+        r=initial_state[0:3] + np.random.normal(0, 800, 3),
         v=initial_state[3:6] + np.random.normal(0, 800, 3),
         q=quaternion.from_rotation_matrix(init_rot),
-        P=np.eye(6) * 1000,
-        Q=np.eye(6) * 1e-12,
+        P=np.eye(13) * 1000,
+        Q=np.eye(13) * 1e-12,
         R=np.zeros((3, 3)),
         dt=dt,
         config=config,
+        w = rot,
     )
 
-    # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 2])
 
     error = []
 
@@ -116,8 +118,10 @@ def run_simulation() -> None:
             np.expand_dims(next_state, axis=0),
             np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
         )
+        # TODO: Add angular velocity to state propagation
 
         gyro_meas = np.zeros((3))  # TEMPORARY
+        # gyro_meas = quaternion.as_rotation_vector(next_quat) # 
         # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
         ekf.predict(u=gyro_meas)
 

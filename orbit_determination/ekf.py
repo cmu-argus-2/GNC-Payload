@@ -34,6 +34,7 @@ class EKF:
         R: np.ndarray,
         dt: float,
         config: dict,
+        w: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -48,6 +49,7 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param R: Measurement noise covariance with shape (3, 3)
         :param dt: The amount of time between each time step.
+        :param w: The angular velocity of the satellite with shape (3,)
 
         :return: None
 
@@ -70,6 +72,8 @@ class EKF:
         self.P_m = P
         self.P_p = P
 
+        self.w = w
+
         self.Q = Q
         self.R = R
         self.dt = dt
@@ -91,14 +95,11 @@ class EKF:
         """
 
         # TODO: Use IMU measurements and update quaternion estimate
-        # Using RK4 TODO: Add quaternion dynamics into orbit_dynamics.py so we can use the f and f_jac functions
 
         # wf = u[0:3]  # angular velocity measurement from IMU
         # self.r_p = self.r_m + self.dt * self.v_m
         # self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
-
-        # A = f_jac(self.x_m, self.dt) # TODO: Fix to include attitude
 
         # Jacobian
         # dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(0.5 * self.dt * wf))
@@ -117,11 +118,13 @@ class EKF:
         #         [dadr, np.eye(3)],
         #     ]
         # )
-        x = np.append(self.r_m, self.v_m)
+        x = np.append(self.r_m, self.v_m, self.q_m, u) #TODO: pass correct angular velocity to the predictive step
         A = f_jac(x, self.dt)
         x_new = f(x, self.dt)
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
+        self.q_p = x_new[6:10]
+        self.w = x_new[10:13] # Should not change at all.
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -130,7 +133,7 @@ class EKF:
         If no measurements are taken, just take the prior state to be the posterior state.
         """
         self.r_m = self.r_p
-        # self.q_m = self.q_p
+        self.q_m = self.q_p
         self.v_m = self.v_p
         self.P_m = self.P_p
 
@@ -151,7 +154,7 @@ class EKF:
         #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
         # )
 
-        x_p = jnp.array(np.concatenate((self.r_p, self.v_p), axis=0))
+        x_p = jnp.array(np.concatenate((self.r_p, self.v_p, quaternion.as_float_array(self.q_p), self.w), axis=0))
 
         # Select a fraction of the measurements to use to speed up computations
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.01))]
@@ -168,9 +171,8 @@ class EKF:
 
         S = H @ self.P_p @ H.T + self.R
 
-        cond = np.linalg.cond(S)
-
         # Check for ill-conditioned matrix and add regularization if necessary
+        cond = np.linalg.cond(S)
         if cond > self.cond_threshold:
             S += np.eye(S.shape[0]) * 1e-6
             print("Ill-conditioned matrix detected. Regularization applied.")
@@ -180,8 +182,8 @@ class EKF:
         delta = K @ (z0 - h)
 
         self.r_m = self.r_p + delta[0:3]
-        # self.q_m = self.q_p * quaternion.from_rotation_vector(delta[3:6])
         self.v_m = self.v_p + delta[3:6]
+        self.q_m = self.q_p * quaternion.as_quat_array(delta[6:10])
 
         self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
             np.eye(self.P_m.shape[0]) - K @ H
@@ -217,7 +219,7 @@ class EKF:
         :param z: Measurements of the landmarks in frame, consisting of just the ECI coordinates of the landmarks
         with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
-        :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (10,)
+        :param x_p: Prior state estimate consisting of [position, velocity, rotation_vector] with shape (9,)
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
         """
@@ -225,7 +227,8 @@ class EKF:
 
         # Define rotation matrices
         t_idx = data_manager.state_count - 1
-        eci_R_body = data_manager.eci_Rs_body[t_idx, ...]  # TODO: Fix using attitude state
+        # eci_R_body = data_manager.eci_Rs_body[t_idx, ...]  # TODO: Fix using attitude state
+        eci_R_body = R(x_p[6:10]) # transform quaternion to rotation matrix
         ecef_R_eci = brahe.frames.rECItoECEF(data_manager.latest_epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 

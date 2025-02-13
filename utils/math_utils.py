@@ -5,7 +5,7 @@ def R(q):
     """Return the rotation matrix corresponding to the quaternion q.
 
     Args:
-        q (jnp.array): The quaternion to convert.
+        q (np.array): The quaternion to convert.
 
     Returns:
         np.ndarray: The corresponding rotation matrix.
