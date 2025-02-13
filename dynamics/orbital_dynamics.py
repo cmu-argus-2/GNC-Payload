@@ -2,6 +2,13 @@ from brahe.constants import GM_EARTH
 import numpy as np
 import quaternion
 
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from utils.math_utils import dqdot_dq_deriv, left_q
+
 
 """
 Functions for implementing orbital position and attitude dynamics and its jacobian under just the force of gravity.
@@ -15,16 +22,8 @@ def quat_derivative(q: np.ndarray, w: np.ndarray) -> np.ndarray:
     q = [q0, q1, q2, q3]
     w = [wx, wy, wz]
     """
-    q0, q1, q2, q3 = q
-    wx, wy, wz = w
-
-    # Derivatives (based on the standard formula)
-    dq0 = 0.5 * (-q1 * wx - q2 * wy - q3 * wz)
-    dq1 = 0.5 * (q0 * wx + q2 * wz - q3 * wy)
-    dq2 = 0.5 * (q0 * wy - q1 * wz + q3 * wx)
-    dq3 = 0.5 * (q0 * wz + q1 * wy - q2 * wx)
-
-    return np.array([dq0, dq1, dq2, dq3])
+    dq = 0.5 * left_q(q) @ np.append(np.zeros((1,3)), np.eye(3), axis=0) @ w
+    return dq
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -43,9 +42,8 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     w = x[10:13]
 
     dq = quat_derivative(q, w)
-    dw = np.zeros(
-        3
-    )  # For now (?) we are not including angular velocity dynamics assuming constant angular velocity.
+    dw = np.zeros(3)  
+    # For now (?) we are not including angular velocity dynamics assuming constant angular velocity.
 
     return np.concatenate([v, a, dq, dw])
 
@@ -60,33 +58,32 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     """
 
     r = x[:3]
+
     r_norm = np.linalg.norm(r)
     dv_dr = np.zeros((3, 3))
     dv_dv = np.eye(3)
-    dv_dq = np.zeros((3, 4))
-    dv_dw = np.zeros((3, 3))
+    dv_dq = np.zeros((3, 3))
 
     da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
     da_dv = np.zeros((3, 3))
-    da_dq = np.zeros((3, 4))
-    da_dw = np.zeros((3, 3))
+    da_dq = np.zeros((3, 3))
 
-    dqdot_dr = np.zeros((4, 3))
-    dqdot_dv = np.zeros((4, 3))
-    dqdot_dq = np.zeros((4, 4)) # TODO: Solve the Jacobian of the quaternion derivative function. dq_dot/dq
-    dqdot_dw = np.zeros((4, 3)) # TODO: Solve the Jacobian of the quaternion derivative function. dq_dot/dw
+    dqdot_dr = np.zeros((3, 3))
+    dqdot_dv = np.zeros((3, 3))
+    dqdot_dq = np.zeros((3, 3))
+    # dqdot_dw = 0.5 * left_q(q) @ np.append(np.zeros((1,3)), np.eye(3), axis=0)
+    # dqdot_dw = np.zeros((3, 3))
 
-    dwdot_dr = np.zeros((3, 3))
-    dwdot_dv = np.zeros((3, 3))
-    dwdot_dq = np.zeros((3, 4))
-    dwdot_dw = np.zeros((3, 3))
+    # dwdot_dr = np.zeros((3, 3))
+    # dwdot_dv = np.zeros((3, 3))
+    # dwdot_dq = np.zeros((3, 3))
+    # dwdot_dw = np.zeros((3, 3))
 
     return np.block(
         [
-            [dv_dr, dv_dv, dv_dq, dv_dw],
-            [da_dr, da_dv, da_dq, da_dw],
-            [dqdot_dr, dqdot_dv, dqdot_dq, dqdot_dw],
-            [dwdot_dr, dwdot_dv, dwdot_dq, dwdot_dw],
+            [dv_dr, dv_dv, dv_dq],
+            [da_dr, da_dv, da_dq],
+            [dqdot_dr, dqdot_dv, dqdot_dq],
         ]
     )
 
@@ -125,11 +122,11 @@ def RK4_jac(x, func, func_jac, dt):
     k3 = func(x + 0.5 * dt * k2)
 
     k1_jac = func_jac(x)
-    k2_jac = func_jac(x + 0.5 * dt * k1) @ (np.eye(6) + 0.5 * dt * k1_jac)
-    k3_jac = func_jac(x + 0.5 * dt * k2) @ (np.eye(6) + 0.5 * dt * k2_jac)
-    k4_jac = func_jac(x + dt * k3) @ (np.eye(6) + dt * k3_jac)
+    k2_jac = func_jac(x + 0.5 * dt * k1) @ (np.eye(9) + 0.5 * dt * k1_jac)
+    k3_jac = func_jac(x + 0.5 * dt * k2) @ (np.eye(9) + 0.5 * dt * k2_jac)
+    k4_jac = func_jac(x + dt * k3) @ (np.eye(9) + dt * k3_jac)
 
-    return np.eye(6) + (dt / 6) * (k1_jac + 2 * k2_jac + 2 * k3_jac + k4_jac)
+    return np.eye(9) + (dt / 6) * (k1_jac + 2 * k2_jac + 2 * k3_jac + k4_jac)
 
 
 def f(x: np.ndarray, dt: float) -> np.ndarray:

@@ -11,7 +11,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
 
-from dynamics.orbital_dynamics import f  # , f_jac
+import os
+import sys
+
+root = '/home/frederik/cmu/GNC-Payload'
+if root not in sys.path:
+    sys.path.insert(0, root)
+
+from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -97,8 +104,8 @@ def run_simulation() -> None:
         r=initial_state[0:3] + np.random.normal(0, 800, 3),
         v=initial_state[3:6] + np.random.normal(0, 800, 3),
         q=quaternion.from_rotation_matrix(init_rot),
-        P=np.eye(13) * 1000,
-        Q=np.eye(13) * 1e-12,
+        P=np.eye(9) * 1000,
+        Q=np.eye(9) * 1e-12,
         R=np.zeros((3, 3)),
         dt=dt,
         config=config,
@@ -110,13 +117,16 @@ def run_simulation() -> None:
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
+        x = data_manager.latest_state
+        q = data_manager.latest_attitude
+        w = rot 
+        x = np.concatenate([x, quaternion.as_float_array(quaternion.from_rotation_matrix(q)), w])
 
-        next_state = f(data_manager.latest_state, dt)
-        curr_quat = quaternion.from_rotation_matrix(data_manager.latest_attitude)
-        next_quat = curr_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
+        next_state = f(x, dt)
+        next_state[6:10] = next_state[6:10] / np.linalg.norm(next_state[6:10]) # normalize quaternion
         data_manager.push_next_state(
-            np.expand_dims(next_state, axis=0),
-            np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
+            np.expand_dims(next_state[0:6], axis=0),
+            np.expand_dims(quaternion.as_rotation_matrix(quaternion.as_quat_array(next_state[6:10])), axis=0),
         )
         # TODO: Add angular velocity to state propagation
 

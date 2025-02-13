@@ -1,3 +1,4 @@
+import numpy as np
 import jax.numpy as jnp
 
 
@@ -54,3 +55,26 @@ def rot_2_q(rot):
         ]
     )
     return q
+
+def left_q(q):
+    """
+    Left multiplication of quaternion q.
+    """
+    return np.array(
+        [
+            [q[0], -q[1], -q[2], -q[3]],
+            [q[1], q[0], -q[3], q[2]],
+            [q[2], q[3], q[0], -q[1]],
+            [q[3], -q[2], q[1], q[0]],
+        ]
+    )
+
+H = np.append(np.zeros((1,3)), np.eye(3), axis=0)
+T = -np.eye(4)
+T[0,0] = 1
+
+def dqdot_dq_deriv(q):
+    """
+    Derivative of the quaternion derivative with respect to the quaternion.
+    """
+    return H.T @ T @ left_q(q) @ T @ left_q(q) @ H

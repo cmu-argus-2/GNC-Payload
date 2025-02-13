@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation
 
 from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from utils.math_utils import R, rot_2_q
+from utils.math_utils import R, rot_2_q, left_q
 
 
 class EKF:
@@ -118,13 +118,14 @@ class EKF:
         #         [dadr, np.eye(3)],
         #     ]
         # )
-        x = np.append(self.r_m, self.v_m, self.q_m, u) #TODO: pass correct angular velocity to the predictive step
+        x = np.concatenate([self.r_m, self.v_m, quaternion.as_float_array(self.q_m), self.w]) #TODO: pass correct angular velocity to the predictive step
         A = f_jac(x, self.dt)
         x_new = f(x, self.dt)
+        A[6:9,6:9] = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * self.w))
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
-        self.q_p = x_new[6:10]
-        self.w = x_new[10:13] # Should not change at all.
+        x_new[6:10] = x_new[6:10] / np.linalg.norm(x_new[6:10])
+        self.q_p = quaternion.as_quat_array(x_new[6:10])
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -154,7 +155,7 @@ class EKF:
         #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
         # )
 
-        x_p = jnp.array(np.concatenate((self.r_p, self.v_p, quaternion.as_float_array(self.q_p), self.w), axis=0))
+        x_p = jnp.array(np.concatenate([self.r_p, self.v_p, quaternion.as_rotation_vector(self.q_p)]))
 
         # Select a fraction of the measurements to use to speed up computations
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.01))]
@@ -183,7 +184,7 @@ class EKF:
 
         self.r_m = self.r_p + delta[0:3]
         self.v_m = self.v_p + delta[3:6]
-        self.q_m = self.q_p * quaternion.as_quat_array(delta[6:10])
+        self.q_m = self.q_p * quaternion.from_rotation_vector(delta[6:9])
 
         self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
             np.eye(self.P_m.shape[0]) - K @ H
@@ -197,7 +198,7 @@ class EKF:
 
         :param z: Measurement consisting of the landmark locations in ECI coordinates.
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
-        :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (10,)
+        :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (9,)
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
@@ -228,7 +229,7 @@ class EKF:
         # Define rotation matrices
         t_idx = data_manager.state_count - 1
         # eci_R_body = data_manager.eci_Rs_body[t_idx, ...]  # TODO: Fix using attitude state
-        eci_R_body = R(x_p[6:10]) # transform quaternion to rotation matrix
+        eci_R_body = R(rot_2_q(x_p[6:9])) # transform quaternion to rotation matrix
         ecef_R_eci = brahe.frames.rECItoECEF(data_manager.latest_epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 
