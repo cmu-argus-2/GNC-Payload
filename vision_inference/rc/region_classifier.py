@@ -13,122 +13,99 @@ Date: [Creation or Last Update Date]
 """
 
 import os
-import yaml
+from time import perf_counter
+from typing import List
+
 import cv2
-import time
 import torch
-import torch.nn as nn
-from torchvision import models, transforms
-from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from PIL import Image
+from torch import nn
+from torchvision import transforms
+from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
+
+from utils.config_utils import load_config
+from vision_inference.frame import Frame
 from vision_inference.logger import Logger
-
-LD_MODEL_SUF = ".pth"
-NUM_CLASS = 16
-
-# Define error and info messages
-error_messages = {
-    "CONFIGURATION_ERROR": "Configuration error.",
-    "MODEL_LOADING_FAILED": "Failed to load model.",
-    "CLASSIFICATION_FAILED": "Classification process failed.",
-}
-
-info_messages = {
-    "INITIALIZATION_START": "Initializing RegionClassifier.",
-    "MODEL_LOADED": "Model loaded successfully.",
-    "CLASSIFICATION_START": "Starting the classification process.",
-}
-
-
-class ClassifierEfficient(nn.Module):
-    def __init__(self, num_classes):
-        super(ClassifierEfficient, self).__init__()
-        # Using new weights system
-        # This uses the most up-to-date weights
-        weights = EfficientNet_B0_Weights.DEFAULT
-        self.efficientnet = efficientnet_b0(weights=weights)
-        for param in self.efficientnet.features[:3].parameters():
-            param.requires_grad = False
-        num_features = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier[1] = nn.Linear(num_features, num_classes)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.efficientnet(x)
-        x = self.sigmoid(x)
-        return x
 
 
 class RegionClassifier:
-    def __init__(self):
-        Logger.log("INFO", info_messages["INITIALIZATION_START"])
+    NUM_CLASSES = 16
+    CONFIDENCE_THRESHOLD = 0.55
+    DOWNSAMPLED_SIZE = (224, 224)
+    IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
+    IMAGE_NET_STD = [0.229, 0.224, 0.225]
+    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/rc"))
+    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, "model_effnet_0.997_acc.pth")
 
-        model_path, config_path = self.construct_paths()
+    def __init__(self):
+        Logger.log("INFO", "Initializing RegionClassifier.")
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model = ClassifierEfficient(NUM_CLASS).to(self.device)
+            self.model = ClassifierEfficient().to(self.device)
 
             # Load Custom model weights
-            model_weights_path = os.path.join(model_path, "model_effnet_0.997_acc" + LD_MODEL_SUF)
-            self.model.load_state_dict(torch.load(model_weights_path, map_location=self.device))
+            self.model.load_state_dict(
+                torch.load(RegionClassifier.MODEL_WEIGHTS_PATH, map_location=self.device)
+            )
             self.model.eval()
-            Logger.log("INFO", info_messages["MODEL_LOADED"])
+            Logger.log("INFO", "Model loaded successfully.")
 
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['MODEL_LOADING_FAILED']}: {e}")
+            Logger.log("ERROR", f"Failed to load model: {e}")
             raise
 
         # Define the preprocessing
         self.transforms = transforms.Compose(
             [
-                transforms.Resize((224, 224)),
+                transforms.Resize(RegionClassifier.DOWNSAMPLED_SIZE),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                transforms.Normalize(
+                    mean=RegionClassifier.IMAGE_NET_MEAN, std=RegionClassifier.IMAGE_NET_STD
+                ),
             ]
         )
 
-        self.region_ids = self.load_region_ids(config_path)
+        self.region_ids = RegionClassifier.load_region_ids()
 
-    def construct_paths(self):
-        root = os.path.abspath(os.path.join(__file__, "../../"))
-        model_path = os.path.join(root, "models", "rc")
-        config_path = os.path.join(root, "configuration", "inference_config.yml")
-        return model_path, config_path
-
-    def load_region_ids(self, config_path):
+    @staticmethod
+    def load_region_ids() -> List[str]:
         try:
-            with open(config_path, "r") as file:
-                config = yaml.safe_load(file)
-            return config.get("region_ids", [])
+            config = load_config()
+            region_ids = config["vision"]["salient_mgrs_region_ids"]
+            assert (
+                len(region_ids) == RegionClassifier.NUM_CLASSES
+            ), "Incorrect number of region IDs."
+            assert (
+                len(set(region_ids)) == RegionClassifier.NUM_CLASSES
+            ), "Duplicate region IDs detected."
+            return region_ids
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
+            Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
-    def classify_region(self, frame_obj):
+    def classify_region(self, frame_obj: Frame) -> List[str]:
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['CLASSIFICATION_START']}",
+            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Starting the classification process.",
         )
-        predicted_region_ids = []
-        inference_time = 0
         try:
             img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
             img = self.transforms(img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
-                start_time = time.time()
+                start_time = perf_counter()
                 outputs = self.model(img)
-                end_time = time.time()
-                inference_time = end_time - start_time
+                inference_time = perf_counter() - start_time
 
+                # TODO: are we accidentally applying sigmoid twice?
                 probabilities = torch.sigmoid(outputs)
-                predicted = (probabilities > 0.55).float()
+                predicted = (probabilities > RegionClassifier.CONFIDENCE_THRESHOLD).float()
                 predicted_indices = predicted.nonzero(as_tuple=True)[1]
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
 
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['CLASSIFICATION_FAILED']}: {e}")
+            Logger.log("ERROR", f"Classification process failed: {e}")
             raise
 
         Logger.log(
@@ -137,3 +114,22 @@ class RegionClassifier:
         )
         Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids
+
+
+class ClassifierEfficient(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Using new weights system
+        # This uses the most up-to-date weights
+        weights = EfficientNet_B0_Weights.DEFAULT
+        self.efficientnet = efficientnet_b0(weights=weights)
+        for param in self.efficientnet.features[:3].parameters():
+            param.requires_grad = False
+        num_features = self.efficientnet.classifier[1].in_features
+        self.efficientnet.classifier[1] = nn.Linear(num_features, RegionClassifier.NUM_CLASSES)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.efficientnet(x)
+        x = self.sigmoid(x)
+        return x

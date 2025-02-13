@@ -1,12 +1,12 @@
 import brahe
-from brahe import Epoch
 import numpy as np
+from brahe import Epoch
+from orbit_utils import get_sso_orbit_state
 
 from dynamics.orbital_dynamics import f
-from orbit_utils import get_sso_orbit_state
-from utils.brahe_utils import increment_epoch
-from utils.earth_utils import convert_to_lat_lon
 from orbit_determination.test_nonlinear_least_squares import load_config
+from utils.brahe_utils import increment_epoch
+from utils.earth_utils import ecef_to_lat_lon
 from utils.plotting_utils import plot_ground_track
 
 
@@ -26,7 +26,7 @@ def test_plot_ground_track():
         epoch = increment_epoch(epoch, dt)
         ecef_positions[i + 1, :] = brahe.rECItoECEF(epoch) @ state[:3]
 
-    lat_lons = convert_to_lat_lon(ecef_positions[np.newaxis, ...])[0, ...]
+    lat_lons = ecef_to_lat_lon(ecef_positions)
     plot_ground_track(lat_lons)
 
 

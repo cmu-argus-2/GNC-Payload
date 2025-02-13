@@ -15,59 +15,154 @@ Author: Eddie, Haochen
 Date: [Creation or Last Update Date]
 """
 
-import csv
 import os
-import time
+from dataclasses import dataclass
+from time import perf_counter
+from typing import List, Sequence
 
 import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
+from ultralytics.engine.results import Results
 
+from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
-LD_MODEL_SUF = "_nadir.pt"
 
-# Define error and info messages
-error_messages = {
-    "CONFIGURATION_ERROR": "Configuration error.",
-    "LOADING_FAILED": "Failed to load necessary data.",
-    "DETECTION_FAILED": "Detection process failed.",
-    "INVALID_DIMENSIONS": "Invalid bounding box dimensions detected.",
-    "LOW_CONFIDENCE": "Skipping low confidence landmark.",
-    "EMPTY_DETECTION": "No landmark detected.",
-}
+@dataclass
+class LandmarkDetections:
+    """
+    A class to store info about landmark detections.
 
-info_messages = {
-    "INITIALIZATION_START": "Initializing LandmarkDetector.",
-    "DETECTION_START": "Starting the landmark detection process.",
-    "DETECTION_COMPLETE": "Landmark detection completed successfully.",
-}
+    Attributes:
+        pixel_coordinates: A numpy array of shape (N, 2) containing the x and y pixel coordinates for each detected landmark's centroid.
+        latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
+        class_ids: A numpy array of shape (N,) containing the class IDs for each detected landmark.
+        confidences: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
+    """
+
+    pixel_coordinates: np.ndarray
+    latlons: np.ndarray
+    class_ids: np.ndarray
+    confidences: np.ndarray
+
+    def __len__(self) -> int:
+        """
+        :return: The number of landmark detections.
+        """
+        return len(self.class_ids)
+
+    def __getitem__(self, index: int | slice | Sequence[int] | np.ndarray) -> "LandmarkDetections":
+        """
+        Get a subset of the landmark detections from this LandmarkDetections object.
+
+        Args:
+            index: The index of the landmark detections to retrieve.
+
+        Returns:
+            A LandmarkDetections object containing the specified entries.
+        """
+        return LandmarkDetections(
+            pixel_coordinates=self.pixel_coordinates[index, :],
+            latlons=self.latlons[index, :],
+            class_ids=self.class_ids[index],
+            confidences=self.confidences[index],
+        )
+
+    def __iter__(self):
+        """
+        :return: A generator that yields Tuples containing the pixel_coordinates, latlon, class_id, and confidence for each landmark.
+        """
+        for i in range(len(self)):
+            yield (
+                self.pixel_coordinates[i, :],
+                self.latlons[i, :],
+                self.class_ids[i],
+                self.confidences[i],
+            )
+
+    @staticmethod
+    def empty() -> "LandmarkDetections":
+        """
+        Creates an empty LandmarkDetections object.
+
+        Returns:
+            A LandmarkDetections object with empty arrays of the correct shape for all attributes.
+        """
+        return LandmarkDetections(
+            pixel_coordinates=np.zeros((0, 2)),
+            latlons=np.zeros((0, 2)),
+            class_ids=np.zeros(0, dtype=int),
+            confidences=np.zeros(0),
+        )
+
+    def assert_invariants(self) -> None:
+        """
+        Validates the invariants of the landmark detections.
+
+        :raises AssertionError: If any of the invariants are violated.
+        """
+        assert len(self.pixel_coordinates.shape) == 2, "pixel_coordinates should be a 2D array."
+        assert self.pixel_coordinates.shape[1] == 2, "pixel_coordinates should have 2 columns."
+        assert len(self.latlons.shape) == 2, "latlons should be a 2D array."
+        assert self.latlons.shape[1] == 2, "latlons should have 2 columns."
+        assert len(self.class_ids.shape) == 1, "class_ids should be a 1D array."
+        assert len(self.confidences.shape) == 1, "confidences should be a 1D array."
+
+        assert (
+            self.pixel_coordinates.shape[0]
+            == self.latlons.shape[0]
+            == len(self.class_ids)
+            == len(self.confidences)
+        ), "All arrays should have the same length."
+
+    @staticmethod
+    def stack(detections: List["LandmarkDetections"]) -> "LandmarkDetections":
+        """
+        Stack multiple LandmarkDetections into a single LandmarkDetections object.
+
+        Args:
+            detections: A list of LandmarkDetections objects.
+
+        Returns:
+            A LandmarkDetections object containing the stacked data.
+        """
+        return LandmarkDetections(
+            pixel_coordinates=np.row_stack([det.pixel_coordinates for det in detections]),
+            latlons=np.row_stack([det.latlons for det in detections]),
+            class_ids=np.concatenate([det.class_ids for det in detections]),
+            confidences=np.concatenate([det.confidences for det in detections]),
+        )
 
 
 class LandmarkDetector:
+    CONFIDENCE_THRESHOLD = 0.5
+    # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
+    IMAGE_SIZE = (1088, 1920)
+    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/ld"))
 
-    def __init__(self, region_id, model_path=None):
+    def __init__(self, region_id: str):
         """
-        Initialize the LandmarkDetector with a specific region ID and model path
+        Initialize the LandmarkDetector with a specific region ID
         The YOLO object is created with the path to a specific pretrained model
         """
-        if model_path is None:
-            model_path = os.path.abspath(os.path.join(__file__, "../../models/ld"))
-
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
 
         self.region_id = region_id
         try:
-            self.model = YOLO(os.path.join(model_path, region_id, f"{region_id}_nadir.pt"))
-            self.ground_truth = self.load_ground_truth(
-                os.path.join(model_path, region_id, f"{region_id}_top_salient.csv")
+            self.model = YOLO(
+                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_nadir.pt")
+            )
+            self.ground_truth = LandmarkDetector.load_ground_truth(
+                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_top_salient.csv")
             )
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['LOADING_FAILED']}: {e}")
+            Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
 
-    def load_ground_truth(self, ground_truth_path):
+    @staticmethod
+    def load_ground_truth(ground_truth_path: str) -> np.ndarray:
         """
         Loads ground truth bounding box coordinates from a CSV file.
 
@@ -75,171 +170,103 @@ class LandmarkDetector:
             ground_truth_path (str): Path to the ground truth CSV file.
 
         Returns:
-            list of tuples: Each tuple contains (top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat)
+            A numpy array of shape (N, 6) containing the following for each landmark:
+            (centroid_lat, centroid_lon, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon).
         """
-        ground_truth = []
         try:
-            with open(ground_truth_path, "r", encoding="utf-8") as csvfile:
-                csvreader = csv.reader(csvfile)
-                next(csvreader)  # Skip the header row
-                for row in csvreader:
-                    ground_truth.append(
-                        (
-                            float(row[0]),
-                            float(row[1]),
-                            float(row[2]),
-                            float(row[3]),
-                            float(row[4]),
-                            float(row[5]),
-                        )
-                    )
+            # TODO: change csvs to have lat, lon instead of lon, lat for consistency
+            return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)[:, [1, 0, 3, 2, 5, 4]]
         except Exception as e:
-            Logger.log("ERROR", f"{error_messages['CONFIGURATION_ERROR']}: {e}")
+            Logger.log("ERROR", f"Configuration error: {e}")
             raise
-        return ground_truth
 
-    def calculate_bounding_boxes(self, centroid_xy, landmark_wh):
-        """
-        Calculate the top-left and bottom-right coordinates of bounding boxes from centroids and dimensions.
-
-        Args:
-            centroid_xy (np.ndarray): Centroid coordinates of the landmarks as [x, y].
-            landmark_wh (np.ndarray): Dimensions of the landmarks as [width, height].
-
-        Returns:
-            np.ndarray: An array of shape (n, 4), with each row containing the top-left and bottom-right coordinates of the bounding boxes.
-        """
-        # Calculate the top-left and bottom-right coordinates of the bounding boxes
-        top_left = centroid_xy - landmark_wh / 2
-        bottom_right = centroid_xy + landmark_wh / 2
-
-        # Combine top-left and bottom-right into a single numpy array of shape (n, 4)
-        bounding_boxes = np.hstack((top_left, bottom_right))
-
-        return bounding_boxes
-
-    def get_latlons(self, bbox_indexes):
-        """
-        Get the latitude and longitude for each detected bounding box based on class index.
-
-        Args:
-            bbox_indexes (list of int): Indexes of bounding boxes in the ground truth data.
-
-        Returns:
-            np.ndarray: Array of bounding box latitudes and longitudes.
-        """
-        centroids = []
-        corners = []
-        for index in bbox_indexes:
-            (
-                centroid_lon,
-                centroid_lat,
-                top_left_lon,
-                top_left_lat,
-                bottom_right_lon,
-                bottom_right_lat,
-            ) = self.ground_truth[index]
-            corners.append([top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat])
-            centroids.append([centroid_lon, centroid_lat])
-        return np.array(centroids), np.array(corners)
-
-    def detect_landmarks(self, frame_obj):
+    def detect_landmarks(self, frame: Frame) -> LandmarkDetections:
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
 
+        The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions.
+        It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
+
         Args:
-            img (np.ndarray): The input image array on which to perform landmark detection.
+            frame: The input Frame on which to perform landmark detection.
 
         Returns:
-            tuple: A tuple containing several numpy arrays:
-                - centroid_xy (np.ndarray): Array of [x, y] coordinates for the centroids of detected landmarks.
-                - centroid_latlons (np.ndarray): Array of geographical coordinates [latitude, longitude] for each detected landmark's centroid, based on class ID.
-                - landmark_class (np.ndarray): Array of class IDs for each detected landmark.
-                - confidence_scores
-
-        The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions. It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
+            A LandmarkDetections object containing the detected landmarks and associated data.
         """
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {info_messages['DETECTION_START']}",
+            f"[Camera {frame.camera_id} frame {frame.frame_id}] Starting the landmark detection process.",
         )
 
-        centroid_xy, centroid_latlons, landmark_class, confidence_scores = [], [], [], []
         try:
             # Detect landmarks using the YOLO model
-            img = Image.fromarray(cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2RGB))
-            start_time = time.time()
-            results = self.model.predict(img, conf=0.5, imgsz=(1088, 1920), verbose=False)
-            end_time = time.time()
-            inference_time = end_time - start_time
+            img = Image.fromarray(cv2.cvtColor(frame.frame, cv2.COLOR_BGR2RGB))
+            start_time = perf_counter()
+            results: Results = self.model.predict(
+                img,
+                conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
+                imgsz=LandmarkDetector.IMAGE_SIZE,
+                verbose=False,
+            )
+            inference_time = perf_counter() - start_time
 
-            landmark_list = []
+            landmark_detections = []
 
             for result in results:
                 landmarks = result.boxes
+                if len(landmarks) == 0:
+                    continue
 
-                if landmarks:  # Sanity Check
-                    # Iterate over each detected bounding box (landmark)
-                    for landmark in landmarks:
-                        x, y, w, h = landmark.xywh[0]
-                        cls = landmark.cls[0].item()
-                        conf = landmark.conf[0].item()
+                xywh = np.asarray(landmarks.xywh)
+                class_ids = np.asarray(landmarks.cls, dtype=int)
+                confidences = np.asarray(landmarks.conf)
 
-                        if w < 0 or h < 0:
-                            Logger.log(
-                                "INFO", "Skipping landmark with invalid bounding box dimensions."
-                            )
-                            continue
+                valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
+                if not np.all(valid_indices):
+                    Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
+                    if not np.any(valid_indices):
+                        continue
+                    xywh = xywh[valid_indices]
+                    class_ids = class_ids[valid_indices]
+                    confidences = confidences[valid_indices]
 
-                        landmark_list.append([x, y, cls, w, h, conf])
+                landmark_detections.append(
+                    LandmarkDetections(
+                        pixel_coordinates=xywh[:, :2],
+                        latlons=self.ground_truth[class_ids, :2],
+                        class_ids=class_ids,
+                        confidences=confidences,
+                    )
+                )
 
-            if not landmark_list:
+            landmark_detections = LandmarkDetections.stack(landmark_detections)
+
+            if len(landmark_detections) == 0:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No landmarks detected in Region {self.region_id}.",
+                    f"[Camera {frame.camera_id} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
                 )
-                return None, None, None, None
-
-            landmark_arr = np.array(landmark_list)
-
-            centroid_xy = landmark_arr[:, :2]
-            landmark_class = landmark_arr[:, 2].astype(int)
-            confidence_scores = landmark_arr[:, 5]  # Confidence scores
-
-            # Additional processing to calculate bounding box corners and lat/lon coordinates
-            centroid_latlons, _ = self.get_latlons(landmark_class)
+                return LandmarkDetections.empty()
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {len(landmark_list)} landmarks detected.",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] {len(landmark_detections)} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
-            if landmark_arr.size > 0:
+            Logger.log(
+                "INFO",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] class_id\tpixel_coordinates\tlatlon\tconfidence",
+            )
+            for (x, y), (lat, lon), class_id, confidence in landmark_detections:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] class\tcentroid_xy\tcentroid_latlons\tconfidence",
+                    f"[Camera {frame.camera_id} frame {frame.frame_id}] {class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
                 )
-                for i in range(len(landmark_list)):
-                    # Class ID, convert to int for cleaner logging
-                    cls = int(landmark_arr[i, 2])
-                    x, y = int(landmark_arr[i, 0]), int(
-                        landmark_arr[i, 1]
-                    )  # Centroid coordinates, convert to int for cleaner logging
-                    lat, lon = centroid_latlons[i]
-                    conf = confidence_scores[i]
-                    # Format lat and lon to two decimal places
-                    formatted_lat = f"{lat:.2f}"
-                    formatted_lon = f"{lon:.2f}"
-                    formatted_conf = f"{conf:.2f}"
-                    Logger.log(
-                        "INFO",
-                        f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {cls}\t({x}, {y})\t({formatted_lat}, {formatted_lon})\t{formatted_conf}",
-                    )
 
-            return centroid_xy, centroid_latlons, landmark_class, confidence_scores
+            return landmark_detections
 
         except Exception as e:
-            Logger.log("ERROR", f"Detection failed: {str(e)}")
+            Logger.log("ERROR", f"Detection process failed: {e}")
             raise

@@ -16,13 +16,14 @@ import argparse
 import os
 import shutil
 from multiprocessing import cpu_count
+
 import ee
-import requests
-from retry import retry
 import numpy as np
 import pyproj
-from tqdm.contrib.concurrent import process_map
+import requests
 from getMGRS import getMGRS
+from retry import retry
+from tqdm.contrib.concurrent import process_map
 
 ee.Initialize()
 
@@ -339,7 +340,7 @@ if not args.custom_mosaics:
             "scale": scale,
             "fileFormat": out_format,
             "region": region_rect,
-            "driveFolder": out_path,
+            "driveFolder": out_path,  # TODO: allow specifying folder to put this in
             "crs": crs,
         }
         task = ee.batch.Export.image(composite, out_name, task_config)

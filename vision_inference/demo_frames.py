@@ -1,10 +1,10 @@
 import datetime
-from itertools import cycle
 import os
+from itertools import cycle
 
 import cv2
 
-from vision_inference.camera import Frame
+from vision_inference.frame import Frame
 
 
 class DemoFrames:

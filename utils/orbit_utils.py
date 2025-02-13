@@ -1,6 +1,6 @@
 import brahe
 import numpy as np
-from brahe import Epoch, R_EARTH, GM_EARTH
+from brahe import GM_EARTH, R_EARTH, Epoch
 
 from utils.earth_utils import lat_lon_to_ecef
 

@@ -2,10 +2,10 @@
 This module contains utility functions for loading configuration files.
 """
 
-from typing import Any
 import os
-import yaml
+from typing import Any
 
+import yaml
 
 MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../config.yaml"))
 

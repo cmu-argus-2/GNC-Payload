@@ -6,7 +6,7 @@ import numpy as np
 
 
 # TODO: use brahe constants instead of hardcoding
-def convert_to_lat_lon(
+def ecef_to_lat_lon(
     intersection_points: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
 ) -> np.ndarray:
     """
