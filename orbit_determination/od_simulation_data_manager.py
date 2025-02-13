@@ -38,10 +38,13 @@ class ODSimulationDataManager:
 
     states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 6)))
     eci_Rs_body: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
-
+      
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+
+    curr_bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+    curr_landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
     @property
     def state_count(self) -> int:
@@ -81,6 +84,7 @@ class ODSimulationDataManager:
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
         """
+
         :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
         """
         indices = self.measurement_indices == self.state_count - 1
@@ -128,7 +132,8 @@ class ODSimulationDataManager:
             eci_R_body: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
         """
         self.states = np.row_stack((self.states, state))
-        self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body[np.newaxis, ...]), axis=0)
+        self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body), axis=0)
+
 
         self.assert_invariants()
 
@@ -156,5 +161,8 @@ class ODSimulationDataManager:
             (self.bearing_unit_vectors, bearing_unit_vectors), axis=0
         )
         self.landmarks = np.concatenate((self.landmarks, landmarks), axis=0)
+
+        self.curr_bearing_unit_vectors = bearing_unit_vectors
+        self.curr_landmarks = landmarks
 
         self.assert_invariants()
