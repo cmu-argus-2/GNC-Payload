@@ -8,21 +8,22 @@ and provides utilities for dataset preparation, training, and performance evalua
 """
 
 import os
-import wandb
+from typing import List, Optional
+
 import torch
 import torch.nn.functional as F
+import wandb
+from data_loader import CustomImageDataset
+from efficientnet_pytorch import EfficientNet
+from plotter import Plotter
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from efficientnet_pytorch import EfficientNet
-from data_loader import CustomImageDataset
-from plotter import Plotter
 
 
-# pylint: disable=too-many-instance-attributes
 class ImageClassifier:
     """
-    A deep learning-based image classifier using EfficientNet.
+    A deep learning-based multi-label image classifier using EfficientNet.
 
     This class provides methods for preparing datasets, training, validation,
     evaluation, and saving/loading models. It integrates with Weights & Biases (wandb)
@@ -61,36 +62,51 @@ class ImageClassifier:
             Loads a saved model's weights and sets it to evaluation mode.
     """
 
-    def __init__(self, data_path, save_plot_flag, save_plot_path):
+    def __init__(
+        self,
+        data_path: str,
+        selected_classes: Optional[List[str]] = None,
+        save_plot_flag: bool = False,
+        save_plot_path: Optional[str] = None,
+    ) -> None:
         """
         Initializes the ImageClassifier.
 
         Args:
             data_path (str): Path to the dataset.
+            selected_classes (list): List of selected classes for the multi-label classification.
             save_plot_flag (bool): Whether to save training loss plots.
             save_plot_path (str): Path to save the loss plot.
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._prepare_data(data_path)
-        # Load EfficientNet-B0
+        self._prepare_data(data_path, selected_classes)
         self.model = EfficientNet.from_pretrained("efficientnet-b0")
 
         # Replace the classifier layer
         num_ftrs = self.model._fc.in_features
-        self.model._fc = nn.Linear(num_ftrs, len(self.train_loader.dataset.classes))
+        self.model._fc = nn.Linear(num_ftrs, len(self.classes))  # Output for each class
 
         self.model = self.model.to(self.device)
         self.plotter = Plotter()
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
-    def _prepare_data(self, data_path):
+    def _prepare_data(self, data_path: str, selected_classes: Optional[List[str]]) -> None:
         """
         Prepares the dataset by applying transformations and loading it into DataLoaders.
 
         Args:
             data_path (str): Path to the dataset directory.
+            selected_classes (list): List of salient regions for classification.
         """
+        if selected_classes is None:
+            # Use all available classes and output a warning
+            selected_classes = sorted(os.listdir(data_path + "/train"))
+            print("Warning: Using all available classes for training!")
+
+        self.classes = selected_classes
+        print("self.class", self.classes)
+
         # Define transforms for training and testing sets
         train_transform = transforms.Compose(
             [
@@ -114,9 +130,15 @@ class ImageClassifier:
         )
 
         # Load datasets with appropriate transforms
-        train_dataset = CustomImageDataset(root_dir=data_path + "/train", transform=train_transform)
-        test_dataset = CustomImageDataset(root_dir=data_path + "/test", transform=test_transform)
-        val_dataset = CustomImageDataset(root_dir=data_path + "/val", transform=test_transform)
+        train_dataset = CustomImageDataset(
+            root_dir=data_path + "/train", selected_classes=self.classes, transform=train_transform
+        )
+        test_dataset = CustomImageDataset(
+            root_dir=data_path + "/test", selected_classes=self.classes, transform=test_transform
+        )
+        val_dataset = CustomImageDataset(
+            root_dir=data_path + "/val", selected_classes=self.classes, transform=test_transform
+        )
 
         # Create DataLoader objects for training and testing sets
         self.train_loader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
@@ -124,7 +146,7 @@ class ImageClassifier:
         self.val_loader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=True)
         print("Init Dataloaders")
 
-    def train(self, epochs=10, learning_rate=1e-3):
+    def train(self, epochs: int = 10, learning_rate: float = 1e-3) -> None:
         """
         Trains the image classifier using EfficientNet-B0 and logs progress using wandb.
 
@@ -142,10 +164,7 @@ class ImageClassifier:
             },
         )
 
-        # Save the model's config
-        # config = wandb.config
-
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.BCEWithLogitsLoss()  # BCE loss for multi-label classification
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         for epoch in range(epochs):
@@ -153,7 +172,9 @@ class ImageClassifier:
             # pylint: disable=unused-variable
             for batch_idx, (data, targets) in enumerate(self.train_loader):
                 data = data.to(self.device)
-                targets = targets.to(self.device)
+                targets = targets.to(
+                    self.device
+                ).float()  # Ensure targets are float for BCEWithLogits
                 scores = self.model(data)
                 loss = criterion(scores, targets)
                 optimizer.zero_grad()
@@ -182,7 +203,7 @@ class ImageClassifier:
             self.plotter.save_plot(self.save_plot_path)
             wandb.log({"loss_vs_epoch": wandb.Image(self.save_plot_path)})
 
-    def save_model(self, path="model.pth"):
+    def save_model(self, path: str = "model.pth") -> None:
         """
         Saves the trained model to the specified path.
 
@@ -191,7 +212,7 @@ class ImageClassifier:
         """
         torch.save(self.model.state_dict(), path)
 
-    def load_model(self, path="model.pth"):
+    def load_model(self, path: str = "model.pth") -> None:
         """
         Loads the trained model from the specified path.
 
@@ -201,7 +222,7 @@ class ImageClassifier:
         self.model.load_state_dict(torch.load(path))
         self.model.eval()
 
-    def validate(self):
+    def validate(self) -> float:
         """
         Evaluates model performance on the validation dataset.
 
@@ -216,9 +237,10 @@ class ImageClassifier:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)
-                _, predicted = torch.max(outputs.data, 1)
+                predictions = torch.sigmoid(outputs) > 0.5  # Sigmoid + thresholding for multi-label
                 total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                correct += (predictions == labels).sum().item()
+
         accuracy = 100 * correct / total
         wandb.log({"validation_accuracy": accuracy})
 
@@ -226,7 +248,7 @@ class ImageClassifier:
         return accuracy
 
     # pylint: disable=too-many-locals
-    def evaluate(self, output_file="RCnet/results/evaluation_results.txt"):
+    def evaluate(self, output_file: str = "RCnet/results/evaluation_results.txt") -> float:
         """
         Evaluates the model on the test dataset and logs results.
 
@@ -236,10 +258,11 @@ class ImageClassifier:
         Returns:
             float: Test accuracy in percentage.
         """
-        self.model.eval()  # Ensure the model is in evaluation mode
-        correct = 0
+        self.model.eval()
         total = 0
-        processed_images = 0  # Initialize a counter for processed images
+        processed_images = 0
+        total_correct = 0  # Track the number of correct labels across all images
+        total_labels = 0  # Track the total number of labels across all images
 
         with open(output_file, "w", encoding="utf-8") as f:
             f.write("Image Name\tActual Class\tPredicted Class\tProbabilities\n")
@@ -249,35 +272,69 @@ class ImageClassifier:
                     images, labels = batch
                     images = images.to(self.device)
                     labels = labels.to(self.device)
-                    print(labels)
-
                     outputs = self.model(images)
-                    probabilities = F.softmax(
-                        outputs, dim=1
-                    )  # Apply softmax to convert to probabilities
-                    _, predicted = torch.max(
-                        probabilities, 1
-                    )  # Get the class with the highest probability
+                    probabilities = torch.sigmoid(outputs)  # Sigmoid for multi-label classification
 
                     total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
+                    predicted = (
+                        probabilities > 0.5
+                    ).float()  # Apply threshold of 0.5 for multi-label
 
-                    # Correctly calculate the index for image names
+                    # For each image, compare the predicted labels with the true labels
                     for i in range(images.size(0)):
                         global_index = processed_images + i
                         image_name = os.path.basename(
                             self.test_loader.dataset.files[global_index][0]
                         )
-                        actual_class = self.test_loader.dataset.classes[labels[i]]
-                        # pylint: disable=unsubscriptable-object
-                        predicted_class = self.test_loader.dataset.classes[predicted[i]]
+                        actual_classes = [
+                            self.test_loader.dataset.classes[j]
+                            for j, val in enumerate(labels[i])
+                            if val == 1
+                        ]
+                        predicted_classes = [
+                            self.test_loader.dataset.classes[j]
+                            for j, val in enumerate(predicted[i])
+                            if val == 1
+                        ]
                         probs = ", ".join([f"{p:.4f}" for p in probabilities[i]])
 
-                        f.write(f"{image_name}\t{actual_class}\t{predicted_class}\t{probs}\n")
+                        # Count true positives
+                        true_positives = sum(
+                            [
+                                1
+                                for j, val in enumerate(predicted[i])
+                                if val == 1 and labels[i][j] == 1
+                            ]
+                        )
+                        total_correct += true_positives
+                        total_labels += labels.size(1)  # Count all the labels in the image
 
-                    processed_images += images.size(0)  # Update the counter after each batch
+                        f.write(
+                            f"{image_name}\t{', '.join(actual_classes)}\t{', '.join(predicted_classes)}\t{probs}\n"
+                        )
+                        if (
+                            processed_images + i < 10
+                        ):  # Limit the number of images logged (e.g., top 10)
+                            wandb.log(
+                                {
+                                    "evaluation_image": wandb.Image(
+                                        images[i].cpu(),
+                                        caption = f"True: {', '.join(actual_classes)}\n", \
+                                                  f"Pred: {', '.join(predicted_classes)}"
+                                        metadata={
+                                            "image_name": image_name,
+                                            "true_classes": actual_classes,
+                                            "predicted_classes": predicted_classes,
+                                            "probabilities": probs,
+                                        },
+                                    )
+                                }
+                            )
 
-        accuracy = 100 * correct / total
+                    processed_images += images.size(0)
+
+        # Compute accuracy based on correct labels vs total labels
+        accuracy = 100 * total_correct / total_labels
         print(f"Accuracy of the network on the test images: {accuracy:.2f}%")
 
         return accuracy
