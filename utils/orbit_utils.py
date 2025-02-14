@@ -38,8 +38,7 @@ def get_sso_orbit_state(
         raise ValueError("Latitude must not be too close to the poles")
 
     a = R_EARTH + altitude
-    lat_lon = np.array([latitude, longitude])
-    position_ecef = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
+    position_ecef = lat_lon_to_ecef(np.array([latitude, longitude]))
     position_ecef *= a / np.linalg.norm(position_ecef)
     position_eci = brahe.frames.rECItoECEF(epoch).T @ position_ecef
 
