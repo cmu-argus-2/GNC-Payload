@@ -319,8 +319,7 @@ class ImageClassifier:
                                 {
                                     "evaluation_image": wandb.Image(
                                         images[i].cpu(),
-                                        caption = f"True: {', '.join(actual_classes)}\n" \
-                                                  f"Pred: {', '.join(predicted_classes)}"
+                                        caption=f"True: {', '.join(actual_classes)}\nPred: {', '.join(predicted_classes)}",
                                         metadata={
                                             "image_name": image_name,
                                             "true_classes": actual_classes,
