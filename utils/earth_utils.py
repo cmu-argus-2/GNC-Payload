@@ -107,7 +107,7 @@ def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
                     Must be one of "x+", "y+", "x-", "y-". Defaults to "x+".
 
     Returns:
-        A numpy array of shape (3, 3) representing the rotation matrix from the input state frame to the body frame.
+        A numpy array of shape (3, 3) representing the rotation matrix from the body frame to the input state frame.
     """
     assert state.shape == (6,), "state must have shape (6,)"
     assert nadir_axis in (
