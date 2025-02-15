@@ -17,7 +17,7 @@ from image_simulation.earth_vis import EarthImageSimulator
 from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.frame import Frame
-from vision_inference.ld import LandmarkDetector
+from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.ml_pipeline import MLPipeline
 
 

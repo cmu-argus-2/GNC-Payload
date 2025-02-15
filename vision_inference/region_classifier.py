@@ -38,7 +38,7 @@ class RegionClassifier:
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
-    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../../models/rc"))
+    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../models/rc"))
     MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, "model_effnet_0.997_acc.pth")
 
     def __init__(self):

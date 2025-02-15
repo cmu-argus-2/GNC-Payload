@@ -17,9 +17,9 @@ import cv2
 import numpy as np
 
 from vision_inference.frame import Frame
-from vision_inference.ld import LandmarkDetections, LandmarkDetector
+from vision_inference.landmark_detector import LandmarkDetections, LandmarkDetector
 from vision_inference.logger import Logger
-from vision_inference.rc import RegionClassifier
+from vision_inference.region_classifier import RegionClassifier
 
 
 class MLPipeline:
