@@ -14,6 +14,7 @@ from scipy.spatial.transform import Rotation
 
 # pylint: disable=import-error
 from image_simulation.earth_vis import EarthImageSimulator
+from sensors.camera_model import CameraManager
 from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.frame import Frame
@@ -169,14 +170,11 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
 
-    def __init__(self, config: dict, fov: float = np.deg2rad(100)) -> None:
-        camera_params = config["satellite"]["camera"]
-        self.body_R_camera = np.asarray(camera_params["body_R_camera"])
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
-
+    def __init__(self, fov: float = np.deg2rad(100)) -> None:
         self.fov = fov
         self.cos_fov_on_2 = np.cos(fov / 2)
         self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
+        self.camera_manager = CameraManager()
 
     @staticmethod
     def load_region_landmark_ecef() -> dict[str, np.ndarray]:
@@ -211,19 +209,22 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
+        camera_model = self.camera_manager["x+"]
+
         ecef_R_eci = brahe.frames.rECItoECEF(epoch)
+        position_ecef = ecef_R_eci @ cubesat_position
         ecef_R_body = ecef_R_eci @ eci_R_body
-        position_ecef = ecef_R_eci @ cubesat_position + ecef_R_body @ self.t_body_to_camera
-        ecef_R_camera = ecef_R_body @ self.body_R_camera
-        camera_axis_ecef = ecef_R_camera[:, 2]
+
+        camera_axis_ecef = camera_model.get_camera_axis(ecef_R_body)
+        camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
 
         # TODO: optimize this by using the MGRS regions to filter out landmarks that are definitely not visible
         all_landmarks_ecef = np.concatenate(list(self.region_landmarks_ecef.values()), axis=0)
 
-        is_same_hemisphere = all_landmarks_ecef @ position_ecef > 0
+        is_same_hemisphere = all_landmarks_ecef @ camera_position_ecef > 0
         hemisphere_landmarks_ecef = all_landmarks_ecef[is_same_hemisphere, :]
 
-        bearing_vectors_ecef = hemisphere_landmarks_ecef - position_ecef
+        bearing_vectors_ecef = hemisphere_landmarks_ecef - camera_position_ecef
         bearing_unit_vectors_ecef = bearing_vectors_ecef / np.linalg.norm(
             bearing_vectors_ecef, axis=1, keepdims=True
         )

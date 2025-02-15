@@ -59,7 +59,7 @@ def test_od() -> None:
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
+    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
     # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
     # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
