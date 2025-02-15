@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
-from utils.config_utils import load_config
+from utils.config_utils import load_config, USER_CONFIG_PATH
 
 # pylint: disable=import-error
 from utils.earth_utils import (
@@ -20,17 +20,26 @@ from utils.earth_utils import (
 
 
 class EarthImageSimulator:
-    def __init__(self, geotiff_folder=None, resolution=None, hfov=None):
+    """
+    Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
+
+    Attributes:
+        FALLBACK_GEOTIFF_FOLDER: Default folder containing GeoTIFF files. Only used if the user configuration file is not found.
+    """
+
+    FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
+
+    def __init__(self, geotiff_folder: str = None, resolution=None, hfov=None):
         """
         Initialize the Earth image simulator.
 
         Parameters:
-            geotiff_folder (str): Path to the folder containing GeoTIFF files.
+            geotiff_folder: Path to the folder containing GeoTIFF files.
             resolution (tuple): Camera resolution (width, height).
             hfov (float): Horizontal field of view in degrees.
         """
         if geotiff_folder is None:
-            geotiff_folder = "/home/argus/eedl_images/"
+            geotiff_folder = EarthImageSimulator.get_default_geotiff_folder()
         if resolution is None:
             resolution = np.array([4608, 2592])  # width, height
         if hfov is None:
@@ -38,6 +47,20 @@ class EarthImageSimulator:
         self.cache = GeoTIFFCache(geotiff_folder)
         self.resolution = resolution
         self.camera = CameraSimulation(self.resolution, hfov)
+
+    @staticmethod
+    def get_default_geotiff_folder() -> str:
+        """
+        Get the default GeoTIFF folder from the user configuration file.
+
+        Returns:
+            The default GeoTIFF folder.
+        """
+        if os.path.exists(USER_CONFIG_PATH):
+            return load_config(USER_CONFIG_PATH)["geotiff_folder"]
+
+        print("User configuration file not found. Using fallback GeoTIFF folder.")
+        return EarthImageSimulator.FALLBACK_GEOTIFF_FOLDER
 
     def simulate_image(self, position, orientation):
         """

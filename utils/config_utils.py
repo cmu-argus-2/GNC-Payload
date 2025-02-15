@@ -7,7 +7,8 @@ from typing import Any
 
 import yaml
 
-MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../config.yaml"))
+MAIN_CONFIG_PATH = os.path.abspath(os.path.join(__file__, "../../config.yaml"))
+USER_CONFIG_PATH = os.path.abspath(os.path.join(__file__, "../../user_config.yaml"))
 
 
 def load_config(config_path: str = MAIN_CONFIG_PATH) -> Any:
