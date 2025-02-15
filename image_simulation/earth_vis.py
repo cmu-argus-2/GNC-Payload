@@ -3,6 +3,7 @@ Module to simulate and visualize Earth images from satellite data.
 """
 
 import os
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,6 +19,7 @@ from utils.earth_utils import (
     get_nadir_rotation,
     lat_lon_to_ecef,
 )
+from vision_inference.frame import Frame
 
 
 class EarthImageSimulator:
@@ -58,7 +60,7 @@ class EarthImageSimulator:
 
     def simulate_image(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_name: str = "x+"
-    ) -> np.ndarray:
+    ) -> Frame:
         """
         Simulate an Earth image given the satellite position, attitude, and camera name.
 
@@ -117,7 +119,7 @@ class EarthImageSimulator:
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
 
-        return pixel_colors_full
+        return Frame(pixel_colors_full, camera_name, datetime.now())
 
     def display_image(self, image):
         """
@@ -308,7 +310,7 @@ def sweep_lat_lon_test():
         ecef_velocity = np.array([0, 0, 1])
 
         ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-        simulated_image = simulator.simulate_image(ecef_position, ecef_R_body)
+        simulated_image = simulator.simulate_image(ecef_position, ecef_R_body).image
 
         if j % 20 == 0:
             print(f"{i * i_stride + j}/{total}")
@@ -334,7 +336,7 @@ def main():
     ecef_velocity = np.array([0, 0, 1])
     orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
-    simulated_image = simulator.simulate_image(ecef_position, orientation)
+    simulated_image = simulator.simulate_image(ecef_position, orientation).image
     print(np.all(simulated_image == 0))
 
 

@@ -284,14 +284,13 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         ecef_R_body = ecef_R_eci @ eci_R_body
 
         # simulate image
-        image = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body, camera_name)
+        frame = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body, camera_name)
 
-        if np.all(image == 0):
+        if np.all(frame.image == 0):
             print("No image detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         # run the ML pipeline on the image
-        frame = Frame(image, camera_name, datetime.now())
         # TODO: queue requests to the model and send them in batches as the sim runs
         landmark_detections, region_slices = self.ml_pipeline.run_ml_pipeline_on_single(frame)
 
