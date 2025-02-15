@@ -95,11 +95,9 @@ class RegionClassifier:
 
             with torch.no_grad():
                 start_time = perf_counter()
-                outputs = self.model(img)
+                probabilities = self.model(img)
                 inference_time = perf_counter() - start_time
 
-                # TODO: are we accidentally applying sigmoid twice?
-                probabilities = torch.sigmoid(outputs)
                 predicted = (probabilities > RegionClassifier.CONFIDENCE_THRESHOLD).float()
                 predicted_indices = predicted.nonzero(as_tuple=True)[1]
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
