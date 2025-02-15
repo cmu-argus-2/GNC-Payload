@@ -7,14 +7,16 @@ class CameraModel:
     RESOLUTION = (4608, 2592)
     HORIZONTAL_FOV = 66.1
 
-    def __init__(self, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
+    def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
         """
         Initialize the simulation camera parameters
 
         Parameters:
+            camera_name: The name of the camera.
             body_R_camera: A numpy array of shape (3, 3) representing the rotation matrix from body to camera frame.
             t_body_to_camera: A numpy array of shape (3,) representing the translation vector from body to camera frame, in the body frame.
         """
+        self.camera_name = camera_name
         self.body_R_camera = body_R_camera
         self.t_body_to_camera = t_body_to_camera
 
@@ -140,7 +142,9 @@ class CameraManager:
         camera_models = {}
         for camera_info in load_config()["satellite"]["cameras"]:
             camera_models[camera_info["name"]] = CameraModel(
-                np.array(camera_info["body_R_camera"]), np.array(camera_info["t_body_to_camera"])
+                camera_info["name"],
+                np.array(camera_info["body_R_camera"]),
+                np.array(camera_info["t_body_to_camera"])
             )
         return camera_models
 
