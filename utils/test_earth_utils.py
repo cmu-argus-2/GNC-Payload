@@ -1,16 +1,20 @@
+"""
+Unit tests for the earth_utils.py module.
+"""
+
 import numpy as np
 
 from utils.earth_utils import ecef_to_lat_lon, lat_lon_to_ecef
 
 
 def test_geodetic_conversion():
-    # lat_lon_to_ecef was ChatGPT generated, it also produced this test
-
+    """
+    Test the geodetic conversion functions.
+    """
     # Generate a grid of latitude and longitude values
     latitudes = np.linspace(-90, 90, num=10)
     longitudes = np.linspace(-180, 180, num=10)
     lon_grid, lat_grid = np.meshgrid(longitudes, latitudes)
-    H, W = lat_grid.shape
     lat_lon = np.stack((lat_grid, lon_grid), axis=2)  # Shape (H, W, 2)
 
     # Convert lat/lon to ECEF using the inverse function

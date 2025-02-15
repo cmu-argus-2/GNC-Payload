@@ -1,3 +1,7 @@
+"""
+Unit tests for the plotting_utils.py module.
+"""
+
 import brahe
 import numpy as np
 from brahe import Epoch
@@ -11,6 +15,9 @@ from utils.plotting_utils import plot_ground_track
 
 
 def test_plot_ground_track():
+    """
+    Test the plot_ground_track function.
+    """
     config = load_config()
 
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))

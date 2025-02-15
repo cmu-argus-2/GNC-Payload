@@ -1,3 +1,7 @@
+"""
+This module contains utility functions for various plotting tasks.
+"""
+
 from functools import cache
 
 import numpy as np

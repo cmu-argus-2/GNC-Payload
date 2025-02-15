@@ -1,3 +1,7 @@
+"""
+This module contains utility functions for working with the brahe library.
+"""
+
 import os
 
 import brahe

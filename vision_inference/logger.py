@@ -48,12 +48,13 @@ def map_log_level(log_level: str) -> int:
     """Maps the input log level to the corresponding logging module level."""
     if log_level.upper() == "INFO":
         return logging.INFO
-    elif log_level.upper() == "DEBUG":
+    if log_level.upper() == "DEBUG":
         return logging.DEBUG
-    elif log_level.upper() == "WARNING":
+    if log_level.upper() == "WARNING":
         return logging.WARNING
-    elif log_level.upper() == "ERROR":
+    if log_level.upper() == "ERROR":
         return logging.ERROR
+    raise ValueError("Invalid log level specified.")
 
 
 class Logger:

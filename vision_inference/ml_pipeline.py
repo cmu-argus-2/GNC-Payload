@@ -165,10 +165,18 @@ class MLPipeline:
         landmark_detections: LandmarkDetections,
         region_slices: dict[str, slice],
         save_dir: str,
+        landmark_display_count: int = 5,
     ) -> None:
         """
         Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent
         boxes, and saves the image. Also displays camera metadata on the image.
+
+        Args:
+            frame_obj: The Frame object to visualize.
+            landmark_detections: The LandmarkDetections object containing the landmark detection results.
+            region_slices: A dictionary mapping region IDs to slices of the landmark detections.
+            save_dir: The directory to save the visualization output to.
+            landmark_display_count: The number of top landmarks to display in the legend
         """
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -197,13 +205,12 @@ class MLPipeline:
             base_color = colors[idx % len(colors)]
             region_color_map[region_id] = base_color
 
-            for (x, y), _, class_id, confidence in landmark_detections:
+            for (x, y), *_, confidence in landmark_detections:
                 adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
         # Sort landmarks by confidence, descending, and keep the top few
-        LANDMARK_DISPLAY_COUNT = 5
-        top_landmark_indices = np.argsort(landmark_detections.confidences)[-LANDMARK_DISPLAY_COUNT:]
+        top_landmark_indices = np.argsort(landmark_detections.confidences)[-landmark_display_count:]
         top_landmark_regions = [
             MLPipeline.get_region_id(index, region_slices, len(landmark_detections))
             for index in top_landmark_indices
