@@ -1,46 +1,30 @@
-from typing import Any
-from time import perf_counter
-from time import time
-import yaml
-import pickle
-import os
+"""
+Test the nonlinear least squares orbit determination algorithm.
+"""
 
-import numpy as np
-from scipy.spatial.transform import Rotation
+import os
+import pickle
+from time import perf_counter, time
 
 import brahe
+import numpy as np
 from brahe.epoch import Epoch
+from scipy.spatial.transform import Rotation
 
+# pylint: disable=import-error
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
 from dynamics.orbital_dynamics import f
 from orbit_determination.landmark_bearing_sensors import (
+    GroundTruthLandmarkBearingSensor,
     RandomLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
-
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
+from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
-
-
-MAIN_CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../config.yaml"))
-
-
-def load_config() -> dict[str, Any]:
-    """
-    Load the configuration file and modify it for the purposes of this test.
-
-    :return: The modified configuration file as a dictionary.
-    """
-    with open(MAIN_CONFIG_PATH, "r") as file:
-        config = yaml.safe_load(file)
-
-    # TODO: move this into the config file itself
-    # decrease world update rate since we only care about position dynamics
-    config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
-
-    return config
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 
 def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
@@ -57,39 +41,48 @@ def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:
     return Rotation.from_rotvec(magnitudes[:, np.newaxis] * directions).as_matrix()
 
 
-def test_od():
+def test_od() -> None:
+    """
+    Test OD
+    """
     # update_brahe_data_files()
     config = load_config()
+
+    # TODO: move this into the config file itself
+    # decrease world update rate since we only care about position dynamics
+    config["solver"]["world_update_rate"] = 1 / 60  # Hz
+    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
     # set up simulation parameters
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
+    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
     # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
-    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state[:3]))
+    data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state))
 
     for t in range(0, N - 1):
+        next_state = f(data_manager.latest_state, dt)
+        data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
+
         # take a set of measurements every 5 minutes
         if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
             data_manager.take_measurement(landmark_bearing_sensor)
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
-        next_state = f(data_manager.latest_state, dt)
-        data_manager.push_next_state(next_state, get_nadir_rotation(next_state[:3]))
-
     if data_manager.measurement_count == 0:
         raise ValueError("No measurements taken")
     print(f"Total measurements: {data_manager.measurement_count}")
 
-    if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
+    if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)
@@ -144,13 +137,17 @@ def test_od():
     # plt.show()
 
 
-def load_brahe_data_files():
+def load_brahe_data_files() -> None:
+    """
+    Load up-to-date brahe files
+    """
     brahe_directory = os.path.dirname(brahe.__file__)
     try:
         print("Updating Brahe data files. Might take a minute ...")
         brahe.utils.download_all_data(brahe_directory + "/data")
+    # pylint: disable=bare-except
     except:
-        pass  # One or the other files always errors out. Not a problem though
+        print("One or the other files always errors out. Not a problem though.")
 
 
 if __name__ == "__main__":
