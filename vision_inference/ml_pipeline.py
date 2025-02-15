@@ -335,7 +335,9 @@ class MLPipeline:
             # Move down for the next entry
             legend_y += text_height + 10
 
-        landmark_save_path = os.path.join(save_dir, f"frame_w_landmarks_{frame_obj.camera_name}.png")
+        landmark_save_path = os.path.join(
+            save_dir, f"frame_w_landmarks_{frame_obj.camera_name}.png"
+        )
         cv2.imwrite(landmark_save_path, image)
 
         img_save_path = os.path.join(save_dir, "frame.png")

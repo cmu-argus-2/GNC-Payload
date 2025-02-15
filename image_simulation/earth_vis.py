@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
-from sensors.camera_model import CameraManager, CameraModel
+from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
@@ -42,7 +42,6 @@ class EarthImageSimulator:
         if geotiff_folder is None:
             geotiff_folder = EarthImageSimulator.get_default_geotiff_folder()
         self.cache = GeoTIFFCache(geotiff_folder)
-        self.camera_manager = CameraManager()
 
     @staticmethod
     def get_default_geotiff_folder() -> str:
@@ -59,7 +58,7 @@ class EarthImageSimulator:
         return EarthImageSimulator.FALLBACK_GEOTIFF_FOLDER
 
     def simulate_image(
-        self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_name: str = "x+"
+        self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
     ) -> Frame:
         """
         Simulate an Earth image given the satellite position, attitude, and camera name.
@@ -67,13 +66,11 @@ class EarthImageSimulator:
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
             ecef_R_body: A numpy array of shape (3, 3) representing the rotation matrix from body to ECEF coordinates.
-            camera_name: The name of the camera to use for simulation.
+            camera_model: The camera model to use to simulate the image.
 
         Returns:
             The simulated RGB image.
         """
-        camera_model = self.camera_manager[camera_name]
-
         # Generate ray directions in ECEF frame
         ray_directions_body = camera_model.ray_directions()
         ray_directions_ecef = ray_directions_body @ ecef_R_body.T
@@ -119,7 +116,7 @@ class EarthImageSimulator:
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
 
-        return Frame(pixel_colors_full, camera_name, datetime.now())
+        return Frame(pixel_colors_full, camera_model.camera_name, datetime.now())
 
     def display_image(self, image):
         """
