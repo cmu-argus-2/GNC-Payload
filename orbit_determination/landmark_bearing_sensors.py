@@ -291,7 +291,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         # run the ML pipeline on the image
-        frame = Frame(image, 0, datetime.now())
+        frame = Frame(image, camera_name, datetime.now())
         # TODO: queue requests to the model and send them in batches as the sim runs
         landmark_detections, region_slices = self.ml_pipeline.run_ml_pipeline_on_single(frame)
 

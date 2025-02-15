@@ -103,7 +103,7 @@ class RegionClassifier:
         """
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Starting the classification process.",
+            f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] Starting the classification process.",
         )
         try:
             img = Image.fromarray(cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2RGB))
@@ -124,7 +124,7 @@ class RegionClassifier:
 
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
+            f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
         )
         Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids
