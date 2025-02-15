@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
-from utils.config_utils import load_config, USER_CONFIG_PATH
+from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
 from utils.earth_utils import (
