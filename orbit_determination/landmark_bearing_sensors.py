@@ -242,14 +242,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
     bearing measurements.
     """
 
-    def __init__(self, config: dict) -> None:
-        """
-        :param config: The configuration dictionary.
-        """
-        camera_params = config["satellite"]["camera"]
-        self.body_R_camera = np.asarray(camera_params["body_R_camera"])
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
-
+    def __init__(self) -> None:
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
 
@@ -266,15 +259,14 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
-        ecef_R_eci = brahe.frames.rECItoECEF(epoch)
-        ecef_R_body = ecef_R_eci @ eci_R_body
-        position_ecef = ecef_R_eci @ cubesat_position + ecef_R_body @ self.t_body_to_camera
-        ecef_R_camera = ecef_R_body @ self.body_R_camera
-
         print(f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
 
+        ecef_R_eci = brahe.frames.rECItoECEF(epoch)
+        position_ecef = ecef_R_eci @ cubesat_position
+        ecef_R_body = ecef_R_eci @ eci_R_body
+
         # simulate image
-        image = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_camera)
+        image = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body)
 
         if np.all(image == 0):
             print("No image detected")

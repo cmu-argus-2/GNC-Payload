@@ -61,7 +61,7 @@ def test_od() -> None:
 
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
     # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
-    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
