@@ -15,13 +15,13 @@ class Frame:
     """
     A class to store a frame from one of the cameras and associated metadata.
 
-    :param frame: The frame as a numpy array.
+    :param image: The image as a numpy array.
     :param camera_id: The ID of the camera that captured the frame.
     :param timestamp: The timestamp of the frame.
     :param frame_id: The unique ID of the frame, generated from the timestamp.
     """
 
-    frame: np.ndarray
+    image: np.ndarray
     camera_id: int
     timestamp: datetime
     frame_id: str = field(init=False)
@@ -55,4 +55,4 @@ class Frame:
         :param height: The height to resize the image to.
         :return: The resized image as a numpy array.
         """
-        return cv2.resize(self.frame, (width, height), interpolation=cv2.INTER_AREA)
+        return cv2.resize(self.image, (width, height), interpolation=cv2.INTER_AREA)

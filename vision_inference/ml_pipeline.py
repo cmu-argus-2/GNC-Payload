@@ -182,9 +182,9 @@ class MLPipeline:
             os.makedirs(save_dir)
 
         # TODO: less hacky fix for RGB to BGR conversion
-        frame_obj.frame = cv2.cvtColor(frame_obj.frame, cv2.COLOR_RGB2BGR)
+        frame_obj.image = cv2.cvtColor(frame_obj.image, cv2.COLOR_RGB2BGR)
 
-        image = frame_obj.frame.copy()
+        image = frame_obj.image.copy()
 
         colors = [
             (0, 0, 255),  # Red
@@ -339,7 +339,7 @@ class MLPipeline:
         cv2.imwrite(landmark_save_path, image)
 
         img_save_path = os.path.join(save_dir, "frame.png")
-        cv2.imwrite(img_save_path, frame_obj.frame)
+        cv2.imwrite(img_save_path, frame_obj.image)
 
         metadata_path = os.path.join(save_dir, "frame_metadata.txt")
         with open(metadata_path, "w") as f:

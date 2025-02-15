@@ -36,7 +36,7 @@ def process_for_ml_pipeline(
     suitable_frames = []
     for frame_obj in frames:
         try:
-            gray_frame = cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2GRAY)
+            gray_frame = cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2GRAY)
             dark_percentage = np.sum(gray_frame < brightness_threshold) / np.prod(gray_frame.shape)
             if dark_percentage <= dark_threshold:
                 suitable_frames.append(frame_obj)
@@ -67,7 +67,7 @@ def process_for_star_tracker(
     suitable_frames = []
     for frame_obj in frames:
         try:
-            gray_frame = cv2.cvtColor(frame_obj.frame, cv2.COLOR_BGR2GRAY)
+            gray_frame = cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2GRAY)
             dark_percentage = np.sum(gray_frame < brightness_threshold) / np.prod(gray_frame.shape)
             if dark_percentage > dark_threshold:
                 suitable_frames.append(frame_obj)
