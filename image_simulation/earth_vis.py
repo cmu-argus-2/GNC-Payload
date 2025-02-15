@@ -36,8 +36,6 @@ class EarthImageSimulator:
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
-            resolution (tuple): Camera resolution (width, height).
-            hfov (float): Horizontal field of view in degrees.
         """
         if geotiff_folder is None:
             geotiff_folder = EarthImageSimulator.get_default_geotiff_folder()
