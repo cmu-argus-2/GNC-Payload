@@ -92,29 +92,45 @@ def lat_lon_to_ecef(
     return ecef_flat.reshape(*shape_prefix, 3)
 
 
-def get_nadir_rotation(state: np.ndarray) -> np.ndarray:
+def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
     """
-    Get the rotation matrix that points the +x camera towards the center of the Earth.
-    The body z-axis will point along the orbital angular momentum vector, the body x-axis will point towards the
-    center of the Earth, and the body y-axis will complete the right-handed orthonormal basis.
+    Get the rotation matrix that points the specified body frame axis towards the center of the Earth.
+    The body z-axis will point along the orbital angular momentum vector, the specified body frame axis will point
+    towards the center of the Earth, and the third axis will complete the right-handed orthonormal basis.
 
     This function is agnostic to the frame of reference of the input state. The output rotation matrix
     will be from the frame of reference of the input state to the body frame.
 
     Parameters:
         state: A numpy array of shape (6,) containing the position and velocity of the satellite.
+        nadir_axis: The body frame axis that should point towards the center of the Earth.
+                    Must be one of "x+", "y+", "x-", "y-". Defaults to "x+".
 
     Returns:
         A numpy array of shape (3, 3) representing the rotation matrix from the input state frame to the body frame.
     """
     assert state.shape == (6,), "state must have shape (6,)"
+    assert nadir_axis in (
+        "x+",
+        "y+",
+        "x-",
+        "y-",
+    ), 'nadir_axis must be one of "x+", "y+", "x-", "y-"'
 
     pos, vel = state[:3], state[3:]
     angular_momentum_dir = np.cross(pos, vel)
 
-    x_plus_dir = -pos / np.linalg.norm(pos)
+    nadir_axis = -pos / np.linalg.norm(pos)
     z_plus_dir = angular_momentum_dir / np.linalg.norm(angular_momentum_dir)
-    y_plus_dir = np.cross(z_plus_dir, x_plus_dir)
+
+    is_nadir_axis_x = nadir_axis[0] == "x"
+    is_nadir_axis_plus = nadir_axis[1] == "+"
+    if is_nadir_axis_x:
+        x_plus_dir = nadir_axis if is_nadir_axis_plus else -nadir_axis
+        y_plus_dir = np.cross(z_plus_dir, x_plus_dir)
+    else:
+        y_plus_dir = nadir_axis if is_nadir_axis_plus else -nadir_axis
+        x_plus_dir = np.cross(y_plus_dir, z_plus_dir)
 
     return np.column_stack([x_plus_dir, y_plus_dir, z_plus_dir])
 
