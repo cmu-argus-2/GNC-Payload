@@ -147,7 +147,13 @@ class ClassifierEfficient(nn.Module):
         self.efficientnet.classifier[1] = nn.Linear(num_features, RegionClassifier.NUM_CLASSES)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the classifier.
+
+        :param x: The input tensor, representing an image.
+        :return: The output tensor, representing a probability between 0 and 1 for each salient MGRS region.
+        """
         x = self.efficientnet(x)
         x = self.sigmoid(x)
         return x

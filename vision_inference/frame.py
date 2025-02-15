@@ -46,6 +46,13 @@ class Frame:
         frame_id = hash_object.hexdigest()
         return frame_id[:16]  # Optionally still shorten if needed
 
-    @staticmethod
-    def resize(img, width=640, height=480):
-        return cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
+    def resize(self, width: int = 640, height: int = 480) -> np.ndarray:
+        """
+        Resize the image contained in this Frame to the specified width and height.
+        The resized image is returned but this Frame object is not modified.
+
+        :param width: The width to resize the image to.
+        :param height: The height to resize the image to.
+        :return: The resized image as a numpy array.
+        """
+        return cv2.resize(self.frame, (width, height), interpolation=cv2.INTER_AREA)

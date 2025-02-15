@@ -9,7 +9,8 @@ landmarks in given images and the extraction of useful information such as centr
 Dependencies:
 - numpy: Used for array manipulations and handling numerical operations.
 - cv2 (OpenCV): Required for image processing tasks.
-- ultralytics YOLO: The YOLO model implementation from Ultralytics, used for object detection tasks. (Large package warning)
+- ultralytics YOLO: The YOLO model implementation from Ultralytics,
+                    used for object detection tasks. (Large package warning)
 
 Author: Eddie, Haochen
 Date: [Creation or Last Update Date]
@@ -36,8 +37,10 @@ class LandmarkDetections:
     A class to store info about landmark detections.
 
     Attributes:
-        pixel_coordinates: A numpy array of shape (N, 2) containing the x and y pixel coordinates for each detected landmark's centroid.
-        latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes for each detected landmark's centroid.
+        pixel_coordinates: A numpy array of shape (N, 2) containing the x and y pixel coordinates
+                           for each detected landmark's centroid.
+        latlons: A numpy array of shape (N, 2) containing the latitudes and longitudes
+                 for each detected landmark's centroid.
         class_ids: A numpy array of shape (N,) containing the class IDs for each detected landmark.
         confidences: A numpy array of shape (N,) containing the confidence scores for each detected landmark.
     """
@@ -137,6 +140,10 @@ class LandmarkDetections:
 
 
 class LandmarkDetector:
+    """
+    A class to detect landmarks in images using a pretrained YOLO model for a specific MGRS region.
+    """
+
     CONFIDENCE_THRESHOLD = 0.5
     # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
     IMAGE_SIZE = (1088, 1920)
@@ -184,8 +191,10 @@ class LandmarkDetector:
         """
         Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
 
-        The detection process filters out landmarks with low confidence scores (below 0.5) and invalid bounding box dimensions.
-        It aims to provide a comprehensive set of data for each detected landmark, facilitating further analysis or processing.
+        The detection process filters out landmarks with low confidence scores (below 0.5)
+        and invalid bounding box dimensions.
+        It aims to provide a comprehensive set of data for each detected landmark,
+        facilitating further analysis or processing.
 
         Args:
             frame: The input Frame on which to perform landmark detection.
@@ -250,19 +259,22 @@ class LandmarkDetector:
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] {len(landmark_detections)} landmarks detected.",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] "
+                f"{len(landmark_detections)} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] class_id\tpixel_coordinates\tlatlon\tconfidence",
+                f"[Camera {frame.camera_id} frame {frame.frame_id}] "
+                f"class_id\tpixel_coordinates\tlatlon\tconfidence",
             )
             for (x, y), (lat, lon), class_id, confidence in landmark_detections:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame.camera_id} frame {frame.frame_id}] {class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
+                    f"[Camera {frame.camera_id} frame {frame.frame_id}] "
+                    f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
                 )
 
             return landmark_detections

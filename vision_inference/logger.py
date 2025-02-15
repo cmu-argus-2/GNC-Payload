@@ -57,6 +57,10 @@ def map_log_level(log_level: str) -> int:
 
 
 class Logger:
+    """
+    A class to handle logging messages, log levels, and output destinations across the software system.
+    """
+
     logger = None
     log_file_path = "log/payload.log"
     levels = ["INFO", "DEBUG", "WARNING", "ERROR"]
