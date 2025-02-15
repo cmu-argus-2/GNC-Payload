@@ -1,3 +1,7 @@
+"""
+This module contains the Frame class, which is used to store a frame from one of the cameras and associated metadata.
+"""
+
 import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -8,6 +12,15 @@ import numpy as np
 
 @dataclass
 class Frame:
+    """
+    A class to store a frame from one of the cameras and associated metadata.
+
+    :param frame: The frame as a numpy array.
+    :param camera_id: The ID of the camera that captured the frame.
+    :param timestamp: The timestamp of the frame.
+    :param frame_id: The unique ID of the frame, generated from the timestamp.
+    """
+
     frame: np.ndarray
     camera_id: int
     timestamp: datetime

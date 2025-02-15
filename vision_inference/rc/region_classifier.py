@@ -29,6 +29,10 @@ from vision_inference.logger import Logger
 
 
 class RegionClassifier:
+    """
+    A class to classify MGRS regions in images using a pretrained EfficientNet model.
+    """
+
     NUM_CLASSES = 16
     CONFIDENCE_THRESHOLD = 0.55
     DOWNSAMPLED_SIZE = (224, 224)
@@ -70,6 +74,12 @@ class RegionClassifier:
 
     @staticmethod
     def load_region_ids() -> List[str]:
+        """
+        Load region IDs from the configuration file.
+
+        Returns:
+            A list of region IDs.
+        """
         try:
             config = load_config()
             region_ids = config["vision"]["salient_mgrs_region_ids"]
@@ -85,6 +95,12 @@ class RegionClassifier:
             raise
 
     def classify_region(self, frame_obj: Frame) -> List[str]:
+        """
+        Classify the regions present in the given frame.
+
+        :param frame_obj: The frame object to classify.
+        :return: A list of region IDs.
+        """
         Logger.log(
             "INFO",
             f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Starting the classification process.",
@@ -115,6 +131,10 @@ class RegionClassifier:
 
 
 class ClassifierEfficient(nn.Module):
+    """
+    A custom classifier using the EfficientNet model.
+    """
+
     def __init__(self):
         super().__init__()
         # Using new weights system

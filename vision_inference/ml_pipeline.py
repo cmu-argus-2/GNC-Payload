@@ -28,7 +28,7 @@ class MLPipeline:
     region classification and landmark detection.
 
     Attributes:
-        region_classifier (RegionClassifier): An instance of RegionClassifier for classifying geographic regions in frames.
+        region_classifier: An instance of RegionClassifier for classifying geographic regions in frames.
     """
 
     REGION_TO_LOCATION = {
@@ -111,6 +111,16 @@ class MLPipeline:
 
     @staticmethod
     def adjust_color(color: Tuple[int, int, int], confidence):
+        """
+        Adjusts the color intensity based on the confidence value.
+
+        Args:
+            color: The color tuple to adjust.
+            confidence: The confidence value to adjust the color intensity by.
+
+        Returns:
+            The adjusted color tuple.
+        """
         # Option 1: Exponential scaling
         # scale_factor = (confidence ** 2)  # Square the confidence to exaggerate differences
 
@@ -157,8 +167,8 @@ class MLPipeline:
         save_dir: str,
     ) -> None:
         """
-        Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent boxes,
-        and saves the image. Also displays camera metadata on the image.
+        Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent
+        boxes, and saves the image. Also displays camera metadata on the image.
         """
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -251,7 +261,10 @@ class MLPipeline:
         for i, (region_id, ((x, y), (lat, lon), _, conf)) in enumerate(
             zip(top_landmark_regions, top_landmarks)
         ):
-            text = f"Top {i + 1}: Region {region_id}, Conf: {conf:.2f}, XY: ({x:.0f}, {y:.0f}), LatLon: ({lat:.2f}, {lon:.2f})"
+            text = (
+                f"Top {i + 1}: Region {region_id}, Conf: {conf:.2f}, "
+                f"XY: ({x:.0f}, {y:.0f}), LatLon: ({lat:.2f}, {lon:.2f})"
+            )
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width
             total_height += entry_height
@@ -329,5 +342,6 @@ class MLPipeline:
 
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Landmark visualization saved to data/inference_output",
+            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] "
+            f"Landmark visualization saved to data/inference_output",
         )
