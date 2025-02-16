@@ -1,17 +1,13 @@
-"""
-Functions for implementing orbital position and attitude dynamics and its jacobian under just the force of gravity.
-J2 perturbations are not included.
-"""
-
 from brahe.constants import GM_EARTH
 import numpy as np
-import quaternion
 
 import os
 import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
+"""
+Functions for implementing orbital position dynamics and its jacobian under just the force of gravity.
+J2 perturbations are not included.
+"""
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -23,9 +19,8 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     :return: A numpy array of shape (6,) containing the state derivative.
     """
     r = x[:3]
-    v = x[3:6]
+    v = x[3:]
     a = -r * GM_EARTH / np.linalg.norm(r) ** 3
-
     return np.concatenate([v, a])
 
 
@@ -37,22 +32,13 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :return: A numpy array of shape (6, 6) containing the state derivative Jacobian.
     """
-
     r = x[:3]
-
     r_norm = np.linalg.norm(r)
     dv_dr = np.zeros((3, 3))
-    dv_dv = np.eye(3)
-
     da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
+    dv_dv = np.eye(3)
     da_dv = np.zeros((3, 3))
-
-    return np.block(
-        [
-            [dv_dr, dv_dv],
-            [da_dr, da_dv]
-        ]
-    )
+    return np.block([[dv_dr, dv_dv], [da_dr, da_dv]])
 
 
 def RK4(x, func, dt):
@@ -98,10 +84,10 @@ def RK4_jac(x, func, func_jac, dt):
 
 def f(x: np.ndarray, dt: float) -> np.ndarray:
     """
-    The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position and attitude dynamics under gravity.
+    The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics under gravity.
     J2 perturbations are not included.
 
-    :param x: A numpy array of shape (6,) containing the current state in form [position, velocity].
+    :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :param dt: The amount of time between each time step.
     :return: A numpy array of shape (6,) containing the next state (position and velocity).
     """
@@ -110,10 +96,10 @@ def f(x: np.ndarray, dt: float) -> np.ndarray:
 
 def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
     """
-    The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position and attitude dynamics under gravity.
+    The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics under gravity.
     J2 perturbations are not included.
 
-    :param x: A numpy array of shape (6,) containing the current state in form [position, velocity].
+    :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :param dt: The amount of time between each time step.
     :return: A numpy array of shape (6, 6) containing the state transition Jacobian.
     """

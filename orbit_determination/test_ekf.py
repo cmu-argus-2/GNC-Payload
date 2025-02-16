@@ -41,19 +41,19 @@ def imu_init(dt: float) -> IMU:
     :return: The initialized IMU.
     """
     # Initialize the IMU
-    bias_params = BiasParams.get_random_params([0, 0], [1e-4, 1e-3])
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-4, 5e-4)
+    bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
 
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-4, 5e-4)
+    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -77,7 +77,7 @@ def run_simulation() -> None:
 
     config = load_config()
 
-    config["solver"]["world_update_rate"] = 1/10  # Hz
+    config["solver"]["world_update_rate"] = 1/5  # Hz
     config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -98,11 +98,11 @@ def run_simulation() -> None:
     rot = np.array([0, 0, np.pi / 2])
 
     # Initialize IMU and EKF
-    # imu = imu_init(dt)
+    imu = imu_init(dt)
     ekf = EKF(
         # TODO: Adjust and tune noise and error init
-        r=initial_state[0:3] + np.random.normal(0, 50, 3),
-        v=initial_state[3:6] + np.random.normal(0, 50, 3),
+        r=initial_state[0:3] + np.random.normal(0, 10, 3),
+        v=initial_state[3:6] + np.random.normal(0, 10, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(9) * 10,
         Q=np.eye(9) * 1e-12,
@@ -124,19 +124,17 @@ def run_simulation() -> None:
 
         next_state = f(x, dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt * 0.5)
-        # next_state[6:10] = next_state[6:10] / np.linalg.norm(next_state[6:10]) # normalize quaternion
+
         data_manager.push_next_state(
             np.expand_dims(next_state[0:6], axis=0),
             np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
         )
-        # TODO: Add angular velocity to state propagation
 
-        gyro_meas = np.zeros((3))  # TEMPORARY
-        # gyro_meas = quaternion.as_rotation_vector(next_quat) # 
-        # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
+        # gyro_meas = np.zeros((3))  # TEMPORARY
+        gyro_meas, _ = imu.update(w, [0, 0, 0])
         ekf.predict(u=gyro_meas)
 
-        if t % 1 == 0:
+        if t % 4 == 0:
             data_manager.take_measurement(landmark_bearing_sensor)
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")

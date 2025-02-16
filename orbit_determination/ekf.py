@@ -98,39 +98,22 @@ class EKF:
 
         # TODO: Use IMU measurements and update quaternion estimate
 
-        # wf = u[0:3]  # angular velocity measurement from IMU
+        w = u[0:3]  # angular velocity measurement from IMU
         # self.r_p = self.r_m + self.dt * self.v_m
         # self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
-        # Jacobian
-        # dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(0.5 * self.dt * wf))
-        # dadq is zero as velocity in inertial frame not coupled to quaternion
-
-        # A = np.block(
-        #     [
-        #         [np.eye(3), np.zeros((3, 3)), np.eye(3) * self.dt],
-        #         [np.zeros((3, 3)), dqdq, np.zeros((3, 3))],
-        #         [dadr, np.zeros((3, 3)), np.eye(3)],
-        #     ]
-        # )
-        # A = np.block(
-        #     [
-        #         [np.eye(3), self.dt * np.eye(3)],
-        #         [dadr, np.eye(3)],
-        #     ]
-        # )
         x = np.concatenate([self.r_m, self.v_m])
         A_pos = f_jac(x, self.dt)
         x_new = f(x, self.dt)
 
-        self.q_p = left_q(self.q_m) @ quaternion.as_float_array(quaternion.from_rotation_vector(0.5 * self.dt * self.w))
+        self.q_p = left_q(self.q_m) @ quaternion.as_float_array(quaternion.from_rotation_vector(0.5 * self.dt * w))
         
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
         
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(quaternion.from_rotation_vector(self.w))) @ self.H
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * self.w))
+        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
 
         A = np.block(
         [
@@ -170,8 +153,8 @@ class EKF:
         x_p = jnp.array(np.concatenate([self.r_p, self.v_p, quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p))]))
 
         # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.01))]
-        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.01))]
+        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
+        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
 
         h = self.h_est(z1, data_manager, x_p)
         H = self.H_jac(z1, data_manager, x_p)
