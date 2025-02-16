@@ -11,7 +11,6 @@ import os
 from typing import List, Optional
 
 import torch
-import torch.nn.functional as F
 import wandb
 from data_loader import CustomImageDataset
 from efficientnet_pytorch import EfficientNet
@@ -193,7 +192,8 @@ class ImageClassifier:
             wandb.log({"epoch": epoch, "loss": epoch_loss})
             self.plotter.update_loss(epoch_loss)
 
-            if epoch % 10 == 0:
+            if epoch % 2 == 0:
+                self.save_model(path="model" + str(epoch + 1) + ".pth")
                 self.validate()
             if epoch == epochs - 1:
                 test_accuracy = self.evaluate()
@@ -238,7 +238,7 @@ class ImageClassifier:
                 labels = labels.to(self.device)
                 outputs = self.model(images)
                 predictions = torch.sigmoid(outputs) > 0.5  # Sigmoid + thresholding for multi-label
-                total += labels.size(0)
+                total += labels.numel()
                 correct += (predictions == labels).sum().item()
 
         accuracy = 100 * correct / total
@@ -300,11 +300,9 @@ class ImageClassifier:
 
                         # Count true positives
                         true_positives = sum(
-                            [
-                                1
-                                for j, val in enumerate(predicted[i])
-                                if val == 1 and labels[i][j] == 1
-                            ]
+                            1
+                            for j, val in enumerate(predicted[i])
+                            if val == 1 and labels[i][j] == 1
                         )
                         total_correct += true_positives
                         total_labels += labels.size(1)  # Count all the labels in the image
@@ -320,13 +318,13 @@ class ImageClassifier:
                                     "evaluation_image": wandb.Image(
                                         images[i].cpu(),
                                         caption=f"True: {', '.join(actual_classes)}\nPred: {', '.join(predicted_classes)}",
-                                        metadata={
-                                            "image_name": image_name,
-                                            "true_classes": actual_classes,
-                                            "predicted_classes": predicted_classes,
-                                            "probabilities": probs,
-                                        },
-                                    )
+                                    ),
+                                    "image_metadata": {
+                                        "image_name": image_name,
+                                        "true_classes": actual_classes,
+                                        "predicted_classes": predicted_classes,
+                                        "probabilities": probs,
+                                    },
                                 }
                             )
 

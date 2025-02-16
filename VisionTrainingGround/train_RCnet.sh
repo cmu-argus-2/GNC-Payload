@@ -10,4 +10,4 @@ FINAL_OUTPUT_PATH="$(pwd)/LD/datasets"  # Path relative to the current directory
 # python ./RCnet/src/prepare_RCnet_dataset.py --root_dir "$BASE_OUTPATH" --output_dir "$CURR_DIR/RCnet/datasets" --test_ratio 0.1 --val_ratio 0.1
   
 # Train RCNet
-python ./RCnet/src/main.py --save_plot_flag --data_dir "$CURR_DIR/RCnet/datasets" --model_save_path "$CURR_DIR/RCnet/model/model.pth" --model_load_path "$CURR_DIR/RCnet/model/model.pth" --save_plot_path "$CURR_DIR/RCnet/results/loss_vs_epoch.png" --learning_rate 0.0001 --epochs 50
+python ./RCnet/src/main.py --train_flag --save_plot_flag --data_dir "$CURR_DIR/RCnet/datasets" --model_save_path "$CURR_DIR/RCnet/model/model.pth" --save_plot_path "$CURR_DIR/RCnet/results/loss_vs_epoch.png" --learning_rate 0.0001 --epochs 10

@@ -24,20 +24,37 @@ Author(s): Kyle, Eddie
 Contact: [Contact Information - Email/Phone]
 """
 
-import numpy as np
-from tqdm import tqdm
+import argparse
+import csv
+from multiprocessing import Pool, cpu_count
+
 import cv2
 import matplotlib.pyplot as plt
-import argparse
-from getMGRS import getMGRS # custom getMGRS module for MGRS grid handling
-from multiprocessing import Pool, cpu_count
-import csv
+import numpy as np
 import rasterio
+from getMGRS import getMGRS  # custom getMGRS module for MGRS grid handling
+from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map  # For multiprocessing with progress tracking
 
-def sm2b(key, input_path, window, num_boxes, box_color, box_outline):
+
+def sm2b(key, input_path, window, num_boxes, box_color, box_outline):  # pylint: disable=all
+    """
+    Processes a GeoTIFF saliency map, identifies areas of high saliency, and marks them with bounding boxes.
+    Converts the coordinates of these boxes to geographic coordinates and saves them in CSV format.
+
+    Args:
+        key (str): Key identifier for the saliency map file.
+        input_path (str): Directory path where the saliency map and related images are stored.
+        window (int): The size of the sliding window to scan the saliency map.
+        num_boxes (int): The number of top saliency boxes to identify.
+        box_color (tuple): The color to draw bounding boxes (in RGB).
+        box_outline (int): The thickness of the bounding box outline.
+
+    Returns:
+        None
+    """
     # Read the saliency map from TIFF file
-    tiff_file = input_path + '/' + key + '_saliencymap.tif'
+    tiff_file = input_path + "/" + key + "_saliencymap.tif"
 
     with rasterio.open(tiff_file) as dataset:
         saliency_map = dataset.read(1)  # Assuming saliency data is in the first band
@@ -53,7 +70,7 @@ def sm2b(key, input_path, window, num_boxes, box_color, box_outline):
         for y in range(0, im_h - window + 1, window):
             for x in range(0, im_w - window + 1, window):
                 # Calculate the sum of saliency in this box
-                roi = saliency_map[y:y + window, x:x + window]
+                roi = saliency_map[y : y + window, x : x + window]
                 sum_saliency = np.sum(roi)
                 saliency_data.append((sum_saliency, (x, y, window, window)))
 
@@ -64,11 +81,11 @@ def sm2b(key, input_path, window, num_boxes, box_color, box_outline):
         boxes = [box for _, box in saliency_data[:num_boxes]]
 
         # Draw boxes on the saliency map image
-        saliency_map_image = cv2.imread(input_path + '/' + key + '_saliencymap.jpg')
+        saliency_map_image = cv2.imread(input_path + "/" + key + "_saliencymap.jpg")
         for x, y, w, h in boxes:
             cv2.rectangle(saliency_map_image, (x, y), (x + w, y + h), box_color, box_outline)
-        
-        cv2.imwrite(input_path + '/' + key + '_boxes.jpg', saliency_map_image)
+
+        cv2.imwrite(input_path + "/" + key + "_boxes.jpg", saliency_map_image)
 
         # Convert box coordinates to geographic coordinates
         outboxes = []
@@ -80,31 +97,49 @@ def sm2b(key, input_path, window, num_boxes, box_color, box_outline):
             centroid_lat = (tl_lat + br_lat) / 2
             outboxes.append([centroid_lon, centroid_lat, tl_lon, tl_lat, br_lon, br_lat])
 
-        # Save as .npy
-        outboxes = np.array(outboxes)
-        np.save(input_path + '/' + key + '_outboxes.npy', outboxes)
-
         # Save as .csv
-        csv_file_path = input_path + '/' + key + '_outboxes.csv'
-        with open(csv_file_path, mode='w', newline='') as file:
+        csv_file_path = input_path + "/" + key + "_outboxes.csv"
+        with open(csv_file_path, mode="w", newline="", encoding="utf-8") as file:
             csv_writer = csv.writer(file)
             # Write header (optional, but recommended for clarity)
-            csv_writer.writerow(['Centroid Longitude', 'Centroid Latitude', 'Top-Left Longitude', 'Top-Left Latitude', 'Bottom-Right Longitude', 'Bottom-Right Latitude'])
+            csv_writer.writerow(
+                [
+                    "Centroid Longitude",
+                    "Centroid Latitude",
+                    "Top-Left Longitude",
+                    "Top-Left Latitude",
+                    "Bottom-Right Longitude",
+                    "Bottom-Right Latitude",
+                ]
+            )
             # Write data
             for box in outboxes:
                 csv_writer.writerow(box)
 
+
 def unpack_and_call_sm2b(args):
+    """
+    Wrapper function to unpack arguments and call the sm2b function in parallel.
+
+    Args:
+        args (tuple): A tuple containing all arguments required for the sm2b function.
+
+    Returns:
+        None
+    """
     return sm2b(*args)
-    
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('-k', '--keys', nargs = '+', required=True)
-    parser.add_argument('-w', '--window', default = 50, type=int, help = 'pixel width of box around each POI')
+    parser.add_argument("-k", "--keys", nargs="+", required=True)
+    parser.add_argument(
+        "-w", "--window", default=50, type=int, help="pixel width of box around each POI"
+    )
     # parser.add_argument('-s', '--save', default = True, type=bool, help = 'save saliency map')
-    parser.add_argument('-n', '--num_boxes', default = 50, type = int)
-    parser.add_argument('-p', '--path', default = '.')
+    parser.add_argument("-n", "--num_boxes", default=50, type=int)
+    parser.add_argument("-p", "--path", default=".")
     args = parser.parse_args()
 
     # Initialize variables and lists
@@ -117,7 +152,14 @@ if __name__ == '__main__':
     box_outline = 3  # Thickness of the box outline
 
     # Prepare the arguments for the function
-    function_args = [(key, input_path, window, num_boxes, box_color, box_outline) for key in args.keys]
+    function_args = [
+        (key, input_path, window, num_boxes, box_color, box_outline) for key in args.keys
+    ]
 
     # Use process_map
-    process_map(unpack_and_call_sm2b, function_args, max_workers=cpu_count(), desc="Create Landmark Bounding Boxes:")
+    process_map(
+        unpack_and_call_sm2b,
+        function_args,
+        max_workers=cpu_count(),
+        desc="Create Landmark Bounding Boxes:",
+    )
