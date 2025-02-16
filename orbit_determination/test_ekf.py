@@ -6,17 +6,10 @@ import pickle
 from time import time
 
 import brahe
-from brahe.epoch import Epoch
 import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
-
-import os
-import sys
-
-root = '/home/frederik/cmu/GNC-Payload'
-if root not in sys.path:
-    sys.path.insert(0, root)
+from brahe.epoch import Epoch
 
 from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
@@ -77,7 +70,7 @@ def run_simulation() -> None:
 
     config = load_config()
 
-    config["solver"]["world_update_rate"] = 1/5  # Hz
+    config["solver"]["world_update_rate"] = 1 / 5  # Hz
     config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -109,9 +102,8 @@ def run_simulation() -> None:
         R=np.zeros((3, 3)),
         dt=dt,
         config=config,
-        w = rot,
+        w=rot,
     )
-
 
     error = []
 
@@ -119,11 +111,13 @@ def run_simulation() -> None:
         # take a set of measurements every minute
         x = data_manager.latest_state
         q = data_manager.latest_attitude
-        w = rot 
+        w = rot
         # x = np.concatenate([x, quaternion.as_float_array(quaternion.from_rotation_matrix(q)), w])
 
         next_state = f(x, dt)
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt * 0.5)
+        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
+            w * dt * 0.5
+        )
 
         data_manager.push_next_state(
             np.expand_dims(next_state[0:6], axis=0),

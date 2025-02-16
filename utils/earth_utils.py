@@ -209,31 +209,3 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
 
     # Reshape to match input lat/lon shape
     return mgrs_regions.reshape(latitudes.shape)
-
-
-def is_visible_on_ellipse(own_pos, other_pos) -> bool:
-    """
-    Check if the other position is visible from the own position considering the Earth as an oblate spheroid.
-    """
-
-    d = other_pos - own_pos
-    A = (d[0] ** 2 + d[1] ** 2) / (R_EARTH_EQ**2) + (d[2] ** 2) / (R_EARTH_POL**2)
-    B = 2 * (own_pos[0] * d[0] + own_pos[1] * d[1]) / (R_EARTH_EQ**2) + 2 * own_pos[2] * d[2] / (
-        R_EARTH_POL**2
-    )
-    C = (own_pos[0] ** 2 + own_pos[1] ** 2) / (R_EARTH_EQ**2) + (own_pos[2] ** 2) / (R_EARTH_POL**2)
-
-    # Calculate the discriminant
-    discriminant = B**2 - 4 * A * (C - 1)
-    if discriminant < 0:
-        # Solution does not intersect the earth as no real solutions exist
-        return True
-
-    # Discriminant is positive, calculate the solutions
-    solution1 = (-B + np.sqrt(discriminant)) / (2 * A)
-    solution2 = (-B - np.sqrt(discriminant)) / (2 * A)
-    if (solution1 > 0 or solution2 > 0) and (solution1 < 1 or solution2 < 1):
-        # One of the solutions is positive and less than 1, the earth is in the way
-        return False
-
-    return True

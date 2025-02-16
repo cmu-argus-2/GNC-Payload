@@ -8,13 +8,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import quaternion
-import yaml
-from brahe.constants import GM_EARTH
-from scipy.spatial.transform import Rotation
 
 from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from utils.math_utils import R, rot_2_q, left_q, right_q
+from utils.math_utils import R, left_q, rot_2_q  # right_q
 
 
 class EKF:
@@ -26,7 +23,7 @@ class EKF:
         self,
         r: np.ndarray,
         v: np.ndarray,
-        q: Any, # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
+        q: Any,  # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
         # a_b: np.ndarray,
         # w_b: np.ndarray,
         P: np.ndarray,
@@ -53,7 +50,7 @@ class EKF:
 
         :return: None
 
-        Note on R matrix dimensionality: As the number of landmarks observed will change between individual time steps, 
+        Note on R matrix dimensionality: As the number of landmarks observed will change between individual time steps,
         the R matrix needs to be constructed at each time step where the vision pipeline is used.
         """
 
@@ -82,8 +79,7 @@ class EKF:
         self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])
 
         self.cond_threshold = 1e15
-        self.H = np.append(np.zeros((1,3)), np.eye(3), axis=0)
-
+        self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
 
     def predict(self, u: np.ndarray) -> None:
         """
@@ -107,20 +103,18 @@ class EKF:
         A_pos = f_jac(x, self.dt)
         x_new = f(x, self.dt)
 
-        self.q_p = left_q(self.q_m) @ quaternion.as_float_array(quaternion.from_rotation_vector(0.5 * self.dt * w))
-        
+        self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
+            quaternion.from_rotation_vector(0.5 * self.dt * w)
+        )
+
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
-        
-        # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(quaternion.from_rotation_vector(self.w))) @ self.H
+
+        # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
+        # quaternion.from_rotation_vector(self.w))) @ self.H
         A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
 
-        A = np.block(
-        [
-            [A_pos, np.zeros((6, 3))],
-            [np.zeros((3, 6)), A_att]
-        ]
-        )
+        A = np.block([[A_pos, np.zeros((6, 3))], [np.zeros((3, 6)), A_att]])
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -150,17 +144,25 @@ class EKF:
         #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
         # )
 
-        x_p = jnp.array(np.concatenate([self.r_p, self.v_p, quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p))]))
+        x_p = jnp.array(
+            np.concatenate(
+                [
+                    self.r_p,
+                    self.v_p,
+                    quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
+                ]
+            )
+        )
 
         # Select a fraction of the measurements to use to speed up computations
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
         z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
 
         h = self.h_est(z1, data_manager, x_p)
-        H = self.H_jac(z1, data_manager, x_p)
+        H = self.h_jac(z1, data_manager, x_p)
 
         # Flatten the measurement vector
-        z0 = np.array(z0.reshape(-1))  
+        z0 = np.array(z0.reshape(-1))
 
         # Let R take the dimensionality of the number of measurements
         self.R = np.diag([1e-5] * z0.shape[0])
@@ -179,13 +181,15 @@ class EKF:
 
         self.r_m = self.r_p + delta[0:3]
         self.v_m = self.v_p + delta[3:6]
-        self.q_m = quaternion.as_float_array(quaternion.as_quat_array(self.q_p) * quaternion.from_rotation_vector(delta[6:9]))
+        self.q_m = quaternion.as_float_array(
+            quaternion.as_quat_array(self.q_p) * quaternion.from_rotation_vector(delta[6:9])
+        )
 
         self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
             np.eye(self.P_m.shape[0]) - K @ H
         ).T + K @ self.R @ K.T  # Joseph form covariance update
 
-    def H_jac(
+    def h_jac(
         self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
     ) -> jnp.ndarray:
         """
@@ -218,7 +222,8 @@ class EKF:
         estimate = jnp.zeros((len(z) * 3))
 
         # Define rotation matrices
-        eci_R_body = R(rot_2_q(x_p[6:9])) # transform rotation_vector to rotation matrix via quaternion
+        # transform rotation_vector to rotation matrix via quaternion
+        eci_R_body = R(rot_2_q(x_p[6:9]))
         ecef_R_eci = brahe.frames.rECItoECEF(data_manager.latest_epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 
