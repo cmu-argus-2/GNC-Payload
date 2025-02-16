@@ -43,9 +43,6 @@ class ODSimulationDataManager:
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
-    curr_bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
-    curr_landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
-
     @property
     def state_count(self) -> int:
         """
@@ -80,20 +77,6 @@ class ODSimulationDataManager:
         :return: The latest attitude in the simulation data, as a rotation matrix from the body frame to ECI.
         """
         return self.eci_Rs_body[-1, ...]
-
-    @property
-    def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Return the bearing unit vectors and landmarks corresponding to the latest state.
-
-        This property finds all measurements that were taken at the most recent state time step.
-        """
-        latest_idx = self.state_count - 1
-        # Create a boolean mask for measurements taken at the latest state index.
-        mask = self.measurement_indices == latest_idx
-        latest_bearings = self.bearing_unit_vectors[mask, :]
-        latest_landmarks = self.landmarks[mask, :]
-        return latest_bearings, latest_landmarks
 
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -173,8 +156,5 @@ class ODSimulationDataManager:
             (self.bearing_unit_vectors, bearing_unit_vectors), axis=0
         )
         self.landmarks = np.concatenate((self.landmarks, landmarks), axis=0)
-
-        self.curr_bearing_unit_vectors = bearing_unit_vectors
-        self.curr_landmarks = landmarks
 
         self.assert_invariants()

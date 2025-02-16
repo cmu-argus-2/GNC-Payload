@@ -2,14 +2,19 @@
 Testing the EKF class.
 """
 
+import os
 import pickle
+import sys
 from time import time
 
 import brahe
-from brahe.epoch import Epoch
 import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
+from brahe.epoch import Epoch
+
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
 
 from dynamics.orbital_dynamics import f  # , f_jac
 from orbit_determination.ekf import EKF
@@ -81,11 +86,9 @@ def run_simulation() -> None:
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    init_rot = quaternion.as_rotation_matrix(quaternion.as_quat_array(np.array([1, 0, 0, 0])))
+    init_rot = np.eye(3)
 
-    data_manager.push_next_state(
-        np.expand_dims(initial_state, axis=0), np.expand_dims(init_rot, axis=0)
-    )
+    data_manager.push_next_state(initial_state, np.expand_dims(init_rot, axis=0))
 
     # Initialize IMU and EKF
     # imu = imu_init(dt)
@@ -113,7 +116,7 @@ def run_simulation() -> None:
         curr_quat = quaternion.from_rotation_matrix(data_manager.latest_attitude)
         next_quat = curr_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
         data_manager.push_next_state(
-            np.expand_dims(next_state, axis=0),
+            next_state,
             np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
         )
 
@@ -127,7 +130,7 @@ def run_simulation() -> None:
             print(f"Completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
-            z = (data_manager.curr_bearing_unit_vectors, data_manager.curr_landmarks)
+            z = data_manager.latest_measurements
             if z[0].shape[0] > 0:
                 ekf.measurement(z, data_manager)
             else:

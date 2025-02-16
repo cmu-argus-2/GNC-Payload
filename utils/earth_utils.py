@@ -208,7 +208,7 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     mgrs_regions[valid_indices] = mgrs_regions_flat
 
     # Reshape to match input lat/lon shape
-    return mgrs_regions.reshape(latitudes.shape)
+    return mgrs_regions
 
 
 def is_visible_on_ellipse(own_pos, other_pos) -> bool:

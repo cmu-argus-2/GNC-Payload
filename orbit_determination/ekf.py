@@ -26,7 +26,7 @@ class EKF:
         self,
         r: np.ndarray,
         v: np.ndarray,
-        q: Any, # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
+        q: Any,  # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
         # a_b: np.ndarray,
         # w_b: np.ndarray,
         P: np.ndarray,
@@ -51,7 +51,7 @@ class EKF:
 
         :return: None
 
-        Note on R matrix dimensionality: As the number of landmarks observed will change between individual time steps, 
+        Note on R matrix dimensionality: As the number of landmarks observed will change between individual time steps,
         the R matrix needs to be constructed at each time step where the vision pipeline is used.
         """
 
@@ -161,7 +161,7 @@ class EKF:
         H = self.H(z1, data_manager, x_p)
 
         # Flatten the measurement vector
-        z0 = np.array(z0.reshape(-1))  
+        z0 = np.array(z0.reshape(-1))
 
         # Let R take the dimensionality of the number of measurements
         self.R = np.diag([1e-5] * z0.shape[0])
