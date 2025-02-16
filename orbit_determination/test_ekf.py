@@ -2,19 +2,14 @@
 Testing the EKF class.
 """
 
-import os
 import pickle
-import sys
 from time import time
 
 import brahe
+from brahe.epoch import Epoch
 import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
-from brahe.epoch import Epoch
-
-root = "/home/frederik/cmu/GNC-Payload"
-sys.path.append(root)
 
 from dynamics.orbital_dynamics import f  # , f_jac
 from orbit_determination.ekf import EKF
@@ -88,7 +83,9 @@ def run_simulation() -> None:
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
     init_rot = np.eye(3)
 
-    data_manager.push_next_state(initial_state, np.expand_dims(init_rot, axis=0))
+    data_manager.push_next_state(
+        initial_state, init_rot
+    )
 
     # Initialize IMU and EKF
     # imu = imu_init(dt)
@@ -117,7 +114,7 @@ def run_simulation() -> None:
         next_quat = curr_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
         data_manager.push_next_state(
             next_state,
-            np.expand_dims(quaternion.as_rotation_matrix(next_quat), axis=0),
+            quaternion.as_rotation_matrix(next_quat)
         )
 
         gyro_meas = np.zeros((3))  # TEMPORARY
@@ -140,7 +137,7 @@ def run_simulation() -> None:
 
         error.append(ekf.r_m - next_state[0:3])
 
-    if type(landmark_bearing_sensor) == SimulatedMLLandmarkBearingSensor:
+    if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)

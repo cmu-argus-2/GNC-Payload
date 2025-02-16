@@ -128,7 +128,7 @@ class ODSimulationDataManager:
             eci_R_body: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
         """
         self.states = np.row_stack((self.states, state))
-        self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body), axis=0)
+        self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body[np.newaxis, ...]), axis=0)
 
         self.assert_invariants()
 
