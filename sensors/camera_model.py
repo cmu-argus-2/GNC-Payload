@@ -37,13 +37,13 @@ class CameraModel:
 
     def get_camera_axis(self, frame_R_body: np.ndarray) -> np.ndarray:
         """
-        Get the camera axis in the frame of interest.
+        Get the camera's boresight axis in the frame of interest.
 
         Parameters:
             frame_R_body: A numpy array of shape (3, 3) representing the rotation matrix from the body frame to the frame of interest.
 
         Returns:
-            A numpy array of shape (3,) representing the camera axis in the frame of interest.
+            A numpy array of shape (3,) representing the camera's boresight axis in the frame of interest.
         """
         return frame_R_body @ self.body_R_camera @ np.array([0, 0, 1])
 
