@@ -25,7 +25,14 @@ from getMGRS import getMGRS
 from retry import retry
 from tqdm.contrib.concurrent import process_map
 
-ee.Initialize()
+from utils.config_utils import load_config, USER_CONFIG_PATH
+
+if os.path.exists(USER_CONFIG_PATH):
+    config = load_config(USER_CONFIG_PATH)
+    project_name = config["earth_engine_project_name"]
+    ee.Initialize(project=project_name)
+else:
+    ee.Initialize()
 
 
 def get_region_filter_from_bounds(bounds, get_rect=True):

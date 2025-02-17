@@ -21,9 +21,12 @@ conda activate eedl
 earthengine authenticate
 ```
 
-You may also need to explicitly specify the Google Cloud project you are using by modifying the first line of code in eedl.py as follows:
-```python
-ee.initialize(project='your_project_name')
+Follow the prompts to authenticate your Google Earth Engine account.
+
+Finally, ensure that you have created a `user_config.yaml` file in the root directory of this repository and specified your Earth Engine project name.
+```
+cd ../
+cp user_config.example.yaml user_config.yaml
 ```
 
 ## Usage
