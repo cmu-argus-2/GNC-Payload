@@ -144,7 +144,7 @@ class CameraManager:
             camera_models[camera_info["name"]] = CameraModel(
                 camera_info["name"],
                 np.array(camera_info["body_R_camera"]),
-                np.array(camera_info["t_body_to_camera"])
+                np.array(camera_info["t_body_to_camera"]),
             )
         return camera_models
 
