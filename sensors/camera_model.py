@@ -106,11 +106,11 @@ class CameraModel:
         return bearing_unit_vectors_body
 
 
-class CameraManager:
+class CameraModelManager:
     CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
 
     def __init__(self):
-        self.camera_models = CameraManager.initialize_cameras()
+        self.camera_models = CameraModelManager.initialize_cameras()
 
     def __getitem__(self, camera_name: str) -> CameraModel:
         """
@@ -144,5 +144,5 @@ class CameraManager:
 
     @staticmethod
     def validate_camera_name(camera_name: str) -> None:
-        if camera_name not in CameraManager.CAMERA_NAMES:
+        if camera_name not in CameraModelManager.CAMERA_NAMES:
             raise ValueError(f"Invalid camera name: {camera_name}")

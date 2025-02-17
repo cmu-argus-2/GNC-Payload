@@ -20,7 +20,7 @@ from orbit_determination.landmark_bearing_sensors import (
     RandomLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
-from sensors.camera_model import CameraManager
+from sensors.camera_model import CameraModelManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.brahe_utils import load_brahe_data_files
@@ -63,7 +63,7 @@ def test_od() -> None:
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
     # landmark_bearing_sensor = RandomLandmarkBearingSensor()
     # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
-    camera_manager = CameraManager()
+    camera_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
