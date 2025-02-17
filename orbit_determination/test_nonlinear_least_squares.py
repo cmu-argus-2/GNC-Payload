@@ -22,6 +22,7 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from utils.brahe_utils import load_brahe_data_files
 from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
@@ -135,19 +136,6 @@ def test_od() -> None:
     # ax.set_zlabel("Z (m)")
     # ax.legend()
     # plt.show()
-
-
-def load_brahe_data_files() -> None:
-    """
-    Load up-to-date brahe files
-    """
-    brahe_directory = os.path.dirname(brahe.__file__)
-    try:
-        print("Updating Brahe data files. Might take a minute ...")
-        brahe.utils.download_all_data(brahe_directory + "/data")
-    # pylint: disable=bare-except
-    except:
-        print("One or the other files always errors out. Not a problem though.")
 
 
 if __name__ == "__main__":
