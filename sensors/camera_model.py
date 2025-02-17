@@ -108,12 +108,6 @@ class CameraModel:
 
 class CameraManager:
     CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
-    CAMERA_AXES = {
-        "x+": np.array([1, 0, 0]),
-        "y+": np.array([0, 1, 0]),
-        "x-": np.array([-1, 0, 0]),
-        "y-": np.array([0, -1, 0]),
-    }
 
     def __init__(self):
         self.camera_models = CameraManager.initialize_cameras()
