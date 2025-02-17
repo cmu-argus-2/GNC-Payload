@@ -2,7 +2,6 @@
 This module contains the Frame class, which is used to store a frame from one of the cameras and associated metadata.
 """
 
-import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -27,24 +26,8 @@ class Frame:
     frame_id: str = field(init=False)
 
     def __post_init__(self):
-        self.frame_id = Frame.generate_frame_id(self.timestamp)
-
-    @staticmethod
-    def generate_frame_id(timestamp: datetime) -> str:
-        """
-        Generates a unique frame ID using the hash of the timestamp.
-
-        Args:
-            timestamp: The timestamp associated with the frame.
-
-        Returns:
-            A hexadecimal string representing the hash of the timestamp.
-        """
-        # Convert the timestamp to string and encode it to bytes, then hash it
-        timestamp_str = str(timestamp)
-        hash_object = hashlib.sha1(timestamp_str.encode())  # Using SHA-1
-        frame_id = hash_object.hexdigest()
-        return frame_id[:16]  # Optionally still shorten if needed
+        # convert hash to hex string
+        self.frame_id = f"{hash(self.timestamp):x}"
 
     def resize(self, width: int = 640, height: int = 480) -> np.ndarray:
         """
