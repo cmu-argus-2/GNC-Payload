@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -85,17 +89,21 @@ def run_simulation() -> None:
 
     data_manager.push_next_state(initial_state, init_rot)
 
+    # Set the number of update iterations for the IEKF
+    num_iter = 4
+
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 2])
+    rot = np.array([0, 0, np.pi / 4])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
-        # TODO: Adjust and tune noise and error init
-        r=initial_state[0:3] + np.random.normal(0, 10, 3),
-        v=initial_state[3:6] + np.random.normal(0, 10, 3),
+        # TODO: Apply initial error to quaternion initialization
+        
+        r=initial_state[0:3] + np.random.normal(0, 10000, 3),
+        v=initial_state[3:6] + np.random.normal(0, 10000, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(9) * 10,
+        P=np.eye(9) * 1000,
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
@@ -132,7 +140,7 @@ def run_simulation() -> None:
             # EKF prediction step
             z = data_manager.latest_measurements
             if z[0].shape[0] > 0:
-                ekf.measurement(z, data_manager)
+                ekf.measurement(z, data_manager, num_iter)
             else:
                 ekf.no_measurement()
         else:
