@@ -63,7 +63,7 @@ def test_od() -> None:
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
     # landmark_bearing_sensor = RandomLandmarkBearingSensor()
     # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
-    camera_manager = CameraModelManager()
+    camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
@@ -77,7 +77,7 @@ def test_od() -> None:
 
         # take a set of measurements every 5 minutes
         if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
-            data_manager.take_measurement(landmark_bearing_sensor, camera_manager["x+"])
+            data_manager.take_measurement(landmark_bearing_sensor, camera_model_manager["x+"])
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
