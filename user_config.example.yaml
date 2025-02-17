@@ -1,0 +1,2 @@
+# Path to the folder containing directories named with MGRS region IDs containing geotiff files used for image simulation
+geotiff_folder: /path/to/geotiff/folder

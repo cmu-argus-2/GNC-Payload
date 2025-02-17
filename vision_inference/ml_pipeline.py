@@ -11,40 +11,15 @@ Date: January 27, 2025
 """
 
 import os
+from typing import List, Tuple
 
 import cv2
+import numpy as np
 
-from vision_inference.ld import LandmarkDetector
+from vision_inference.frame import Frame
+from vision_inference.landmark_detector import LandmarkDetections, LandmarkDetector
 from vision_inference.logger import Logger
-from vision_inference.rc import RegionClassifier
-
-
-class Landmark:
-    """
-    A class to store landmark info including centroid coordinates, geographic coordinates, and classes.
-
-    Attributes:
-        centroid_xy (list of tuples): The centroid coordinates (x, y) of detected landmarks.
-        centroid_latlons (list of tuples): The geographic coordinates (latitude, longitude) of detected landmarks.
-        landmark_classes (list): The classes of the detected landmarks.
-    """
-
-    def __init__(self, centroid_xy, centroid_latlons, landmark_classes, confidence_scores):
-        """
-        Initializes the Landmark
-
-        Args:
-            centroid_xy (list of tuples): Centroid coordinates (x, y) of detected landmarks.
-            centroid_latlons (list of tuples): Geographic coordinates (latitude, longitude) of detected landmarks.
-            landmark_classes (list): Classes of detected landmarks.
-        """
-        self.centroid_xy = centroid_xy
-        self.centroid_latlons = centroid_latlons
-        self.landmark_classes = landmark_classes
-        self.confidence_scores = confidence_scores
-
-    def __repr__(self):
-        return f"Landmark(centroid_xy={self.centroid_xy}, centroid_latlons={self.centroid_latlons}, landmark_classes={self.landmark_classes}, confidence_scores={self.confidence_scores})"
+from vision_inference.region_classifier import RegionClassifier
 
 
 class MLPipeline:
@@ -53,83 +28,60 @@ class MLPipeline:
     region classification and landmark detection.
 
     Attributes:
-        region_classifier (RegionClassifier): An instance of RegionClassifier for classifying geographic regions in frames.
+        region_classifier: An instance of RegionClassifier for classifying geographic regions in frames.
     """
+
+    REGION_TO_LOCATION = {
+        "10S": "California",
+        "10T": "Washington / Oregon",
+        "11R": "Baja California, Mexico",
+        "12R": "Sonora, Mexico",
+        "16T": "Minnesota / Wisconsin / Iowa / Illinois",
+        "17R": "Florida",
+        "17T": "Toronto, Canada / Michigan / OH / PA",
+        "18S": "New Jersey / Washington DC",
+        "32S": "Tunisia (North Africa near Tyrrhenian Sea)",
+        "32T": "Switzerland / Italy / Tyrrhenian Sea",
+        "33S": "Sicilia, Italy",
+        "33T": "Italy / Adriatic Sea",
+        "52S": "Korea / Kumamoto, Japan",
+        "53S": "Hiroshima to Nagoya, Japan",
+        "54S": "Tokyo to Hachinohe, Japan",
+        "54T": "Sapporo, Japan",
+    }
 
     def __init__(self):
         """
         Initializes the MLPipeline class, setting up any necessary components for the machine learning tasks.
         """
         self.region_classifier = RegionClassifier()
-        self.region_to_location = {
-            "10S": "California",
-            "10T": "Washington / Oregon",
-            "11R": "Baja California, Mexico",
-            "12R": "Sonora, Mexico",
-            "16T": "Minnesota / Wisconsin / Iowa / Illinois",
-            "17R": "Florida",
-            "17T": "Toronto, Canada / Michigan / OH / PA",
-            "18S": "New Jersey / Washington DC",
-            "32S": "Tunisia (North Africa near Tyrrhenian Sea)",
-            "32T": "Switzerland / Italy / Tyrrhenian Sea",
-            "33S": "Sicilia, Italy",
-            "33T": "Italy / Adriatic Sea",
-            "52S": "Korea / Kumamoto, Japan",
-            "53S": "Hiroshima to Nagoya, Japan",
-            "54S": "Tokyo to Hachinohe, Japan",
-            "54T": "Sapporo, Japan",
-        }
 
-    def classify_frame(self, frame_obj):
+    def classify_frame(self, frame: Frame) -> List[str]:
         """
         Classifies a frame to identify geographic regions using the region classifier.
 
         Args:
-            frame_obj (Frame): The Frame object to classify.
+            frame: The Frame object to classify.
 
         Returns:
-            list: A list of predicted region IDs classified from the frame.
+            A list of predicted region IDs classified from the frame.
         """
-        predicted_list = self.region_classifier.classify_region(frame_obj)
-        return predicted_list
+        return self.region_classifier.classify_region(frame)
 
-    def run_ml_pipeline_on_batch(self, frames):
-        """
-        Processes a series of frames, classifying each for geographic regions and detecting landmarks,
-        and returns the detection results along with camera IDs.
-
-        Args:
-            frames (list of Frame): A list of Frame objects.
-
-        Returns:
-            list of tuples: Each tuple consists of the camera ID and the landmark detection results for that frame.
-        """
-        results = []
-        for frame_obj in frames:
-            pred_regions = self.classify_frame(frame_obj)
-            frame_results = []
-            for region in pred_regions:
-                detector = LandmarkDetector(region_id=region)
-                centroid_xy, centroid_latlons, landmark_classes, confidence_scores = (
-                    detector.detect_landmarks(frame_obj.frame)
-                )
-                landmark = Landmark(
-                    centroid_xy, centroid_latlons, landmark_classes, confidence_scores
-                )
-                frame_results.append((region, landmark))
-            results.append((frame_obj.camera_id, frame_results))
-        return results
-
-    def run_ml_pipeline_on_single(self, frame_obj):
+    def run_ml_pipeline_on_single(
+        self, frame_obj: Frame
+    ) -> Tuple[LandmarkDetections, dict[str, slice]]:
         """
         Processes a single frame, classifying it for geographic regions and detecting landmarks,
-        and returns the detection result along with the camera ID.
+        and returns the detection results.
 
         Args:
             frame_obj (Frame): The Frame object to process.
 
         Returns:
-            tuple: The camera ID and the landmark detection results for the frame.
+            A Tuple containing:
+            - The LandmarkDetections object containing the landmark detection results.
+            - A dictionary mapping region IDs to slices of the landmark detections.
         """
         Logger.log(
             "INFO",
@@ -141,29 +93,34 @@ class MLPipeline:
                 "INFO",
                 f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No salient regions detected. ",
             )
-            return None
-        frame_results = []
-        for region in pred_regions:
-            detector = LandmarkDetector(region_id=region)
-            centroid_xy, centroid_latlons, landmark_classes, confidence_scores = (
-                detector.detect_landmarks(frame_obj)
-            )
-            if (
-                centroid_xy is not None
-                and centroid_latlons is not None
-                and landmark_classes is not None
-            ):
-                landmark = Landmark(
-                    centroid_xy, centroid_latlons, landmark_classes, confidence_scores
-                )
-                frame_results.append((region, landmark))
-            else:
-                continue
-        # Use the class method to update landmarks
-        frame_obj.update_landmarks(frame_results)
-        return frame_results
+            return LandmarkDetections.empty(), {}
 
-    def adjust_color(self, color, confidence):
+        region_slices = {}
+        landmark_detections = []
+        total_detections = 0
+        for region_id in pred_regions:
+            detector = LandmarkDetector(region_id)
+            detections = detector.detect_landmarks(frame_obj)
+
+            landmark_detections.append(detections)
+            region_slices[region_id] = slice(total_detections, total_detections + len(detections))
+            total_detections += len(detections)
+        landmark_detections = LandmarkDetections.stack(landmark_detections)
+
+        return landmark_detections, region_slices
+
+    @staticmethod
+    def adjust_color(color: Tuple[int, int, int], confidence):
+        """
+        Adjusts the color intensity based on the confidence value.
+
+        Args:
+            color: The color tuple to adjust.
+            confidence: The confidence value to adjust the color intensity by.
+
+        Returns:
+            The adjusted color tuple.
+        """
         # Option 1: Exponential scaling
         # scale_factor = (confidence ** 2)  # Square the confidence to exaggerate differences
 
@@ -181,16 +138,53 @@ class MLPipeline:
 
         return adjusted_color
 
-    # TODO: Improve the readability of this method.
-    def visualize_landmarks(self, frame_obj, regions_and_landmarks, save_dir):
+    @staticmethod
+    def get_region_id(
+        index: int, region_slices: dict[str, slice], sequence_length: int
+    ) -> str | None:
         """
-        Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent boxes,
-        and saves the image. Also displays camera metadata on the image.
+        Returns the region ID for a given index within a sequence of landmark detections.
+
+        Args:
+            index: The index to find the region ID for.
+            region_slices: The dictionary mapping region IDs to slices of the landmark detections.
+            sequence_length: The total length of the sequence of landmark detections.
+
+        Returns:
+            The region ID for the given index, or None if the index is not within any region slice.
+        """
+        for region_id, slice_ in region_slices.items():
+            if index in range(*slice_.indices(sequence_length)):
+                return region_id
+        return None
+
+    # TODO: Improve the readability of this method.
+    @staticmethod
+    def visualize_landmarks(
+        frame_obj: Frame,
+        landmark_detections: LandmarkDetections,
+        region_slices: dict[str, slice],
+        save_dir: str,
+        landmark_display_count: int = 5,
+    ) -> None:
+        """
+        Draws larger centroids of landmarks on the frame, adds a larger legend for region colors with semi-transparent
+        boxes, and saves the image. Also displays camera metadata on the image.
+
+        Args:
+            frame_obj: The Frame object to visualize.
+            landmark_detections: The LandmarkDetections object containing the landmark detection results.
+            region_slices: A dictionary mapping region IDs to slices of the landmark detections.
+            save_dir: The directory to save the visualization output to.
+            landmark_display_count: The number of top landmarks to display in the legend
         """
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        image = frame_obj.frame.copy()
+        # TODO: less hacky fix for RGB to BGR conversion
+        frame_obj.image = cv2.cvtColor(frame_obj.image, cv2.COLOR_RGB2BGR)
+
+        image = frame_obj.image.copy()
 
         colors = [
             (0, 0, 255),  # Red
@@ -205,28 +199,23 @@ class MLPipeline:
         circle_radius = 15
         circle_thickness = -1
 
-        top_landmarks = []  # List to store top landmarks for display
+        for idx, (region_id, slice_) in enumerate(region_slices.items()):
+            landmark_detections = landmark_detections[slice_]
 
-        for idx, (region, detection_result) in enumerate(regions_and_landmarks):
             base_color = colors[idx % len(colors)]
-            region_color_map[region] = base_color
+            region_color_map[region_id] = base_color
 
-            for (x, y), confidence, cls in zip(
-                detection_result.centroid_xy,
-                detection_result.confidence_scores,
-                detection_result.landmark_classes,
-            ):
-                adjusted_color = self.adjust_color(base_color, confidence)
+            for (x, y), *_, confidence in landmark_detections:
+                adjusted_color = MLPipeline.adjust_color(base_color, confidence)
                 cv2.circle(image, (int(x), int(y)), circle_radius, adjusted_color, circle_thickness)
 
-                # Collect data for top landmarks
-                top_landmarks.append(
-                    (region, confidence, (x, y), detection_result.centroid_latlons)
-                )
-
-        # Sort landmarks by confidence, descending, and keep the top 5
-        top_landmarks.sort(key=lambda x: x[1], reverse=True)
-        top_landmarks = top_landmarks[:5]
+        # Sort landmarks by confidence, descending, and keep the top few
+        top_landmark_indices = np.argsort(landmark_detections.confidences)[-landmark_display_count:]
+        top_landmark_regions = [
+            MLPipeline.get_region_id(index, region_slices, len(landmark_detections))
+            for index in top_landmark_indices
+        ]
+        top_landmarks = landmark_detections[top_landmark_indices]
 
         # ========================== Metadata displaying ========================================
         # Metadata drawing first to determine right edge for alignment
@@ -276,10 +265,13 @@ class MLPipeline:
         total_height = 0
 
         text_entries = []
-        for i, (cls, confidence, (x, y), latlons) in enumerate(top_landmarks):
-            latitude = latlons[0].item(0)
-            longitude = latlons[1].item(0)
-            text = f"Top {i+1}: Region {region}, Conf: {confidence:.2f}, XY: ({int(x)}, {int(y)}), LatLon: ({latitude:.2f}, {longitude:.2f})"
+        for i, (region_id, ((x, y), (lat, lon), _, conf)) in enumerate(
+            zip(top_landmark_regions, top_landmarks)
+        ):
+            text = (
+                f"Top {i + 1}: Region {region_id}, Conf: {conf:.2f}, "
+                f"XY: ({x:.0f}, {y:.0f}), LatLon: ({lat:.2f}, {lon:.2f})"
+            )
             text_size = cv2.getTextSize(text, font, top_font_scale, 1)[0]
             max_width = max(max_width, text_size[0] + 20)  # Update max width
             total_height += entry_height
@@ -313,7 +305,7 @@ class MLPipeline:
         font_scale_legend = 1.5
         text_thickness_legend = 3
         for region, color in region_color_map.items():
-            location = self.region_to_location.get(
+            location = MLPipeline.REGION_TO_LOCATION.get(
                 region, "Unknown Location"
             )  # Get the location name or default to 'Unknown Location'
             text = f"Region {region}: {location}"
@@ -347,7 +339,7 @@ class MLPipeline:
         cv2.imwrite(landmark_save_path, image)
 
         img_save_path = os.path.join(save_dir, "frame.png")
-        cv2.imwrite(img_save_path, frame_obj.frame)
+        cv2.imwrite(img_save_path, frame_obj.image)
 
         metadata_path = os.path.join(save_dir, "frame_metadata.txt")
         with open(metadata_path, "w") as f:
@@ -357,5 +349,6 @@ class MLPipeline:
 
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] Landmark visualization saved to data/inference_output",
+            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] "
+            f"Landmark visualization saved to data/inference_output",
         )

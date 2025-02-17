@@ -16,7 +16,8 @@ from scipy.spatial.transform import Rotation
 from image_simulation.earth_vis import EarthImageSimulator
 from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
-from vision_inference.camera import Frame
+from vision_inference.frame import Frame
+from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.ml_pipeline import MLPipeline
 
 
@@ -168,11 +169,6 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
 
-    INFERENCE_CONFIG_PATH = os.path.abspath(
-        os.path.join(__file__, "../../vision_inference/configuration/inference_config.yml")
-    )
-    LD_MODELS_PATH = os.path.abspath(os.path.join(__file__, "../../vision_inference/models/ld"))
-
     def __init__(self, config: dict, fov: float = np.deg2rad(100)) -> None:
         camera_params = config["satellite"]["camera"]
         self.body_R_camera = np.asarray(camera_params["body_R_camera"])
@@ -190,13 +186,11 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A dictionary mapping region identifiers to numpy array of shape (N, 3) containing
                  the coordinates of the landmarks in ECEF.
         """
-        salient_regions: List[str] = load_config(
-            GroundTruthLandmarkBearingSensor.INFERENCE_CONFIG_PATH
-        )["region_ids"]
+        salient_regions: List[str] = load_config()["vision"]["salient_mgrs_region_ids"]
         region_landmarks_ecef = {}
         for region_id in salient_regions:
             region_landmarks_csv = os.path.join(
-                GroundTruthLandmarkBearingSensor.LD_MODELS_PATH,
+                LandmarkDetector.MODEL_DIR,
                 f"{region_id}/{region_id}_top_salient.csv",
             )
             region_landmarks = np.loadtxt(region_landmarks_csv, delimiter=",", skiprows=1)
@@ -289,10 +283,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         # run the ML pipeline on the image
         frame = Frame(image, 0, datetime.now())
         # TODO: queue requests to the model and send them in batches as the sim runs
-        regions_and_landmarks = self.ml_pipeline.run_ml_pipeline_on_single(frame)
-        if regions_and_landmarks is None:
-            print("No salient regions detected")
-            return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
+        landmark_detections, region_slices = self.ml_pipeline.run_ml_pipeline_on_single(frame)
 
         # save the image with the detected landmarks
         epoch_str = str(epoch).replace(":", "_").replace(" ", "_").replace(".", "_")
@@ -300,36 +291,23 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
             os.path.join(__file__, f"../log/simulated_images/seed_69420_epoch_{epoch_str}/")
         )
         os.makedirs(output_dir, exist_ok=True)
-        self.ml_pipeline.visualize_landmarks(frame, regions_and_landmarks, output_dir)
+        MLPipeline.visualize_landmarks(frame, landmark_detections, region_slices, output_dir)
 
-        landmark_positions_ecef = np.zeros(shape=(0, 3))
-        pixel_coordinates = np.zeros(shape=(0, 2))
-        confidence_scores = np.zeros(shape=(0,))
-
-        for _, landmarks in regions_and_landmarks:
-            centroids_ecef = lat_lon_to_ecef(landmarks.centroid_latlons[np.newaxis, ...]).reshape(
-                -1, 3
-            )
-
-            landmark_positions_ecef = np.concatenate(
-                (landmark_positions_ecef, centroids_ecef), axis=0
-            )
-            pixel_coordinates = np.concatenate((pixel_coordinates, landmarks.centroid_xy), axis=0)
-            confidence_scores = np.concatenate(
-                (confidence_scores, landmarks.confidence_scores), axis=0
-            )
-
-        if len(confidence_scores) == 0:
+        if len(region_slices) is None:
+            print("No salient regions detected")
+            return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
+        if len(landmark_detections) == 0:
             print("No landmarks detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
+        landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.latlons)
         landmark_positions_eci = (ecef_R_eci.T @ landmark_positions_ecef.T).T
         bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(
-            pixel_coordinates
+            landmark_detections.pixel_coordinates
         )
         bearing_unit_vectors_body = (self.body_R_camera @ bearing_unit_vectors_cf.T).T
 
         print(f"Detected {len(landmark_positions_eci)} landmarks")
 
-        # TODO: output confidence_scores too
+        # TODO: output confidences too
         return bearing_unit_vectors_body, landmark_positions_eci

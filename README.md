@@ -35,6 +35,12 @@ pip install -r ./requirements.txt
 
 This should set up the environment and packages needed but this can be flaky if pip uses cached packages it finds on your machine. 
 
+### User-Specific Configuration
+Copy `user_config.example.yaml` to `user_config.yaml` and fill in the necessary fields. This file is used to store the path to the directory that the image simulator will pull images from.
+```
+cp user_config.example.yaml user_config.yaml
+```
+
 ## Pre-Commit Hook 
 A pre-commit hook can be set up to run pylint and black formatter.
 
