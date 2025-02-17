@@ -24,6 +24,7 @@ satellite:
             [
                   {
                         "name": "x+",
+                        # TODO: double check if the cameras are rotated by 180 degrees (i.e. we might get the images upside down as is)
                         "body_R_camera": [ [ 0,0,1 ], [ -1,0,0 ], [ 0,-1,0 ] ],  # rotation matrix representing a transformation from camera-frame to body-frame
                         "t_body_to_camera": [ 0.05116, -0.000198, -0.02927 ],  # m, position of camera in the satellite's body frame
                   },
