@@ -1,4 +1,5 @@
 import numpy as np
+
 from sensors.sensor import TriAxisSensor
 
 
@@ -10,8 +11,8 @@ class IMUNoiseParams:
             gyro_params ([SensorNoiseParams x 3]): list of SensorNoiseParams, one per x, y, z axes
             accel_params ([SensorNoiseParams x 3]): list of SensorNoiseParams, one per x, y, z axes
         """
-        self.gyro_params = gyro_params
-        self.accel_params = accel_params
+        self.gyro = gyro_params
+        self.accel = accel_params
 
 
 class IMU:

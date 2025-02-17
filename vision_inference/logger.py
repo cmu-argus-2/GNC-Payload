@@ -36,33 +36,38 @@ Author(s): Eddie
 Date: [Creation or Last Update Date]
 """
 
-import logging
 import inspect
+import logging
 import os
 
 # Default configuration upon module load (can be reconfigured elsewhere in the code)
 # Logger.configure(log_level=logging.DEBUG, log_file='log/payload.log')
 
 
-def map_log_level(log_level):
+def map_log_level(log_level: str) -> int:
     """Maps the input log level to the corresponding logging module level."""
     if log_level.upper() == "INFO":
         return logging.INFO
-    elif log_level.upper() == "DEBUG":
+    if log_level.upper() == "DEBUG":
         return logging.DEBUG
-    elif log_level.upper() == "WARNING":
+    if log_level.upper() == "WARNING":
         return logging.WARNING
-    elif log_level.upper() == "ERROR":
+    if log_level.upper() == "ERROR":
         return logging.ERROR
+    raise ValueError("Invalid log level specified.")
 
 
 class Logger:
+    """
+    A class to handle logging messages, log levels, and output destinations across the software system.
+    """
+
     logger = None
     log_file_path = "log/payload.log"
     levels = ["INFO", "DEBUG", "WARNING", "ERROR"]
 
     @classmethod
-    def configure(cls, log_level="INFO", log_file="log/payload.log"):
+    def configure(cls, log_level: str = "INFO", log_file: str = "log/payload.log") -> None:
         """Configures the class logger with specific handlers and levels."""
         cls.log_file_path = os.path.join(os.getcwd(), log_file)
         # Create directory for log file if it does not exist
@@ -93,7 +98,7 @@ class Logger:
         cls.logger.addHandler(f_handler)
 
     @classmethod
-    def log(cls, level, msg):
+    def log(cls, level: str, msg: str) -> None:
         """Logs a message with a specific level from anywhere in the code."""
         if cls.logger is None:
             cls.configure()
@@ -104,7 +109,7 @@ class Logger:
             cls.logger.error("Invalid logging level specified.")
 
     @staticmethod
-    def get_caller_info():
+    def get_caller_info() -> str:
         """Gets the caller's information for logging purposes."""
         try:
             # Adjusted the index as needed
@@ -116,7 +121,7 @@ class Logger:
             return "UnknownCaller:0"
 
     @classmethod
-    def initialize_log(cls, module_name, init_msg):
+    def initialize_log(cls, module_name, init_msg: str) -> None:
         """Initializes the log file with a specific message detailing the initialization context."""
         try:
             with open(cls.log_file_path, "w") as file:

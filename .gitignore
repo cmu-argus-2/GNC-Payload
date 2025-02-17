@@ -1,3 +1,4 @@
+
 # Datasets
 VisionTrainingGround/RCnet/datasets/train/
 VisionTrainingGround/RCnet/datasets/val/
@@ -12,6 +13,9 @@ VisionTrainingGround/*.pth
 VisionTrainingGround/Salient_Region_Analysis/highlighted_map_old.jpg
 VisionTrainingGround/Salient_Region_Analysis/highlighted_map_edited.jpg
 VisionTrainingGround/Salient_Region_Analysis/highlighted_map.jpg
+# User-specific config file
+user_config.yaml
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

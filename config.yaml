@@ -6,7 +6,7 @@ satellite:
       area : 0.01 # face area m^2
       inertia : [[0.002, 0, 0], [0, 0.002, 0], [0, 0, 0.002]]
       Cd : 2.2 # Drag coefficient
-      
+
       # Reaction Wheels
       N_rw : 1                   # number of reaction wheels
       rw_orientation : [[0,0,1]] # spin axis of each reaction wheel in the body frame
@@ -38,7 +38,7 @@ solver:
 mission:
       start_date : 60431.0 # MJD corresponding to midnight May 01 2024
       duration : 1000 # s
-      
+
       # initial state properties
       initial_orbital_elements : [1.0E+7, 0.005, 96, 192, 21, 135] # [a, e, i, RAAN, AOP, M] NOTE: brahe takes Mean Anomaly and not true anomaly. Need to change code if we absolutely require true anomaly
       initial_attitude : [1.0, 0.0, 0.0, 0.0] # these quaternions represent a transformation from body-frame to ECI
@@ -66,3 +66,10 @@ controller:
       # state_int_feedback_gains: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
       #                             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
       #                             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]]
+
+
+vision:
+      salient_mgrs_region_ids: [
+            '10S', '10T', '11R', '12R', '16T', '17R', '17T', '18S',
+            '32S', '32T', '33S', '33T', '53S', '52S', '54S', '54T'
+      ]
