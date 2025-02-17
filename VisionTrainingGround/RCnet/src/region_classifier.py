@@ -193,7 +193,7 @@ class ImageClassifier:
             self.plotter.update_loss(epoch_loss)
 
             if epoch % 2 == 0:
-                self.save_model(path="model" + str(epoch + 1) + ".pth")
+                self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
                 self.validate()
             if epoch == epochs - 1:
                 test_accuracy = self.evaluate()
@@ -210,6 +210,7 @@ class ImageClassifier:
         Args:
             path (str): Path to save the model file.
         """
+        os.makedirs(os.path.dirname(path), exist_ok=True)  
         torch.save(self.model.state_dict(), path)
 
     def load_model(self, path: str = "model.pth") -> None:

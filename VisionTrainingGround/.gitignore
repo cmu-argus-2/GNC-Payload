@@ -3,16 +3,27 @@ DataPipeline/Landsat_Data
 DataPipeline/myenv
 DataPipeline/commands.txt
 
+Landsat_Data/
+!Landsat_Data/.gitkeep
 
 LD/datasets/
 LD/runs
 LD/models
 LD/wandb/
 
-RCnet/datasets
-RCnet/src/*results.txt
+RCnet/datasets/train/
+RCnet/datasets/val/
+RCnet/datasets/test/
+RCnet/results/loss_vs_epoch.png
+RCnet/results/
+!RCnet/results/.gitkeep
+RCnet/chkpts/
 
-Landsat_Data/
+Salient_Region_Analysis/highlighted_map_old.jpg
+Salient_Region_Analysis/highlighted_map_edited.jpg
+Salient_Region_Analysis/highlighted_map.jpg
+
+
 
 wandb/
 
