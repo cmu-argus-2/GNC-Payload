@@ -19,6 +19,17 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from collections import defaultdict
+import random
+
+from sklearn.manifold import TSNE
+from matplotlib.colors import hsv_to_rgb
+import matplotlib.pyplot as plt
+import numpy as np
+
+from io import BytesIO
+
+from PIL import Image
 
 class ImageClassifier:
     """
@@ -156,6 +167,7 @@ class ImageClassifier:
         wandb.init(
             project="RCnet",
             config={
+                "mode": "train",
                 "epochs": epochs,
                 "learning_rate": learning_rate,
                 "architecture": "EfficientNet-b0",
@@ -210,7 +222,7 @@ class ImageClassifier:
         Args:
             path (str): Path to save the model file.
         """
-        os.makedirs(os.path.dirname(path), exist_ok=True)  
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.model.state_dict(), path)
 
     def load_model(self, path: str = "model.pth") -> None:
@@ -220,7 +232,7 @@ class ImageClassifier:
         Args:
             path (str): Path to the saved model file.
         """
-        self.model.load_state_dict(torch.load(path))
+        self.model.load_state_dict(torch.load(path, weights_only=True))
         self.model.eval()
 
     def validate(self) -> float:
@@ -259,80 +271,127 @@ class ImageClassifier:
         Returns:
             float: Test accuracy in percentage.
         """
+        if wandb.run is None:
+            wandb.init(
+                project="RCnet",
+                config={
+                    "mode": "eval",
+                    "architecture": "EfficientNet-b0",
+                    "dataset": "Sentinel",
+                },
+            )
         self.model.eval()
-        total = 0
-        processed_images = 0
-        total_correct = 0  # Track the number of correct labels across all images
-        total_labels = 0  # Track the total number of labels across all images
+        total_correct = 0
+        total_labels = 0
+        all_features = []
+        all_labels = []
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write("Image Name\tActual Class\tPredicted Class\tProbabilities\n")
+        # Dictionary to store images by predicted class
+        class_images = {i: [] for i in range(40)}  # Assuming 40 classes
 
-            with torch.no_grad():
-                for batch in self.test_loader:
-                    images, labels = batch
-                    images = images.to(self.device)
-                    labels = labels.to(self.device)
-                    outputs = self.model(images)
-                    probabilities = torch.sigmoid(outputs)  # Sigmoid for multi-label classification
+        with torch.no_grad():
+            for batch in self.test_loader:
+                images, labels = batch
+                images = images.to(self.device)
+                labels = labels.to(self.device)
 
-                    total += labels.size(0)
-                    predicted = (
-                        probabilities > 0.5
-                    ).float()  # Apply threshold of 0.5 for multi-label
+                outputs = self.model(images)
+                probabilities = torch.sigmoid(outputs)
+                predicted = (probabilities > 0.5).float()  # Multi-label thresholding
 
-                    # For each image, compare the predicted labels with the true labels
-                    for i in range(images.size(0)):
-                        global_index = processed_images + i
-                        image_name = os.path.basename(
-                            self.test_loader.dataset.files[global_index][0]
-                        )
-                        actual_classes = [
-                            self.test_loader.dataset.classes[j]
-                            for j, val in enumerate(labels[i])
-                            if val == 1
-                        ]
-                        predicted_classes = [
-                            self.test_loader.dataset.classes[j]
-                            for j, val in enumerate(predicted[i])
-                            if val == 1
-                        ]
-                        probs = ", ".join([f"{p:.4f}" for p in probabilities[i]])
+                # Store features and labels for t-SNE
+                all_features.append(outputs.cpu().numpy())
+                all_labels.append(labels.cpu().numpy())
 
-                        # Count true positives
-                        true_positives = sum(
-                            1
-                            for j, val in enumerate(predicted[i])
-                            if val == 1 and labels[i][j] == 1
-                        )
-                        total_correct += true_positives
-                        total_labels += labels.size(1)  # Count all the labels in the image
+                # Group images by their predicted classes
+                for i in range(images.size(0)):
+                    # Get predicted classes for the current image
+                    predicted_classes = [j for j, val in enumerate(predicted[i]) if val == 1]
 
-                        f.write(
-                            f"{image_name}\t{', '.join(actual_classes)}\t{', '.join(predicted_classes)}\t{probs}\n"
-                        )
-                        if (
-                            processed_images + i < 10
-                        ):  # Limit the number of images logged (e.g., top 10)
-                            wandb.log(
-                                {
-                                    "evaluation_image": wandb.Image(
-                                        images[i].cpu(),
-                                        caption=f"True: {', '.join(actual_classes)}\nPred: {', '.join(predicted_classes)}",
-                                    ),
-                                    "image_metadata": {
-                                        "image_name": image_name,
-                                        "true_classes": actual_classes,
-                                        "predicted_classes": predicted_classes,
-                                        "probabilities": probs,
-                                    },
-                                }
-                            )
+                    # Add image to the class groups
+                    for pred_class in predicted_classes:
+                        class_images[pred_class].append(images[i].cpu())
 
-                    processed_images += images.size(0)
+                # Compute accuracy
+                true_positives = (predicted * labels).sum().item()
+                total_correct += true_positives
+                total_labels += labels.numel()
 
-        # Compute accuracy based on correct labels vs total labels
+            # Convert collected features and labels to NumPy
+            all_features = np.concatenate(all_features, axis=0)
+            all_labels = np.concatenate(all_labels, axis=0)
+
+            # Create wandb log for each class
+            for class_id, image_list in class_images.items():
+                if len(image_list) > 0:
+                    # Stack images together (ensure they are in a grid)
+                    image_grid = torch.stack(image_list, dim=0)
+                    wandb.log({
+                        f"class_{class_id}_images": wandb.Image(image_grid,
+                            caption=f"Class {class_id} predictions")
+                    })
+
+            # Plot t-SNE visualization
+            self.plot_tsne(all_features, all_labels, num_classes=40)
+
+        # Compute accuracy
         accuracy = 100 * total_correct / total_labels
         print(f"Accuracy of the network on the test images: {accuracy:.2f}%")
 
         return accuracy
+
+        
+    
+    def plot_tsne(self, features, labels, num_classes):
+        """
+        Generates and logs a t-SNE plot for the given features and labels to wandb.
+
+        Args:
+            features (ndarray): Feature representations of the dataset.
+            labels (ndarray): Multi-label ground truth labels.
+            num_classes (int): Number of classes in the dataset.
+
+        Returns:
+            None
+        """
+        # Reduce to 2D using t-SNE
+        tsne_plot = TSNE(n_components=2, perplexity=30, random_state=42)
+        tsne_results = tsne_plot.fit_transform(features)
+
+        # Assign colors for multi-labels
+        base_colors = [hsv_to_rgb([i / num_classes, 1, 1]) for i in range(num_classes)]
+
+        def get_mixed_color(label_vector):
+            """Mix colors based on label activation."""
+            active_classes = np.where(label_vector == 1)[0]
+            if len(active_classes) == 1:
+                return base_colors[active_classes[0]]
+            elif len(active_classes) > 1:
+                return np.mean([base_colors[i] for i in active_classes], axis=0)
+            return [0, 0, 0]  # Default color for no class
+
+        colors = np.array([get_mixed_color(label) for label in labels])
+
+        # Plot t-SNE
+        plt.figure(figsize=(10, 8))
+        plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=colors, alpha=0.7, edgecolors="k")
+        plt.title("t-SNE Visualization of Model Features")
+        plt.xlabel("t-SNE Dimension 1")
+        plt.ylabel("t-SNE Dimension 2")
+        plt.grid(True)
+
+        # Save plot to memory using BytesIO
+        buf = BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)  # Rewind buffer for reading
+
+        # Open the image from the buffer with PIL
+        img = Image.open(buf)
+
+        # Log the image to wandb
+        wandb.log({"t-SNE Plot": wandb.Image(img)})
+
+        buf.close()  # Close the buffer
+
+        # Close the plot to avoid memory issues
+        plt.close()
