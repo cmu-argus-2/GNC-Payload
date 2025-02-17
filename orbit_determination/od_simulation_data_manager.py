@@ -41,6 +41,7 @@ class ODSimulationDataManager:
     eci_Rs_body: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
 
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
+    measurement_camera_names: np.ndarray = field(default_factory=lambda: np.array([], dtype=str))
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
@@ -102,6 +103,9 @@ class ODSimulationDataManager:
         ), "states and eci_Rs_body must have the same number of entries"
 
         assert len(self.measurement_indices.shape) == 1, "measurement_indices must be a 1D array"
+        assert (
+            len(self.measurement_camera_names.shape) == 1
+        ), "measurement_camera_names must be a 1D array"
         assert len(self.bearing_unit_vectors.shape) == 2, "bearing_unit_vectors must be a 2D array"
         assert (
             self.bearing_unit_vectors.shape[1] == 3
@@ -109,11 +113,11 @@ class ODSimulationDataManager:
         assert len(self.landmarks.shape) == 2, "landmarks must be a 2D array"
         assert self.landmarks.shape[1] == 3, "landmarks must have shape (M, 3)"
         assert (
-            self.measurement_indices.shape[0] == self.bearing_unit_vectors.shape[0]
-        ), "measurement_indices and bearing_unit_vectors must have the same number of entries"
-        assert (
-            self.measurement_indices.shape[0] == self.landmarks.shape[0]
-        ), "measurement_indices and landmarks must have the same number of entries"
+            self.measurement_indices.shape[0]
+            == self.measurement_camera_names.shape[0]
+            == self.bearing_unit_vectors.shape[0]
+            == self.landmarks.shape[0]
+        ), "measurement_indices, measurement_camera_names, bearing_unit_vectors, and landmarks must have the same number of entries"
 
         assert np.all(self.measurement_indices >= 0), "measurement_indices must be non-negative"
         assert np.all(
@@ -155,6 +159,9 @@ class ODSimulationDataManager:
 
         self.measurement_indices = np.concatenate(
             (self.measurement_indices, np.repeat(t_idx, measurement_count))
+        )
+        self.measurement_camera_names = np.concatenate(
+            (self.measurement_camera_names, np.repeat(camera_model.camera_name, measurement_count))
         )
         self.bearing_unit_vectors = np.concatenate(
             (self.bearing_unit_vectors, bearing_unit_vectors), axis=0
