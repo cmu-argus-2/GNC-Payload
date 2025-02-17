@@ -11,6 +11,7 @@ from brahe.epoch import Epoch
 
 from orbit_determination.landmark_bearing_sensors import LandmarkBearingSensor
 from utils.brahe_utils import increment_epoch
+from sensors.camera_model import CameraModel
 
 
 @dataclass
@@ -132,11 +133,14 @@ class ODSimulationDataManager:
 
         self.assert_invariants()
 
-    def take_measurement(self, landmark_bearing_sensor: LandmarkBearingSensor) -> None:
+    def take_measurement(
+        self, landmark_bearing_sensor: LandmarkBearingSensor, camera_model: CameraModel
+    ) -> None:
         """
         Take a measurement at the latest state and append it to the simulation data.
 
         :param landmark_bearing_sensor: The landmark bearing sensor to use to take the measurement.
+        :param camera_model: The camera model to use to take the measurement.
         """
         t_idx = self.state_count - 1
 
@@ -144,7 +148,7 @@ class ODSimulationDataManager:
         eci_R_body = self.eci_Rs_body[t_idx, ...]
 
         bearing_unit_vectors, landmarks = landmark_bearing_sensor.take_measurement(
-            self.latest_epoch, position_eci, eci_R_body
+            self.latest_epoch, position_eci, eci_R_body, camera_model
         )
         measurement_count = bearing_unit_vectors.shape[0]
         assert landmarks.shape[0] == measurement_count

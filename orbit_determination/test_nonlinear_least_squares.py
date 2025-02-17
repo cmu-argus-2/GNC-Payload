@@ -20,6 +20,7 @@ from orbit_determination.landmark_bearing_sensors import (
     RandomLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
+from sensors.camera_model import CameraManager
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.brahe_utils import load_brahe_data_files
@@ -62,6 +63,7 @@ def test_od() -> None:
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
     # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
     # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
+    camera_manager = CameraManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
@@ -75,7 +77,7 @@ def test_od() -> None:
 
         # take a set of measurements every 5 minutes
         if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
-            data_manager.take_measurement(landmark_bearing_sensor)
+            data_manager.take_measurement(landmark_bearing_sensor, camera_manager["x+"])
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
