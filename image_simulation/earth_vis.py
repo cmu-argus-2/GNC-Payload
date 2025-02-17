@@ -61,7 +61,7 @@ class EarthImageSimulator:
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
     ) -> Frame:
         """
-        Simulate an Earth image given the satellite position, attitude, and camera name.
+        Simulate an Earth image given the satellite position, attitude, and camera model.
 
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
