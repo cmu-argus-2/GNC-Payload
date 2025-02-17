@@ -2,6 +2,7 @@
 Module implementing sensor bias
 """
 from math import sqrt
+from typing import Any
 
 import numpy as np
 

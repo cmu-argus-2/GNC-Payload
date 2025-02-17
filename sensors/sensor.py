@@ -2,6 +2,7 @@
 Module that implements a sensor class that adds noise to a clean signal.
 """
 from math import sqrt
+from typing import List
 
 import numpy as np
 
