@@ -1,5 +1,7 @@
+"""
+Module implementing sensor bias
+"""
 from math import sqrt
-from typing import Any
 
 import numpy as np
 
@@ -11,20 +13,22 @@ class BiasParams:
 
         Args:
             initial_bias (float): [units]
-            sigma_w (float): continuous-time power spectral density of additive white noise to time-derivative of bias. [(units/s)/sqrt(Hz)]
+            sigma_w (float): continuous-time power spectral density of additive white noise 
+            to time-derivative of bias. [(units/s)/sqrt(Hz)]
         """
         self.initial_bias = initial_bias
         self.sigma_w = sigma_w
 
+    @staticmethod
     def get_random_params(
-        initial_bias_range: np.ndarray[Any, Any], sigma_w_range: np.ndarray[Any, Any]
+        initial_bias_range: list, sigma_w_range: list
     ) -> "BiasParams":
         """
         Getter for random bias parameters
 
         Args:
-            initial_bias_range (np.ndarray[Any, Any]): [min, max]
-            sigma_w_range (np.ndarray[Any, Any]): [min, max]
+            initial_bias_range (list): [min, max]
+            sigma_w_range (list): [min, max]
 
         Returns:
             BiasParams: bias parameters

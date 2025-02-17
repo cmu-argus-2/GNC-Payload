@@ -83,9 +83,7 @@ def run_simulation() -> None:
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
     init_rot = np.eye(3)
 
-    data_manager.push_next_state(
-        initial_state, init_rot
-    )
+    data_manager.push_next_state(initial_state, init_rot)
 
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 2])
@@ -99,7 +97,7 @@ def run_simulation() -> None:
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(9) * 10,
         Q=np.eye(9) * 1e-12,
-        R=np.zeros((3, 3)),
+        R_vec=np.zeros((3, 3)),
         dt=dt,
         config=config,
         w=rot,
@@ -119,13 +117,11 @@ def run_simulation() -> None:
             w * dt * 0.5
         )
 
-        data_manager.push_next_state(
-            next_state,
-            quaternion.as_rotation_matrix(next_quat)
-        )
+        data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
 
         # gyro_meas = np.zeros((3))  # TEMPORARY
-        gyro_meas, _ = imu.update(w, [0, 0, 0])
+
+        gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
         if t % 4 == 0:

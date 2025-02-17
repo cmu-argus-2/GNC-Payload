@@ -1,11 +1,12 @@
 """
 Quaternion and rotation matrix utilities.
 """
-import numpy as np
+
 import jax.numpy as jnp
+import numpy as np
 
 
-def R(q: np.ndarray) -> jnp.ndarray:
+def R(q: jnp.ndarray) -> jnp.ndarray:
     """Return the rotation matrix corresponding to the quaternion q.
 
     Args:
@@ -37,7 +38,7 @@ def R(q: np.ndarray) -> jnp.ndarray:
     return R
 
 
-def rot_2_q(rot: np.ndarray) -> jnp.ndarray:
+def rot_2_q(rot: jnp.ndarray) -> jnp.ndarray:
     """
     Convert a rotation vector to a quaternion.
 
@@ -65,6 +66,7 @@ def rot_2_q(rot: np.ndarray) -> jnp.ndarray:
     )
     return q
 
+
 def left_q(q: np.ndarray) -> np.ndarray:
     """
     Left multiplication of quaternion q.
@@ -84,6 +86,7 @@ def left_q(q: np.ndarray) -> np.ndarray:
             [q[3], -q[2], q[1], q[0]],
         ]
     )
+
 
 def right_q(q: np.ndarray) -> np.ndarray:
     """

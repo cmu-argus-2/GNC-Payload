@@ -1,10 +1,11 @@
+"""
+Module that implements a sensor class that adds noise to a clean signal.
+"""
 from math import sqrt
-from typing import List
 
 import numpy as np
 
-from sensors.bias import Bias
-from sensors.bias import BiasParams
+from sensors.bias import Bias, BiasParams
 
 
 class SensorNoiseParams:
@@ -20,16 +21,17 @@ class SensorNoiseParams:
         self.sigma_v = sigma_v
         self.scale_factor_error = scale_factor_error
 
+    @staticmethod
     def get_random_params(
-        biasParams: BiasParams, sigma_v_range: List[float], scale_factor_error_range: List[float]
+        biasParams: BiasParams, sigma_v_range: list, scale_factor_error_range: list
     ) -> "SensorNoiseParams":
         """
         Getter for random bias parameters
 
         Args:
             biasParams (BiasParams): bias parameters
-            sigma_v_range (List[float]): [min, max]
-            scale_factor_error_range (List[float]): [min, max]
+            sigma_v_range (list): [min, max]
+            scale_factor_error_range (list) [min, max]
 
         Returns:
             SensorNoiseParams: sensor noise parameters
@@ -80,7 +82,7 @@ class Sensor:
 
 
 class TriAxisSensor:
-    def __init__(self, dt: float, axes_params: "IMUNoiseParams") -> None:
+    def __init__(self, dt: float, axes_params: list) -> None:
         """
         Class that creates a noisy tri-axis signal.
 

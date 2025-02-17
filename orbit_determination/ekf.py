@@ -13,6 +13,13 @@ from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
 
+# pylint: disable=invalid-name
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-positional-arguments
+# pylint: disable=too-many-instance-attributes
+# pylint: disable=no-member
+
+
 
 class EKF:
     """
@@ -28,7 +35,7 @@ class EKF:
         # w_b: np.ndarray,
         P: np.ndarray,
         Q: np.ndarray,
-        R: np.ndarray,
+        R_vec: np.ndarray,
         dt: float,
         config: dict,
         w: np.ndarray,
@@ -44,14 +51,15 @@ class EKF:
         # :param w_b: Initial angular velocity bias with shape (3,)
         :param P: Initial covariance with shape (9, 9)
         :param Q: Process noise covariance with shape (16, 16)
-        :param R: Measurement noise covariance with shape (3, 3)
+        :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
         :param w: The angular velocity of the satellite with shape (3,)
 
         :return: None
 
-        Note on R matrix dimensionality: As the number of landmarks observed will change between individual time steps,
-        the R matrix needs to be constructed at each time step where the vision pipeline is used.
+        Note on R_vec matrix dimensionality: As the number of landmarks observed will change between
+        individual time steps, the R matrix needs to be constructed at each time step where the vision
+        pipeline is used.
         """
 
         self.r_m = r
@@ -72,7 +80,7 @@ class EKF:
         self.w = w
 
         self.Q = Q
-        self.R = R
+        self.R = R_vec
         self.dt = dt
 
         camera_params = config["satellite"]["camera"]
