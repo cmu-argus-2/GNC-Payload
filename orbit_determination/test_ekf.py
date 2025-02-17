@@ -21,6 +21,7 @@ from orbit_determination.od_simulation_data_manager import ODSimulationDataManag
 from sensors.bias import BiasParams
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
+from sensors.camera_model import CameraModelManager
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
@@ -78,14 +79,13 @@ def run_simulation() -> None:
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
+    camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
     init_rot = np.eye(3)
 
-    data_manager.push_next_state(
-        initial_state, init_rot
-    )
+    data_manager.push_next_state(initial_state, init_rot)
 
     # Initialize IMU and EKF
     # imu = imu_init(dt)
@@ -112,17 +112,17 @@ def run_simulation() -> None:
         next_state = f(data_manager.latest_state, dt)
         curr_quat = quaternion.from_rotation_matrix(data_manager.latest_attitude)
         next_quat = curr_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
-        data_manager.push_next_state(
-            next_state,
-            quaternion.as_rotation_matrix(next_quat)
-        )
+        data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
 
         gyro_meas = np.zeros((3))  # TEMPORARY
         # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
         ekf.predict(u=gyro_meas)
 
         if t % 1 == 0:
-            data_manager.take_measurement(landmark_bearing_sensor)
+            for camera_name in CameraModelManager.CAMERA_NAMES:
+                data_manager.take_measurement(
+                    landmark_bearing_sensor, camera_model_manager[camera_name]
+                )
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
