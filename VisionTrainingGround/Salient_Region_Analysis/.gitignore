@@ -163,3 +163,4 @@ cython_debug/
 bm1k_maps/
 bm1k_consolidated_maps/
 bm1k_regions/
+landmarks/

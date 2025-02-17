@@ -17,7 +17,7 @@ while getopts ":o:h" opt; do
 done
 
 # Array of keys
-KEYS=("53L") # Add or remove keys as needed
+KEYS=('05V' '09V' '10S' '10T' '11R' '12R' '14Q' '15V' '16T' '18Q' '18S' '19J' '21H' '23L' '29Q' '30U' '32S' '32T' '33K' '33S' '33T' '35J' '36L' '37Q' '38K' '39P' '40R' '42R' '46Q' '48M' '49S' '50M' '51J' '52S' '53L' '54S' '54U' '55J' '57V' '59G') # Add or remove keys as needed
 
 # Prepare YOLO dataset and train the model
 for KEY in "${KEYS[@]}"; do
