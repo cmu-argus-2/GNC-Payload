@@ -61,7 +61,7 @@ def test_od() -> None:
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
-    # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
+    # landmark_bearing_sensor = RandomLandmarkBearingSensor()
     # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
     camera_manager = CameraManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
