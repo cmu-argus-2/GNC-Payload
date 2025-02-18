@@ -131,6 +131,9 @@ class LandmarkDetections:
         Returns:
             A LandmarkDetections object containing the stacked data.
         """
+        if len(detections) == 0:
+            return LandmarkDetections.empty()
+
         return LandmarkDetections(
             pixel_coordinates=np.row_stack([det.pixel_coordinates for det in detections]),
             latlons=np.row_stack([det.latlons for det in detections]),
