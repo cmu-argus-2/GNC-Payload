@@ -125,16 +125,16 @@ def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
     pos, vel = state[:3], state[3:]
     angular_momentum_dir = np.cross(pos, vel)
 
-    nadir_axis = -pos / np.linalg.norm(pos)
+    nadir_dir = -pos / np.linalg.norm(pos)
     z_plus_dir = angular_momentum_dir / np.linalg.norm(angular_momentum_dir)
 
     is_nadir_axis_x = nadir_axis[0] == "x"
     is_nadir_axis_plus = nadir_axis[1] == "+"
     if is_nadir_axis_x:
-        x_plus_dir = nadir_axis if is_nadir_axis_plus else -nadir_axis
+        x_plus_dir = nadir_dir if is_nadir_axis_plus else -nadir_dir
         y_plus_dir = np.cross(z_plus_dir, x_plus_dir)
     else:
-        y_plus_dir = nadir_axis if is_nadir_axis_plus else -nadir_axis
+        y_plus_dir = nadir_dir if is_nadir_axis_plus else -nadir_dir
         x_plus_dir = np.cross(y_plus_dir, z_plus_dir)
 
     return np.column_stack([x_plus_dir, y_plus_dir, z_plus_dir])
