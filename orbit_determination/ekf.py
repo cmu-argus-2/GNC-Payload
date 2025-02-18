@@ -59,7 +59,8 @@ class EKF:
 
         Note on R_vec matrix dimensionality: As the number of landmarks observed will change between
         individual time steps, the R matrix needs to be constructed at each time step where the vision
-        pipeline is used.
+        pipeline is used. The dimensionality of the matrix is 3n x 3n where n is the number of landmarks
+        observed.
         """
 
         self.r_m = r
