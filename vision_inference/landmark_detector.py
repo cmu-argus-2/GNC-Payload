@@ -229,9 +229,9 @@ class LandmarkDetector:
                 if len(landmarks) == 0:
                     continue
 
-                xywh = np.asarray(landmarks.xywh)
-                class_ids = np.asarray(landmarks.cls, dtype=int)
-                confidences = np.asarray(landmarks.conf)
+                xywh = landmarks.xywh.cpu().numpy()
+                class_ids = landmarks.cls.cpu().numpy().astype(int)
+                confidences = landmarks.conf.cpu().numpy()
 
                 valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
                 if not np.all(valid_indices):
