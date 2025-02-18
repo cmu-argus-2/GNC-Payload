@@ -328,14 +328,14 @@ def main():
     simulator = EarthImageSimulator()
     camera_model_manager = CameraModelManager()
 
-    lat_lon = np.array([39.8283, -98.5795])
-    ecef_position = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
+    ecef_position = lat_lon_to_ecef(np.array([39.8283, -98.5795]))
     R_earth = 6371.0088e3
     ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
     ecef_velocity = np.array([0, 0, 1])
     orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
     simulated_image = simulator.simulate_image(ecef_position, orientation, camera_model_manager["x+"]).image
+    simulator.display_image(simulated_image)
     print(np.all(simulated_image == 0))
 
 
