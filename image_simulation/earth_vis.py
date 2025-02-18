@@ -332,9 +332,9 @@ def main():
     R_earth = 6371.0088e3
     ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
     ecef_velocity = np.array([0, 0, 1])
-    orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
+    ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
-    simulated_image = simulator.simulate_image(ecef_position, orientation, camera_model_manager["x+"]).image
+    simulated_image = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"]).image
     simulator.display_image(simulated_image)
     print(np.all(simulated_image == 0))
 
