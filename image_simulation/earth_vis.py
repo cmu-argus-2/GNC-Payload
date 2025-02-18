@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
-from sensors.camera_model import CameraModel
+from sensors.camera_model import CameraModel, CameraModelManager
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
@@ -288,6 +288,7 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
 
 def sweep_lat_lon_test():
     simulator = EarthImageSimulator()
+    camera_model_manager = CameraModelManager()
 
     latitudes = np.linspace(-90, 90, 90)
     longitudes = np.linspace(-180, 180, 90)
@@ -307,7 +308,7 @@ def sweep_lat_lon_test():
         ecef_velocity = np.array([0, 0, 1])
 
         ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-        simulated_image = simulator.simulate_image(ecef_position, ecef_R_body).image
+        simulated_image = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"]).image
 
         if j % 20 == 0:
             print(f"{i * i_stride + j}/{total}")
@@ -325,6 +326,7 @@ def sweep_lat_lon_test():
 
 def main():
     simulator = EarthImageSimulator()
+    camera_model_manager = CameraModelManager()
 
     lat_lon = np.array([39.8283, -98.5795])
     ecef_position = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
@@ -333,7 +335,7 @@ def main():
     ecef_velocity = np.array([0, 0, 1])
     orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
-    simulated_image = simulator.simulate_image(ecef_position, orientation).image
+    simulated_image = simulator.simulate_image(ecef_position, orientation, camera_model_manager["x+"]).image
     print(np.all(simulated_image == 0))
 
 
