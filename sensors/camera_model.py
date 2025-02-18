@@ -5,7 +5,7 @@ from utils.config_utils import load_config
 
 class CameraModel:
     RESOLUTION = (4608, 2592)
-    HORIZONTAL_FOV = 66.1
+    HORIZONTAL_FOV = np.deg2rad(66.1)
 
     def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
         """
