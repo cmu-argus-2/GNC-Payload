@@ -165,3 +165,9 @@ bm1k_consolidated_maps/
 bm1k_regions/
 landmarks/
 region_composites_150
+inverse_cloud_map.jpg
+saliency_only.jpg
+sareana_mul.jpg
+sareana_only_mul.jpg
+prioritized_regions.csv
+sorted_region*
