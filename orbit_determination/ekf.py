@@ -11,7 +11,7 @@ import quaternion
 
 from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from utils.math_utils import R, left_q, rot_2_q  # right_q
+from utils.math_utils import R, left_q, rot_2_q, Drp2q, G  # right_q
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -32,13 +32,12 @@ class EKF:
         v: np.ndarray,
         q: Any,  # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
         # a_b: np.ndarray,
-        # w_b: np.ndarray,
+        w_b: np.ndarray,
         P: np.ndarray,
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
         config: dict,
-        w: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -48,12 +47,11 @@ class EKF:
         :param q: Initial attitude quaternion with shape (4,) where the scalar component is first.
             Note: The quaternion is of type numpy.quaternion, not np.ndarray and assumed to be normalized
         # :param a_b: Initial accelerometer bias with shape (3,)
-        # :param w_b: Initial angular velocity bias with shape (3,)
+        :param w_b: Initial angular velocity bias with shape (3,)
         :param P: Initial covariance with shape (9, 9)
         :param Q: Process noise covariance with shape (16, 16)
         :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
-        :param w: The angular velocity of the satellite with shape (3,)
 
         :return: None
 
@@ -72,15 +70,13 @@ class EKF:
         self.q_p = q
 
         # self.a_b = a_b
-        # self.w_b = w_b
-        
-        # Scale the attitude Covariance 
-        P[6:9,6:9] *= 1e-9,
+        self.w_b = w_b
 
+        # Scale the attitude and bias Covariance 
+        P[6:9,6:9] *= 1e-9
+        P[9:12,9:12] *= 1e-9
         self.P_m = P
         self.P_p = P
-
-        self.w = w
 
         self.Q = Q
         self.R = R_vec
@@ -90,7 +86,6 @@ class EKF:
         self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])
 
         self.cond_threshold = 1e15
-        self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
 
     def predict(self, u: np.ndarray) -> None:
         """
@@ -105,17 +100,14 @@ class EKF:
 
         # TODO: Use IMU measurements and update quaternion estimate
 
-        w = u[0:3]  # angular velocity measurement from IMU
-        # self.r_p = self.r_m + self.dt * self.v_m
-        # self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
-        # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
+        wf = u[0:3]  # angular velocity measurement from IMU
 
         x = np.concatenate([self.r_m, self.v_m])
         A_pos = f_jac(x, self.dt)
         x_new = f(x, self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(0.5 * self.dt * w)
+            quaternion.from_rotation_vector(0.5 * self.dt * (wf - self.w_b))
         )
 
         self.r_p = x_new[0:3]
@@ -123,9 +115,10 @@ class EKF:
 
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
         # quaternion.from_rotation_vector(self.w))) @ self.H
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
+        dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * (wf - self.w_b)))
+        dqdw = -0.5 * self.dt * G(self.q_p).T @ left_q(self.q_m) @ Drp2q(0.5 * self.dt * (wf - self.w_b))
 
-        A = np.block([[A_pos, np.zeros((6, 3))], [np.zeros((3, 6)), A_att]])
+        A = np.block([[A_pos, np.zeros((6, 6))], [np.zeros((3, 6)), dqdq, dqdw], [np.zeros((3, 9)), np.eye(3)]])
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -168,6 +161,7 @@ class EKF:
                         self.r_p,
                         self.v_p,
                         quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
+                        self.w_b
                     ]
                 )
             )
@@ -192,6 +186,7 @@ class EKF:
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
             self.q_m = quaternion.as_rotation_vector(quaternion.from_rotation_vector(np.array(x_p[6:9])) * quaternion.from_rotation_vector(delta[6:9]))
+            self.w_b = np.array(x_p[9:12]) + delta[9:12]
 
             # Joseph form covariance update
             self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
@@ -202,7 +197,8 @@ class EKF:
                     [
                         self.r_m,
                         self.v_m,
-                        self.q_m
+                        self.q_m,
+                        self.w_b
                     ]
                 )
             )

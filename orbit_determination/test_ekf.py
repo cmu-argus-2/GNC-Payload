@@ -34,10 +34,10 @@ def imu_init(dt: float) -> IMU:
     :return: The initialized IMU.
     """
     # Initialize the IMU
-    bias_params = BiasParams.get_random_params([0, 0], [0, 0])
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    bias_params = BiasParams.get_random_params([1e-6, 1e-5], [1e-6, 1e-5])
+    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
@@ -70,8 +70,8 @@ def run_simulation() -> None:
 
     config = load_config()
 
-    config["solver"]["world_update_rate"] = 1 / 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s, roughly 1 orbit
+    config["solver"]["world_update_rate"] = 1 / 2  # Hz
+    config["mission"]["duration"] = 3 * 90 * 30  # s, roughly 1 orbit
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -86,39 +86,41 @@ def run_simulation() -> None:
     data_manager.push_next_state(initial_state, init_rot)
 
     # Set the number of update iterations for the IEKF
-    num_iter = 4
+    num_iter = 5
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 4])
+    rot = np.array([0, 0, np.pi / 3])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
+    gyro_bias = imu.get_bias()[0]
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         
-        r=initial_state[0:3] + np.random.normal(0, 10000, 3),
-        v=initial_state[3:6] + np.random.normal(0, 10000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 100, 3),
+        v=initial_state[3:6] + np.random.normal(0, 100, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(9) * 1000,
-        Q=np.eye(9) * 1e-12,
+        P=np.eye(12) * 30,
+        Q=np.eye(12) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
         config=config,
-        w=rot,
+        w_b=gyro_bias + np.random.normal(0, 1e-5, 3),
     )
 
     error = []
-
     for t in range(0, N - 1):
         # take a set of measurements every minute
+        w = rot
         x = data_manager.latest_state
         q = data_manager.latest_attitude
-        w = rot
+
+        bias = imu.get_bias()[0]
         # x = np.concatenate([x, quaternion.as_float_array(quaternion.from_rotation_matrix(q)), w])
 
         next_state = f(x, dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            w * dt * 0.5
+            (w - bias) * dt * 0.5
         )
 
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
