@@ -226,9 +226,10 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
 def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     """
     Generate a grid of MGRS (Military Grid Reference System) coordinates.
+    Note that keys corresponding to single digit region identifiers have a leading zero (e.g. "01C").
 
     Returns:
-        dict: A dictionary mapping MGRS coordinates to corresponding longitude and latitude ranges.
+        A dictionary mapping MGRS region identifiers to corresponding longitude and latitude ranges.
     """
     LON_STEP = 6
     LAT_STEP = 8
