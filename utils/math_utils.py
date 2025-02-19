@@ -107,6 +107,7 @@ def right_q(q: np.ndarray) -> np.ndarray:
         ]
     )
 
+
 def Drp2q(phi: np.ndarray) -> np.ndarray:
     """
     Compute the derivative of a 3D rotation vector to quaternion mapping.
@@ -115,16 +116,17 @@ def Drp2q(phi: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: The derivative.
     """
-    frac1 = 1/(np.sqrt(1 + np.dot(phi, phi)))
+    frac1 = 1 / (np.sqrt(1 + np.dot(phi, phi)))
     H1 = np.concatenate([[np.zeros(3)], np.eye(3)], axis=0)
-    frac2 = (1 + np.dot(phi, phi))**(-3/2)
-    H2 = np.outer(np.append(1,phi), phi)
+    frac2 = (1 + np.dot(phi, phi)) ** (-3 / 2)
+    H2 = np.outer(np.append(1, phi), phi)
 
-    return frac1*H1 - frac2*H2
+    return frac1 * H1 - frac2 * H2
+
 
 def G(q: np.ndarray) -> np.ndarray:
     """
-    Helper function    
+    Helper function
     """
     H = np.concatenate([[np.zeros(3)], np.eye(3)], axis=0)
     return left_q(q) @ H

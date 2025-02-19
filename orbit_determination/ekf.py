@@ -56,7 +56,8 @@ class EKF:
 
         Note on R_vec matrix dimensionality: As the number of landmarks observed will change between
         individual time steps, the R matrix needs to be constructed at each time step where the vision
-        pipeline is used.
+        pipeline is used. The dimensionality of the matrix is 3n x 3n where n is the number of landmarks
+        observed.
         """
 
         self.r_m = r
@@ -71,9 +72,9 @@ class EKF:
         # self.a_b = a_b
         self.w_b = w_b
 
-        # Scale the attitude and bias Covariance 
-        P[6:9,6:9] *= 1e-9
-        P[9:12,9:12] *= 1e-9
+        # Scale the attitude and bias Covariance
+        P[6:9, 6:9] *= 1e-9
+        P[9:12, 9:12] *= 1e-9
         self.P_m = P
         self.P_p = P
 
@@ -114,10 +115,24 @@ class EKF:
 
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
         # quaternion.from_rotation_vector(self.w))) @ self.H
-        dqdq = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * (wf - self.w_b)))
-        dqdw = -0.5 * self.dt * G(self.q_p).T @ left_q(self.q_m) @ Drp2q(0.5 * self.dt * (wf - self.w_b))
+        dqdq = quaternion.as_rotation_matrix(
+            quaternion.from_rotation_vector(-0.5 * self.dt * (wf - self.w_b))
+        )
+        dqdw = (
+            -0.5
+            * self.dt
+            * G(self.q_p).T
+            @ left_q(self.q_m)
+            @ Drp2q(0.5 * self.dt * (wf - self.w_b))
+        )
 
-        A = np.block([[A_pos, np.zeros((6, 6))], [np.zeros((3, 6)), dqdq, dqdw], [np.zeros((3, 9)), np.eye(3)]])
+        A = np.block(
+            [
+                [A_pos, np.zeros((6, 6))],
+                [np.zeros((3, 6)), dqdq, dqdw],
+                [np.zeros((3, 9)), np.eye(3)],
+            ]
+        )
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -155,17 +170,17 @@ class EKF:
         self.R = np.diag([1e-5] * z0.shape[0])
 
         x_p = jnp.array(
-                np.concatenate(
-                    [
-                        self.r_p,
-                        self.v_p,
-                        quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
-                        self.w_b
-                    ]
-                )
+            np.concatenate(
+                [
+                    self.r_p,
+                    self.v_p,
+                    quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
+                    self.w_b,
+                ]
             )
+        )
         # Iterated Update
-        for i in range (num_iter):
+        for i in range(num_iter):
 
             h = self.h_est(z1, data_manager, x_p)
             H = self.h_jac(z1, data_manager, x_p)
@@ -184,23 +199,18 @@ class EKF:
 
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
-            self.q_m = quaternion.as_rotation_vector(quaternion.from_rotation_vector(np.array(x_p[6:9])) * quaternion.from_rotation_vector(delta[6:9]))
+            self.q_m = quaternion.as_rotation_vector(
+                quaternion.from_rotation_vector(np.array(x_p[6:9]))
+                * quaternion.from_rotation_vector(delta[6:9])
+            )
             self.w_b = np.array(x_p[9:12]) + delta[9:12]
 
             # Joseph form covariance update
             self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
-                np.eye(self.P_m.shape[0]) - K @ H).T + K @ self.R @ K.T
+                np.eye(self.P_m.shape[0]) - K @ H
+            ).T + K @ self.R @ K.T
 
-            x_p = jnp.array(
-                np.concatenate(
-                    [
-                        self.r_m,
-                        self.v_m,
-                        self.q_m,
-                        self.w_b
-                    ]
-                )
-            )
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.q_m, self.w_b]))
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
