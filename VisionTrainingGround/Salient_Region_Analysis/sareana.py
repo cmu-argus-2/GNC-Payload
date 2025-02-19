@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import csv
-from getMGRS import getMGRS
+
+from utils.earth_utils import get_MGRS_grid
 
 min_lat = -90
 max_lat = 90
@@ -83,7 +84,7 @@ def sareana(cloud_im_path, saliency_im_path, grid, use_saliency_only=False):
 
 
 if __name__ == '__main__':
-    grid = getMGRS()
+    grid = get_MGRS_grid()
     use_saliency_only = True
     
     # Set use_saliency_only to True if you want to use only saliency map data

@@ -2,8 +2,9 @@ import os
 from multiprocessing import Pool, cpu_count
 import cv2
 import numpy as np
-from getMGRS import getMGRS
 import argparse
+
+from utils.earth_utils import get_MGRS_grid
 
 scales = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 consolidated_maps_path = 'bm1k_consolidated_maps'
@@ -73,7 +74,7 @@ def visualize_landmarks(region, landmarks):
     cv2.imshow(region, im)
 
 def get_absolute_landmarks(region, landmarks):
-    bounds = getMGRS()[region]
+    bounds = get_MGRS_grid()[region]
     reg_im = cv2.imread('bm1k_regions/world_jun/' + region + '.jpg')
     reg_im_height, reg_im_width = reg_im.shape[:2]
     minx, miny, maxx, maxy = bounds
