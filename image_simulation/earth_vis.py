@@ -4,6 +4,7 @@ Module to simulate and visualize Earth images from satellite data.
 
 import os
 from datetime import datetime
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,11 +58,12 @@ class EarthImageSimulator:
         print("User configuration file not found. Using fallback GeoTIFF folder.")
         return EarthImageSimulator.FALLBACK_GEOTIFF_FOLDER
 
-    def simulate_image(
+    def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
-    ) -> Frame:
+    ) -> Tuple[Frame, np.ndarray, np.ndarray]:
         """
         Simulate an Earth image given the satellite position, attitude, and camera model.
+        This method also returns the MGRS regions and latitudes/longitudes for each pixel.
 
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
@@ -69,7 +71,12 @@ class EarthImageSimulator:
             camera_model: The camera model to use to simulate the image.
 
         Returns:
-            The simulated RGB image.
+            A Tuple containing:
+            - The simulated Frame object.
+            - A numpy array containing the MGRS regions for each pixel,
+              or None if the pixel does not correspond to any MGRS region.
+            - A numpy array containing the latitudes and longitudes for each pixel,
+              or np.nan if the pixel does not correspond to any MGRS region.
         """
         # Generate ray directions in ECEF frame
         ray_directions_body = camera_model.ray_directions()
@@ -116,7 +123,24 @@ class EarthImageSimulator:
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
 
-        return Frame(pixel_colors_full, camera_model.camera_name, datetime.now())
+        return Frame(pixel_colors_full, camera_model.camera_name, datetime.now()), mgrs_regions, lat_lon
+
+    def simulate_image(
+        self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
+    ) -> Frame:
+        """
+        Simulate an Earth image given the satellite position, attitude, and camera model.
+
+        Parameters:
+            position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
+            ecef_R_body: A numpy array of shape (3, 3) representing the rotation matrix from body to ECEF coordinates.
+            camera_model: The camera model to use to simulate the image.
+
+        Returns:
+            The simulated Frame object.
+        """
+        frame, *_ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
+        return frame
 
     def display_image(self, image):
         """
