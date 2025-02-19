@@ -3,6 +3,8 @@ Functions for implementing orbital position dynamics and its jacobian under just
 J2 perturbations are not included.
 """
 
+from typing import Callable
+
 import numpy as np
 from brahe.constants import GM_EARTH
 
@@ -38,7 +40,7 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     return np.block([[dv_dr, dv_dv], [da_dr, da_dv]])
 
 
-def RK4(x, func, dt):
+def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> np.ndarray:
     """
     Computes the state at the next timestep from the current state and the continuous-time state transition function
     using Runge-Kutta 4th order integration.
@@ -57,7 +59,12 @@ def RK4(x, func, dt):
     return x_next
 
 
-def RK4_jac(x, func, func_jac, dt):
+def RK4_jac(
+    x: np.ndarray,
+    func: Callable[[np.ndarray], np.ndarray],
+    func_jac: Callable[[np.ndarray], np.ndarray],
+    dt: float,
+) -> np.ndarray:
     """
     Computes the Jacobian of the RK4-discretized state transition function.
 

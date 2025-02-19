@@ -6,12 +6,12 @@ import pickle
 from time import time
 
 import brahe
-from brahe.epoch import Epoch
 import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
+from brahe.epoch import Epoch
 
-from dynamics.orbital_dynamics import f  # , f_jac
+from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -35,19 +35,19 @@ def imu_init(dt: float) -> IMU:
     :return: The initialized IMU.
     """
     # Initialize the IMU
-    bias_params = BiasParams.get_random_params([0, 0], [1e-4, 1e-3])
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-4, 5e-4)
+    bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
 
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-4, 5e-4)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-4, 5e-4)
+    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -71,8 +71,8 @@ def run_simulation() -> None:
 
     config = load_config()
 
-    config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
+    config["solver"]["world_update_rate"] = 1 / 5  # Hz
+    config["mission"]["duration"] = 3 * 90 * 40  # s, roughly 1 orbit
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -87,38 +87,46 @@ def run_simulation() -> None:
 
     data_manager.push_next_state(initial_state, init_rot)
 
-    # Initialize IMU and EKF
-    # imu = imu_init(dt)
-    ekf = EKF(
-        r=initial_state[0:3]
-        + np.random.normal(0, 800, 3),  # TODO: Adjust and tune noise and error init
-        v=initial_state[3:6] + np.random.normal(0, 800, 3),
-        q=quaternion.from_rotation_matrix(init_rot),
-        P=np.eye(6) * 1000,
-        Q=np.eye(6) * 1e-12,
-        R=np.zeros((3, 3)),
-        dt=dt,
-        config=config,
-    )
-
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 2])
+
+    # Initialize IMU and EKF
+    imu = imu_init(dt)
+    ekf = EKF(
+        # TODO: Adjust and tune noise and error init
+        r=initial_state[0:3] + np.random.normal(0, 10, 3),
+        v=initial_state[3:6] + np.random.normal(0, 10, 3),
+        q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
+        P=np.eye(9) * 10,
+        Q=np.eye(9) * 1e-12,
+        R_vec=np.zeros((3, 3)),
+        dt=dt,
+        config=config,
+        w=rot,
+    )
 
     error = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
+        x = data_manager.latest_state
+        q = data_manager.latest_attitude
+        w = rot
+        # x = np.concatenate([x, quaternion.as_float_array(quaternion.from_rotation_matrix(q)), w])
 
-        next_state = f(data_manager.latest_state, dt)
-        curr_quat = quaternion.from_rotation_matrix(data_manager.latest_attitude)
-        next_quat = curr_quat * quaternion.from_rotation_vector(0.5 * dt * rot)
+        next_state = f(x, dt)
+        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
+            w * dt * 0.5
+        )
+
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
 
-        gyro_meas = np.zeros((3))  # TEMPORARY
-        # gyro_meas, _ = imu.update(quaternion.as_rotation_vector(next_quat), [0, 0, 0])
+        # gyro_meas = np.zeros((3))  # TEMPORARY
+
+        gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 1 == 0:
+        if t % 4 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
