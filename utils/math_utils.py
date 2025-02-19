@@ -10,7 +10,7 @@ def R(q: jnp.ndarray) -> jnp.ndarray:
     """Return the rotation matrix corresponding to the quaternion q.
 
     Args:
-        q (np.array): The quaternion to convert.
+        q (jnp.array): The quaternion to convert.
 
     Returns:
         jnp.ndarray: The corresponding rotation matrix as jax array.
@@ -43,7 +43,7 @@ def rot_2_q(rot: jnp.ndarray) -> jnp.ndarray:
     Convert a rotation vector to a quaternion.
 
     Args:
-        rot (np.ndarray): The rotation vector to convert.
+        rot (jnp.ndarray): The rotation vector to convert.
 
     Returns:
         jnp.ndarray: The corresponding quaternion as a jax array.
@@ -106,3 +106,27 @@ def right_q(q: np.ndarray) -> np.ndarray:
             [q[3], q[2], -q[1], q[0]],
         ]
     )
+
+
+def Drp2q(phi: np.ndarray) -> np.ndarray:
+    """
+    Compute the derivative of a 3D rotation vector to quaternion mapping.
+    Args:
+        phi (np.ndarray): The rotation vector.
+    Returns:
+        np.ndarray: The derivative.
+    """
+    frac1 = 1 / (np.sqrt(1 + np.dot(phi, phi)))
+    H1 = np.concatenate([[np.zeros(3)], np.eye(3)], axis=0)
+    frac2 = (1 + np.dot(phi, phi)) ** (-3 / 2)
+    H2 = np.outer(np.append(1, phi), phi)
+
+    return frac1 * H1 - frac2 * H2
+
+
+def G(q: np.ndarray) -> np.ndarray:
+    """
+    Helper function
+    """
+    H = np.concatenate([[np.zeros(3)], np.eye(3)], axis=0)
+    return left_q(q) @ H
