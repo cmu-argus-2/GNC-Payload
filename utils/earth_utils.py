@@ -226,7 +226,6 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
 def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     """
     Generate a grid of MGRS (Military Grid Reference System) coordinates.
-    Note: if you only need read access to the grid, consider using the MGRS_GRID constant defined below instead.
 
     Returns:
         dict: A dictionary mapping MGRS coordinates to corresponding longitude and latitude ranges.
