@@ -113,8 +113,6 @@ class EKF:
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
 
-        # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
-        # quaternion.from_rotation_vector(self.w))) @ self.H
         dqdq = quaternion.as_rotation_matrix(
             quaternion.from_rotation_vector(-0.5 * self.dt * (wf - self.w_b))
         )
@@ -146,7 +144,10 @@ class EKF:
         self.P_m = self.P_p
 
     def measurement(
-        self, z: Tuple[np.ndarray, np.ndarray], data_manager: ODSimulationDataManager, num_iter: int
+        self,
+        z: Tuple[np.ndarray, np.ndarray],
+        data_manager: ODSimulationDataManager,
+        num_iter: int = 1,
     ) -> None:
         """
         Update the state estimate based on the measurement. This corresponds to the posterior update step
@@ -155,7 +156,7 @@ class EKF:
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the
         landmark positions in ECI coordinates with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
-        :param num_iter: Number of iterations of the update steps to perform
+        :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
         """
