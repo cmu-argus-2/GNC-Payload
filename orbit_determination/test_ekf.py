@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -70,8 +74,8 @@ def run_simulation() -> None:
 
     config = load_config()
 
-    config["solver"]["world_update_rate"] = 1 / 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 30  # s, roughly 1 orbit
+    config["solver"]["world_update_rate"] = 1 / 3  # Hz
+    config["mission"]["duration"] = 3 * 90 * 25  # s, roughly 1 orbit
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -97,10 +101,10 @@ def run_simulation() -> None:
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         
-        r=initial_state[0:3] + np.random.normal(0, 100, 3),
-        v=initial_state[3:6] + np.random.normal(0, 100, 3),
+        r=initial_state[0:3] + np.random.normal(0, 500, 3),
+        v=initial_state[3:6] + np.random.normal(0, 500, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(12) * 30,
+        P=np.eye(12) * 10,
         Q=np.eye(12) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
@@ -125,12 +129,10 @@ def run_simulation() -> None:
 
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
 
-        # gyro_meas = np.zeros((3))  # TEMPORARY
-
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 4 == 0:
+        if t % 2 == 0:
             data_manager.take_measurement(landmark_bearing_sensor)
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
