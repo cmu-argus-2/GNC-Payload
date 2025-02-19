@@ -34,7 +34,10 @@ def imu_init(dt: float) -> IMU:
     :return: The initialized IMU.
     """
     # Initialize the IMU
+    # bias params are min max range of bias and sigma_w
+    # [units] and [(units/s)/sqrt(Hz)]
     bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+    # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
@@ -43,7 +46,7 @@ def imu_init(dt: float) -> IMU:
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
-
+    # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
@@ -69,9 +72,9 @@ def run_simulation() -> None:
     """
 
     config = load_config()
-
+    # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 1 / 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s, roughly 1 orbit
+    config["mission"]["duration"] = 3 * 90 * 40  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -85,17 +88,21 @@ def run_simulation() -> None:
 
     data_manager.push_next_state(initial_state, init_rot)
 
+    # Set the number of update iterations for the IEKF
+    num_iter = 4
+
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 2])
+    rot = np.array([0, 0, np.pi / 4])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
-        # TODO: Adjust and tune noise and error init
-        r=initial_state[0:3] + np.random.normal(0, 10, 3),
-        v=initial_state[3:6] + np.random.normal(0, 10, 3),
+        # TODO: Apply initial error to quaternion initialization
+        # error ranges are in meters and m/s
+        r=initial_state[0:3] + np.random.normal(0, 50000, 3),
+        v=initial_state[3:6] + np.random.normal(0, 50000, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(9) * 10,
+        P=np.eye(9) * 100,
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
@@ -132,7 +139,7 @@ def run_simulation() -> None:
             # EKF prediction step
             z = data_manager.latest_measurements
             if z[0].shape[0] > 0:
-                ekf.measurement(z, data_manager)
+                ekf.measurement(z, data_manager, num_iter)
             else:
                 ekf.no_measurement()
         else:

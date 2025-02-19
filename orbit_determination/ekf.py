@@ -20,7 +20,6 @@ from utils.math_utils import R, left_q, rot_2_q  # right_q
 # pylint: disable=no-member
 
 
-
 class EKF:
     """
     Extended Kalman Filter
@@ -74,6 +73,9 @@ class EKF:
 
         # self.a_b = a_b
         # self.w_b = w_b
+
+        # Scale the attitude Covariance
+        P[6:9, 6:9] *= (1e-9,)
 
         self.P_m = P
         self.P_p = P
@@ -137,7 +139,10 @@ class EKF:
         self.P_m = self.P_p
 
     def measurement(
-        self, z: Tuple[np.ndarray, np.ndarray], data_manager: ODSimulationDataManager
+        self,
+        z: Tuple[np.ndarray, np.ndarray],
+        data_manager: ODSimulationDataManager,
+        num_iter: int = 1,
     ) -> None:
         """
         Update the state estimate based on the measurement. This corresponds to the posterior update step
@@ -146,12 +151,19 @@ class EKF:
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the
         landmark positions in ECI coordinates with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
         """
-        # x_p = jnp.array(
-        #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
-        # )
+        # Select a fraction of the measurements to use to speed up computations
+        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
+        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+
+        # Flatten the measurement vector
+        z0 = np.array(z0.reshape(-1))
+
+        # Let R take the dimensionality of the number of measurements
+        self.R = np.diag([1e-5] * z0.shape[0])
 
         x_p = jnp.array(
             np.concatenate(
@@ -162,41 +174,39 @@ class EKF:
                 ]
             )
         )
+        # Iterated Update
+        for i in range(num_iter):
 
-        # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
-        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+            h = self.h_est(z1, data_manager, x_p)
+            H = self.h_jac(z1, data_manager, x_p)
+            S = H @ self.P_p @ H.T + self.R
 
-        h = self.h_est(z1, data_manager, x_p)
-        H = self.h_jac(z1, data_manager, x_p)
+            # Check for ill-conditioned matrix and add regularization if necessary
+            if i == 0:
+                cond = np.linalg.cond(S)
+                if cond > self.cond_threshold:
+                    S += np.eye(S.shape[0]) * 1e-6
+                    print("Ill-conditioned matrix detected. Regularization applied.")
 
-        # Flatten the measurement vector
-        z0 = np.array(z0.reshape(-1))
+            K = self.P_p @ H.T @ np.linalg.inv(S)
 
-        # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([1e-5] * z0.shape[0])
+            delta = K @ (z0 - h)
 
-        S = H @ self.P_p @ H.T + self.R
+            self.r_m = np.array(x_p[0:3]) + delta[0:3]
+            self.v_m = np.array(x_p[3:6]) + delta[3:6]
+            self.q_m = quaternion.as_rotation_vector(
+                quaternion.from_rotation_vector(np.array(x_p[6:9]))
+                * quaternion.from_rotation_vector(delta[6:9])
+            )
 
-        # Check for ill-conditioned matrix and add regularization if necessary
-        cond = np.linalg.cond(S)
-        if cond > self.cond_threshold:
-            S += np.eye(S.shape[0]) * 1e-6
-            print("Ill-conditioned matrix detected. Regularization applied.")
+            # Joseph form covariance update
+            self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
+                np.eye(self.P_m.shape[0]) - K @ H
+            ).T + K @ self.R @ K.T
 
-        K = self.P_p @ H.T @ np.linalg.inv(S)
-
-        delta = K @ (z0 - h)
-
-        self.r_m = self.r_p + delta[0:3]
-        self.v_m = self.v_p + delta[3:6]
-        self.q_m = quaternion.as_float_array(
-            quaternion.as_quat_array(self.q_p) * quaternion.from_rotation_vector(delta[6:9])
-        )
-
-        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
-            np.eye(self.P_m.shape[0]) - K @ H
-        ).T + K @ self.R @ K.T  # Joseph form covariance update
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.q_m]))
+        # Convert final iterated rotation vector to quaternion
+        self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
     def h_jac(
         self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
