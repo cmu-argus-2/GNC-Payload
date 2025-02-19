@@ -27,9 +27,13 @@ from matplotlib.colors import hsv_to_rgb
 import matplotlib.pyplot as plt
 import numpy as np
 
+# from add_dead_pixels import AddDeadPixels
+
 from io import BytesIO
 
 from PIL import Image
+
+import time
 
 class ImageClassifier:
     """
@@ -125,17 +129,25 @@ class ImageClassifier:
                 transforms.RandomRotation(10),
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
                 transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
-                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
                 transforms.ToTensor(),
+                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
                 # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                
             ]
         )
 
         test_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
+                # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
+                transforms.RandomRotation(10),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
+                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
+                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                
             ]
         )
 
@@ -280,35 +292,35 @@ class ImageClassifier:
                     "dataset": "Sentinel",
                 },
             )
+
         self.model.eval()
         total_correct = 0
         total_labels = 0
         all_features = []
         all_labels = []
+        class_correct = {i: 0 for i in range(40)}  # Assuming 40 classes
+        class_total = {i: 0 for i in range(40)}
 
-        # Dictionary to store images by predicted class
-        class_images = {i: [] for i in range(40)}  # Assuming 40 classes
-
+        class_images = {i: [] for i in range(40)}  # Store images per class
+        tot_time=0
         with torch.no_grad():
             for batch in self.test_loader:
                 images, labels = batch
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-
+                start_time = time.time()
                 outputs = self.model(images)
+                end_time = time.time()
                 probabilities = torch.sigmoid(outputs)
                 predicted = (probabilities > 0.5).float()  # Multi-label thresholding
-
+                tot_time+=end_time-start_time
                 # Store features and labels for t-SNE
                 all_features.append(outputs.cpu().numpy())
                 all_labels.append(labels.cpu().numpy())
 
                 # Group images by their predicted classes
                 for i in range(images.size(0)):
-                    # Get predicted classes for the current image
                     predicted_classes = [j for j, val in enumerate(predicted[i]) if val == 1]
-
-                    # Add image to the class groups
                     for pred_class in predicted_classes:
                         class_images[pred_class].append(images[i].cpu())
 
@@ -317,26 +329,58 @@ class ImageClassifier:
                 total_correct += true_positives
                 total_labels += labels.numel()
 
-            # Convert collected features and labels to NumPy
+                # Compute per-class accuracy
+                for class_idx in range(labels.size(1)):  # Iterate over classes
+                    class_labels = labels[:, class_idx]
+                    class_preds = predicted[:, class_idx]
+
+                    class_correct[class_idx] += (class_labels * class_preds).sum().item()
+                    class_total[class_idx] += class_labels.sum().item()
+
+            # Convert collected features and labels to NumPy for t-SNE
             all_features = np.concatenate(all_features, axis=0)
             all_labels = np.concatenate(all_labels, axis=0)
 
-            # Create wandb log for each class
+            # Log images per class
             for class_id, image_list in class_images.items():
                 if len(image_list) > 0:
-                    # Stack images together (ensure they are in a grid)
                     image_grid = torch.stack(image_list, dim=0)
+                    class_name = self.classes[class_id]
                     wandb.log({
-                        f"class_{class_id}_images": wandb.Image(image_grid,
-                            caption=f"Class {class_id} predictions")
+                        f"class_{class_name}_images": wandb.Image(image_grid,
+                            caption=f"Class {class_name} predictions")
                     })
+
+            # Compute class-wise accuracies
+            class_accuracies = {
+                self.classes[class_idx]: (100 * class_correct[class_idx] / class_total[class_idx]) if class_total[class_idx] > 0 else 0
+                for class_idx in class_correct
+            }
+
+            # Plot bar chart for class-wise accuracies
+            plt.figure(figsize=(12, 6))
+            plt.bar(class_accuracies.keys(), class_accuracies.values(), color="blue")
+            plt.xlabel("Class Index")
+            plt.ylabel("Accuracy (%)")
+            plt.title("Class-wise Accuracies")
+            plt.xticks(ticks=range(len(self.classes)), labels=self.classes, rotation=90)  # Assuming 40 classes
+            plt.ylim(0, 100)  # Accuracy range 0-100%
+
+            # Save the figure and log to wandb
+            plot_path = "RCnet/results/class_wise_accuracies.png"
+            plt.savefig(plot_path)
+            plt.close()
+            wandb.log({"class_wise_accuracies_plot": wandb.Image(plot_path)})
+
+            # Log overall accuracy and per-class accuracies
+            wandb.log({"overall_accuracy": 100 * total_correct / total_labels, **{f"{k}_accuracy": v for k, v in class_accuracies.items()}})
 
             # Plot t-SNE visualization
             self.plot_tsne(all_features, all_labels, num_classes=40)
 
-        # Compute accuracy
         accuracy = 100 * total_correct / total_labels
         print(f"Accuracy of the network on the test images: {accuracy:.2f}%")
+        print(f"Total Inf time:{tot_time}")
 
         return accuracy
 
