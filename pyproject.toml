@@ -61,3 +61,8 @@ case_sensitive = false
 
 # Whether to skip file(s) matching patterns from .gitignore
 skip_gitignore = true
+
+[[tool.mypy-overrides]]
+module = "wandb"
+ignore_missing_imports = true
+disable_error_code = ["attr-defined"]
