@@ -40,7 +40,7 @@ class GeoTIFFCache:
                             The default value was chosen via compute_max_visible_regions in test_earth_vis.py.
         """
         self.geotiff_folder = geotiff_folder if geotiff_folder is not None else GeoTIFFCache.get_default_geotiff_folder()
-        GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
+        GeoTIFFCache.validate_region_folders_exist(self.geotiff_folder)
 
         # Dynamically wrap the member function with an LRU cache
         self.load_geotiff_data = lru_cache(maxsize=max_cache_size)(self.load_geotiff_data)
