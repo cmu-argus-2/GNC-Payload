@@ -29,7 +29,7 @@ class GeoTIFFCache:
 
     FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
 
-    def __init__(self, geotiff_folder: str | None = None, max_cache_size: int | None = None):
+    def __init__(self, geotiff_folder: str | None = None, max_cache_size: int | None = 58):
         """
         Initialize the GeoTIFF cache.
 
@@ -37,6 +37,7 @@ class GeoTIFFCache:
             geotiff_folder: Path to the folder containing GeoTIFF files.
             max_cache_size: Maximum number of regions to maintain in the cache.
                             Set to 0 to disable caching. Set to None for unlimited size.
+                            The default value was chosen via compute_max_visible_regions in test_earth_vis.py.
         """
         self.geotiff_folder = geotiff_folder if geotiff_folder is not None else GeoTIFFCache.get_default_geotiff_folder()
         GeoTIFFCache.validate_region_folders_exist(geotiff_folder)

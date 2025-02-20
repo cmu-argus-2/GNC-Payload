@@ -54,6 +54,8 @@ def compute_max_visible_regions(altitude: float = 510e3, iterations: int = 1000)
     """
     Experimentally determine the maximum number of visible regions from a specified altitude.
 
+    For the default parameters, the maximum number of visible regions is 58.
+
     :param altitude: The altitude of the satellite.
     :param iterations: The number of iterations to run.
     """
@@ -69,7 +71,7 @@ def compute_max_visible_regions(altitude: float = 510e3, iterations: int = 1000)
             ecef_position, ecef_R_body, camera_model_manager["x+"]
         )
 
-    print(f"Max visible regions from an altitude of {altitude / 1000}km is"
+    print(f"Max visible regions from an altitude of {altitude / 1000}km is "
           f"{simulator.cache.load_geotiff_data.cache_info().currsize}")
 
 
