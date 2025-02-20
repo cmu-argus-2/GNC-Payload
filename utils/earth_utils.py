@@ -203,3 +203,32 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     mgrs_regions[valid_indices] = mgrs_regions_flat
 
     return mgrs_regions
+
+def noisy_bearing_measurement(vec: np.ndarray, sigma=np.sqrt(0.001)):
+    """
+    Add Gaussian noise to a bearing measurement.
+    Parameters:
+        vec (np.ndarray): The original bearing vector.
+        sigma (float): The standard deviation of the noise.
+
+    Returns:
+        np.ndarray: The noisy bearing vector.
+    """
+    # Choose an arbitrary vector that isn't parallel to vec
+    if np.allclose(vec, [0, 0, 1]):
+        arbitrary = np.array([1, 0, 0])
+    else:
+        arbitrary = np.array([0, 0, 1])
+    
+    # Construct the tangent basis
+    tangent1 = np.cross(vec, arbitrary)
+    tangent1 /= np.linalg.norm(tangent1)
+    tangent2 = np.cross(vec, tangent1)
+    
+    # Sample noise for the tangent directions
+    noise1, noise2 = np.random.normal(0, sigma, 2)
+    
+    # Add noise and renormalize
+    new_vec = vec + noise1 * tangent1 + noise2 * tangent2
+    tmp= new_vec / np.linalg.norm(new_vec, axis=1, keepdims=True)
+    return tmp
