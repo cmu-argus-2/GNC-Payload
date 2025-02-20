@@ -46,14 +46,13 @@ class GeoTIFFData:
         rows = np.floor(rows).astype(int)
 
         # Get image dimensions
-        height, width, _ = self.image_data.shape
+        height, width, num_bands = self.image_data.shape
 
         # Create a mask for valid indices
         valid_mask = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
 
         # Prepare an array for the pixel values
         num_pixels = latitudes_flat.size
-        num_bands = self.image_data.shape[-1]
         pixel_values = np.zeros((num_pixels, num_bands), dtype=self.image_data.dtype)
 
         # Only retrieve pixel values for valid indices
