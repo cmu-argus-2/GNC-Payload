@@ -33,6 +33,42 @@ class GeoTIFFData:
     image_data: np.ndarray
     transform: Affine
 
+    def query_pixel_colors(self, latitudes, longitudes) -> np.ndarray:
+        latitudes_flat = latitudes.flatten()
+        longitudes_flat = longitudes.flatten()
+
+        inverse_transform = ~self.transform
+
+        cols, rows = inverse_transform * (longitudes_flat, latitudes_flat)
+
+        # Round and convert to integers
+        cols = np.floor(cols).astype(int)
+        rows = np.floor(rows).astype(int)
+
+        # Get image dimensions
+        height, width, _ = self.image_data.shape
+
+        # Create a mask for valid indices
+        valid_mask = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
+
+        # Prepare an array for the pixel values
+        num_pixels = latitudes_flat.size
+        num_bands = self.image_data.shape[-1]
+        pixel_values = np.zeros((num_pixels, num_bands), dtype=self.image_data.dtype)
+
+        # Only retrieve pixel values for valid indices
+        if np.any(valid_mask):
+            pixel_values[valid_mask] = self.image_data[rows[valid_mask], cols[valid_mask], :]
+
+        # Handle invalid indices (e.g., set to NaN)
+        # pixel_values[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
+
+        # Reshape the output to match the input shape (H x W x bands)
+        output_shape = latitudes.shape + (num_bands,)
+        pixel_values = pixel_values.reshape(output_shape)
+
+        return pixel_values
+
 
 class GeoTIFFCache:
     """
@@ -207,8 +243,8 @@ class EarthImageSimulator:
                 continue
 
             # Query pixel colors for the region
-            pixel_colors_region = query_pixel_colors(
-                latitudes[region_mask.flatten()], longitudes[region_mask.flatten()], geotiff_data.data, geotiff_data.trans
+            pixel_colors_region = geotiff_data.query_pixel_colors(
+                latitudes[region_mask.flatten()], longitudes[region_mask.flatten()]
             )
 
             # Assign pixel values to the full image
@@ -305,40 +341,3 @@ def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=63567
     # Reshape intersection points back to original ray grid shape
     intersection_points = intersection_points_flat.reshape(H, W, 3)
     return intersection_points
-
-
-def query_pixel_colors(latitudes, longitudes, image_data, trans):
-    latitudes_flat = latitudes.flatten()
-    longitudes_flat = longitudes.flatten()
-
-    inverse_transform = ~trans
-
-    cols, rows = inverse_transform * (longitudes_flat, latitudes_flat)
-
-    # Round and convert to integers
-    cols = np.floor(cols).astype(int)
-    rows = np.floor(rows).astype(int)
-
-    # Get image dimensions
-    height, width, _ = image_data.shape
-
-    # Create a mask for valid indices
-    valid_mask = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
-
-    # Prepare an array for the pixel values
-    num_pixels = latitudes_flat.size
-    num_bands = image_data.shape[-1]
-    pixel_values = np.zeros((num_pixels, num_bands), dtype=image_data.dtype)
-
-    # Only retrieve pixel values for valid indices
-    if np.any(valid_mask):
-        pixel_values[valid_mask] = image_data[rows[valid_mask], cols[valid_mask], :]
-
-    # Handle invalid indices (e.g., set to NaN)
-    # pixel_values[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
-
-    # Reshape the output to match the input shape (H x W x bands)
-    output_shape = latitudes.shape + (num_bands,)
-    pixel_values = pixel_values.reshape(output_shape)
-
-    return pixel_values
