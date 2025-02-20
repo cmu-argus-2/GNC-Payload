@@ -19,6 +19,78 @@ from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon
 from vision_inference.frame import Frame
 
 
+class GeoTIFFCache:
+    def __init__(self, geotiff_folder: str, max_cache_size: int | None = None):
+        """
+        Initialize the GeoTIFF cache.
+
+        Parameters:
+            geotiff_folder: Path to the folder containing GeoTIFF files.
+            max_cache_size: Maximum number of regions to maintain in the cache. Set to None for unlimited size.
+        """
+        self.geotiff_folder = geotiff_folder
+        GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
+
+        # Dynamically wrap the member function with an LRU cache
+        self.load_geotiff_data = lru_cache(maxsize=max_cache_size)(self.load_geotiff_data)
+
+    @staticmethod
+    def validate_region_folders_exist(geotiff_folder: str) -> None:
+        """
+        Check if all salient region folders exist in the specified GeoTIFF folder.
+
+        Parameters:
+            geotiff_folder: Path to the folder containing GeoTIFF files.
+
+        Raises:
+            FileNotFoundError: If one or more region folders are not found.
+        """
+        salient_region_ids = load_config()["vision"]["salient_mgrs_region_ids"]
+
+        all_region_folders_exist = True
+        for region in salient_region_ids:
+            region_folder = os.path.join(geotiff_folder, region)
+            if not os.path.exists(region_folder):
+                print(f"WARNING: Region folder '{region_folder}' not found.")
+                all_region_folders_exist = False
+        if all_region_folders_exist:
+            print("All salient region folders found!")
+        else:
+            raise FileNotFoundError("One or more region folders not found.")
+
+    def load_geotiff_data(self, region: str):
+        """
+        Load GeoTIFF data for a specific region.
+
+        Note that this function is dynamically wrapped with an LRU cache in the constructor, so it will cache its
+        outputs for recent regions. This makes it likely that temporally adjacent images will be loaded from the cache,
+        resulting in consistent image appearance.
+
+        :param region: The MGRS region to load data for.
+        :return: TODO
+        """
+        region_folder = os.path.join(self.geotiff_folder, region)
+        if not os.path.exists(region_folder):
+            return None, None
+        region_files = os.listdir(region_folder)
+        if not region_files:
+            return None, None
+
+        selected_file = np.random.choice(region_files)
+        file_path = os.path.join(region_folder, selected_file)
+        with rasterio.open(file_path) as src:
+            data = src.read()
+            data = np.moveaxis(data, 0, -1)
+            trans = src.transform
+        return data, trans
+
+    def clear_cache(self) -> None:
+        """
+        Clear the GeoTIFF cache.
+        """
+        self.load_geotiff_data.cache_clear()
+
+
 class EarthImageSimulator:
     """
     Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
@@ -148,78 +220,6 @@ class EarthImageSimulator:
         plt.imshow(image)
         plt.axis("off")
         plt.show()
-
-
-class GeoTIFFCache:
-    def __init__(self, geotiff_folder: str, max_cache_size: int | None = None):
-        """
-        Initialize the GeoTIFF cache.
-
-        Parameters:
-            geotiff_folder: Path to the folder containing GeoTIFF files.
-            max_cache_size: Maximum number of regions to maintain in the cache. Set to None for unlimited size.
-        """
-        self.geotiff_folder = geotiff_folder
-        GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
-
-        # Dynamically wrap the member function with an LRU cache
-        self.load_geotiff_data = lru_cache(maxsize=max_cache_size)(self.load_geotiff_data)
-
-    @staticmethod
-    def validate_region_folders_exist(geotiff_folder: str) -> None:
-        """
-        Check if all salient region folders exist in the specified GeoTIFF folder.
-
-        Parameters:
-            geotiff_folder: Path to the folder containing GeoTIFF files.
-
-        Raises:
-            FileNotFoundError: If one or more region folders are not found.
-        """
-        salient_region_ids = load_config()["vision"]["salient_mgrs_region_ids"]
-
-        all_region_folders_exist = True
-        for region in salient_region_ids:
-            region_folder = os.path.join(geotiff_folder, region)
-            if not os.path.exists(region_folder):
-                print(f"WARNING: Region folder '{region_folder}' not found.")
-                all_region_folders_exist = False
-        if all_region_folders_exist:
-            print("All salient region folders found!")
-        else:
-            raise FileNotFoundError("One or more region folders not found.")
-
-    def load_geotiff_data(self, region: str):
-        """
-        Load GeoTIFF data for a specific region.
-
-        Note that this function is dynamically wrapped with an LRU cache in the constructor, so it will cache its
-        outputs for recent regions. This makes it likely that temporally adjacent images will be loaded from the cache,
-        resulting in consistent image appearance.
-
-        :param region: The MGRS region to load data for.
-        :return: TODO
-        """
-        region_folder = os.path.join(self.geotiff_folder, region)
-        if not os.path.exists(region_folder):
-            return None, None
-        region_files = os.listdir(region_folder)
-        if not region_files:
-            return None, None
-
-        selected_file = np.random.choice(region_files)
-        file_path = os.path.join(region_folder, selected_file)
-        with rasterio.open(file_path) as src:
-            data = src.read()
-            data = np.moveaxis(data, 0, -1)
-            trans = src.transform
-        return data, trans
-
-    def clear_cache(self) -> None:
-        """
-        Clear the GeoTIFF cache.
-        """
-        self.load_geotiff_data.cache_clear()
 
 
 def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=6356752.314245):
