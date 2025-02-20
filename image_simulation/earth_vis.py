@@ -20,7 +20,16 @@ from vision_inference.frame import Frame
 
 
 class GeoTIFFCache:
-    def __init__(self, geotiff_folder: str, max_cache_size: int | None = None):
+    """
+    This class is responsible for loading and caching GeoTIFF data for Earth image simulation.
+
+    Attributes:
+        FALLBACK_GEOTIFF_FOLDER: Default folder containing GeoTIFF files. Only used if the user configuration file is not found.
+    """
+
+    FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
+
+    def __init__(self, geotiff_folder: str | None = None, max_cache_size: int | None = None):
         """
         Initialize the GeoTIFF cache.
 
@@ -28,11 +37,25 @@ class GeoTIFFCache:
             geotiff_folder: Path to the folder containing GeoTIFF files.
             max_cache_size: Maximum number of regions to maintain in the cache. Set to None for unlimited size.
         """
-        self.geotiff_folder = geotiff_folder
+        self.geotiff_folder = geotiff_folder if geotiff_folder is not None else GeoTIFFCache.get_default_geotiff_folder()
         GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
 
         # Dynamically wrap the member function with an LRU cache
         self.load_geotiff_data = lru_cache(maxsize=max_cache_size)(self.load_geotiff_data)
+
+    @staticmethod
+    def get_default_geotiff_folder() -> str:
+        """
+        Get the default GeoTIFF folder from the user configuration file.
+
+        Returns:
+            The default GeoTIFF folder.
+        """
+        if os.path.exists(USER_CONFIG_PATH):
+            return load_config(USER_CONFIG_PATH)["geotiff_folder"]
+
+        print("User configuration file not found. Using fallback GeoTIFF folder.")
+        return GeoTIFFCache.FALLBACK_GEOTIFF_FOLDER
 
     @staticmethod
     def validate_region_folders_exist(geotiff_folder: str) -> None:
@@ -94,37 +117,16 @@ class GeoTIFFCache:
 class EarthImageSimulator:
     """
     Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
-
-    Attributes:
-        FALLBACK_GEOTIFF_FOLDER: Default folder containing GeoTIFF files. Only used if the user configuration file is not found.
     """
 
-    FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
-
-    def __init__(self, geotiff_folder: str = None):
+    def __init__(self, geotiff_cache: GeoTIFFCache | None = None):
         """
         Initialize the Earth image simulator.
 
         Parameters:
-            geotiff_folder: Path to the folder containing GeoTIFF files.
+            geotiff_cache: The GeoTIFFCache to use. If None, a default GeoTIFFCache will be created.
         """
-        if geotiff_folder is None:
-            geotiff_folder = EarthImageSimulator.get_default_geotiff_folder()
-        self.cache = GeoTIFFCache(geotiff_folder)
-
-    @staticmethod
-    def get_default_geotiff_folder() -> str:
-        """
-        Get the default GeoTIFF folder from the user configuration file.
-
-        Returns:
-            The default GeoTIFF folder.
-        """
-        if os.path.exists(USER_CONFIG_PATH):
-            return load_config(USER_CONFIG_PATH)["geotiff_folder"]
-
-        print("User configuration file not found. Using fallback GeoTIFF folder.")
-        return EarthImageSimulator.FALLBACK_GEOTIFF_FOLDER
+        self.cache = geotiff_cache if geotiff_cache is not None else GeoTIFFCache()
 
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
