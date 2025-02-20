@@ -10,8 +10,8 @@ import numpy as np
 from brahe.epoch import Epoch
 
 from orbit_determination.landmark_bearing_sensors import LandmarkBearingSensor
-from utils.brahe_utils import increment_epoch
 from sensors.camera_model import CameraModel
+from utils.brahe_utils import increment_epoch
 
 
 @dataclass
@@ -81,12 +81,19 @@ class ODSimulationDataManager:
         return self.eci_Rs_body[-1, ...]
 
     @property
-    def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray]:
+    def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        :return: A tuple containing the bearing unit vectors and landmarks for the latest measurements.
+        :return: A tuple containing:
+                - The camera names for the latest measurements.
+                - The bearing unit vectors for the latest measurements.
+                - The landmarks for the latest measurements.
         """
         indices = self.measurement_indices == self.state_count - 1
-        return self.bearing_unit_vectors[indices, :], self.landmarks[indices, :]
+        return (
+            self.measurement_camera_names[indices, :],
+            self.bearing_unit_vectors[indices, :],
+            self.landmarks[indices, :],
+        )
 
     def assert_invariants(self) -> None:
         """
