@@ -54,7 +54,11 @@ class GeoTIFFCache:
                             Set to 0 to disable caching. Set to None for unlimited size.
                             The default value was chosen via compute_max_visible_regions in test_earth_vis.py.
         """
-        self.geotiff_folder = geotiff_folder if geotiff_folder is not None else GeoTIFFCache.get_default_geotiff_folder()
+        self.geotiff_folder = (
+            geotiff_folder
+            if geotiff_folder is not None
+            else GeoTIFFCache.get_default_geotiff_folder()
+        )
         GeoTIFFCache.validate_region_folders_exist(self.geotiff_folder)
 
         # Dynamically wrap the member function with an LRU cache
@@ -160,10 +164,10 @@ class EarthImageSimulator:
         Returns:
             A Tuple containing:
             - The simulated Frame object.
-            - A numpy array containing the MGRS regions for each pixel,
+            - A numpy array of shape CameraModel.RESOLUTION containing the MGRS regions for each pixel,
               or None if the pixel does not correspond to any MGRS region.
-            - A numpy array containing the latitudes and longitudes for each pixel,
-              or np.nan if the pixel does not correspond to any MGRS region.
+            - A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
+              pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
         # Generate ray directions in ECEF frame
         ray_directions_body = camera_model.ray_directions()
@@ -210,7 +214,11 @@ class EarthImageSimulator:
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
 
-        return Frame(pixel_colors_full, camera_model.camera_name, datetime.now()), mgrs_regions, lat_lon
+        return (
+            Frame(pixel_colors_full, camera_model.camera_name, datetime.now()),
+            mgrs_regions,
+            lat_lon,
+        )
 
     def simulate_image(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
