@@ -29,9 +29,11 @@ from rasterio.warp import reproject, calculate_default_transform, Resampling
 import cv2
 import argparse
 import numpy as np
-from getMGRS import getMGRS
-from multiprocessing import Pool,cpu_count
+from multiprocessing import Pool, cpu_count
 from tqdm.contrib.concurrent import process_map  # For multiprocessing with progress tracking
+
+from utils.earth_utils import get_MGRS_grid
+
 
 def save_maps(folder, file, crs):
     """
@@ -226,7 +228,7 @@ if __name__ == '__main__':
     saliency = cv2.saliency.StaticSaliencyFineGrained_create()
 
     # Get bounds of argument MGRS region
-    grid = getMGRS()
+    grid = get_MGRS_grid()
     bounds = grid[args.grid_key]
 
     # Assign remaining argument values
