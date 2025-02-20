@@ -73,7 +73,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 5  # Hz
+    config["solver"]["world_update_rate"] = 1 / 4  # Hz
     config["mission"]["duration"] = 3 * 90 * 40  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -94,13 +94,17 @@ def run_simulation() -> None:
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 4])
 
+    # Apply error to init_rot
+    init_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
+    # Ensure orthonormality
+    init_rot = np.dot(init_rot, np.linalg.inv(np.linalg.cholesky(np.dot(init_rot.T, init_rot))))
+
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
-        # TODO: Apply initial error to quaternion initialization
-        # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 50000, 3),
-        v=initial_state[3:6] + np.random.normal(0, 50000, 3),
+        # error ranges are in meters and m/s for position and velocity respectively
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        v=initial_state[3:6] + np.random.normal(0, 5000, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(9) * 100,
         Q=np.eye(9) * 1e-12,
@@ -131,7 +135,7 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 4 == 0:
+        if t % 2 == 0:
             data_manager.take_measurement(landmark_bearing_sensor)
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")

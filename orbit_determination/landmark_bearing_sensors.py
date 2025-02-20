@@ -15,7 +15,7 @@ from scipy.spatial.transform import Rotation
 # pylint: disable=import-error
 from image_simulation.earth_vis import EarthImageSimulator
 from utils.config_utils import load_config
-from utils.earth_utils import lat_lon_to_ecef
+from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
 from vision_inference.frame import Frame
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.ml_pipeline import MLPipeline
@@ -159,7 +159,9 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
 
             assert np.allclose(true_bearing_unit_vector_eci, eci_R_body @ bearing_unit_vector_body)
 
-        return bearing_unit_vectors_body, landmark_positions_eci
+        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body)
+
+        return bearing_unit_vectors_body_noisy, landmark_positions_eci
 
 
 class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
@@ -233,7 +235,9 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         visible_landmarks_eci = (ecef_R_eci.T @ visible_landmarks_ecef.T).T
 
         bearing_unit_vectors_body = (ecef_R_body.T @ bearing_unit_vectors_ecef[is_visible, :].T).T
-        return bearing_unit_vectors_body, visible_landmarks_eci
+        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body)
+
+        return bearing_unit_vectors_body_noisy, visible_landmarks_eci
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
