@@ -3,7 +3,6 @@ Testing the EKF class.
 """
 
 import pickle
-import sys
 from time import time
 
 import brahe
@@ -11,9 +10,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
 from brahe.epoch import Epoch
-
-root = "/home/frederik/cmu/GNC-Payload"
-sys.path.append(root)
 
 from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
