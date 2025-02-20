@@ -3,6 +3,7 @@ Testing the EKF class.
 """
 
 import pickle
+import sys
 from time import time
 
 import brahe
@@ -10,6 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
 from brahe.epoch import Epoch
+
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
 
 from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
@@ -22,6 +26,7 @@ from sensors.bias import BiasParams
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
+from utils.brahe_utils import load_brahe_data_files
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
@@ -171,4 +176,5 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
+    load_brahe_data_files()
     run_simulation()
