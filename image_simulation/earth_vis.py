@@ -9,16 +9,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
-from sensors.camera_model import CameraModel, CameraModelManager
+from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
-from utils.earth_utils import (
-    calculate_mgrs_zones,
-    ecef_to_lat_lon,
-    get_nadir_rotation,
-    lat_lon_to_ecef,
-)
+from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon
 from vision_inference.frame import Frame
 
 
@@ -284,61 +279,3 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
     pixel_values = pixel_values.reshape(output_shape)
 
     return pixel_values
-
-
-def sweep_lat_lon_test():
-    simulator = EarthImageSimulator()
-    camera_model_manager = CameraModelManager()
-
-    latitudes = np.linspace(-90, 90, 90)
-    longitudes = np.linspace(-180, 180, 90)
-
-    lat_lon = np.stack(np.meshgrid(latitudes, longitudes), axis=-1)
-    ecef_positions = lat_lon_to_ecef(lat_lon)
-
-    # scale to 600km altitude
-    R_earth = 6371.0088e3
-    ecef_positions *= (R_earth + 600e3) / R_earth
-
-    i_stride = ecef_positions.shape[1]
-    total = np.prod(ecef_positions.shape[:2])
-    empty_indices = []
-    for i, j in np.ndindex(ecef_positions.shape[:2]):
-        ecef_position = ecef_positions[i, j, :]
-        ecef_velocity = np.array([0, 0, 1])
-
-        ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-        simulated_image = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"]).image
-
-        if j % 20 == 0:
-            print(f"{i * i_stride + j}/{total}")
-        if np.all(simulated_image == 0):
-            empty_indices.append((i, j))
-        else:
-            print(f"Nonempty image at index ({i}, {j}), lat/lon: {lat_lon[i, j, :]}")
-
-    print(f"{len(empty_indices)}/{total} images are empty")
-    print(f"Empty images at indices: {empty_indices}")
-
-    with open("empty_images.txt", "w") as f:
-        f.write(str(empty_indices))
-
-
-def main():
-    simulator = EarthImageSimulator()
-    camera_model_manager = CameraModelManager()
-
-    ecef_position = lat_lon_to_ecef(np.array([39.8283, -98.5795]))
-    R_earth = 6371.0088e3
-    ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
-    ecef_velocity = np.array([0, 0, 1])
-    ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-
-    simulated_image = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"]).image
-    simulator.display_image(simulated_image)
-    print(np.all(simulated_image == 0))
-
-
-if __name__ == "__main__":
-    # sweep_lat_lon_test()
-    main()
