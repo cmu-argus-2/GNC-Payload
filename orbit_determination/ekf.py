@@ -141,6 +141,7 @@ class EKF:
     def measurement(
         self,
         z: Tuple[np.ndarray, np.ndarray],
+        body_Rs_camera: np.ndarray,
         data_manager: ODSimulationDataManager,
         num_iter: int = 1,
     ) -> None:
@@ -149,7 +150,8 @@ class EKF:
         in the EKF algorithm.
 
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the
-        landmark positions in ECI coordinates with shape (N, 3)
+        landmark positions in ECI coordinates, both with shape (N, 3)
+        :param body_Rs_camera: Rotation matrices from the camera frame to the body frame with shape (N, 3, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
         :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
@@ -158,6 +160,9 @@ class EKF:
         # Select a fraction of the measurements to use to speed up computations
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
         z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+
+        # convert from camera frame to body frame
+        z0 = np.einsum("ijk,ik->ij", body_Rs_camera[:z0.shape[0], ...], z0)
 
         # Flatten the measurement vector
         z0 = np.array(z0.reshape(-1))

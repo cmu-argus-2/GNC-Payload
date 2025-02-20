@@ -19,9 +19,9 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.bias import BiasParams
+from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
-from sensors.camera_model import CameraModelManager
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
@@ -142,9 +142,11 @@ def run_simulation() -> None:
             print(f"Completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
-            z = data_manager.latest_measurements
+            measurement_camera_names, *z = data_manager.latest_measurements
+            body_Rs_camera = camera_model_manager.get_body_Rs_camera(measurement_camera_names)
+
             if z[0].shape[0] > 0:
-                ekf.measurement(z, data_manager, num_iter)
+                ekf.measurement(z, body_Rs_camera, data_manager, num_iter)
             else:
                 ekf.no_measurement()
         else:
