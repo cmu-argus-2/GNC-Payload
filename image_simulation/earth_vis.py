@@ -163,31 +163,31 @@ class GeoTIFFCache:
         """
         self.geotiff_folder = geotiff_folder
         self.cache = {}
+        GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
 
-        for region in [
-            "10S",
-            "10T",
-            "11R",
-            "12R",
-            "16T",
-            "17R",
-            "17T",
-            "18S",
-            "32S",
-            "32T",
-            "33S",
-            "33T",
-            "52S",
-            "53S",
-            "54S",
-            "54T",
-        ]:
-            region_folder = os.path.join(self.geotiff_folder, region)
+    @staticmethod
+    def validate_region_folders_exist(geotiff_folder: str) -> None:
+        """
+        Check if all salient region folders exist in the specified GeoTIFF folder.
+
+        Parameters:
+            geotiff_folder: Path to the folder containing GeoTIFF files.
+
+        Raises:
+            FileNotFoundError: If one or more region folders are not found.
+        """
+        salient_region_ids = load_config()["vision"]["salient_mgrs_region_ids"]
+
+        all_region_folders_exist = True
+        for region in salient_region_ids:
+            region_folder = os.path.join(geotiff_folder, region)
             if not os.path.exists(region_folder):
                 print(f"WARNING: Region folder '{region_folder}' not found.")
-                break
+                all_region_folders_exist = False
+        if all_region_folders_exist:
+            print("All salient region folders found!")
         else:
-            print("All region folders found!")
+            raise FileNotFoundError("One or more region folders not found.")
 
     def load_geotiff_data(self, region):
         if region in self.cache:
