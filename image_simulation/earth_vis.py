@@ -6,10 +6,12 @@ import os
 from datetime import datetime
 from typing import Tuple
 from functools import lru_cache
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+from affine import Affine
 
 from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -17,6 +19,19 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 # pylint: disable=import-error
 from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon
 from vision_inference.frame import Frame
+
+
+@dataclass
+class GeoTIFFData:
+    """
+    Dataclass to store the data contained in a GeoTIFF file.
+
+    Attributes:
+        image_data: The image data contained in the GeoTIFF file.
+        transform: The affine transformation matrix for the GeoTIFF file.
+    """
+    image_data: np.ndarray
+    transform: Affine
 
 
 class GeoTIFFCache:
@@ -83,7 +98,7 @@ class GeoTIFFCache:
         else:
             raise FileNotFoundError("One or more region folders not found.")
 
-    def load_geotiff_data(self, region: str):
+    def load_geotiff_data(self, region: str) -> GeoTIFFData | None:
         """
         Load GeoTIFF data for a specific region.
 
@@ -92,22 +107,22 @@ class GeoTIFFCache:
         resulting in consistent image appearance.
 
         :param region: The MGRS region to load data for.
-        :return: TODO
+        :return: A GeoTIFFData object, or None if there is no data for the specified region.
         """
         region_folder = os.path.join(self.geotiff_folder, region)
         if not os.path.exists(region_folder):
-            return None, None
+            return None
         region_files = os.listdir(region_folder)
         if not region_files:
-            return None, None
+            return None
 
         selected_file = np.random.choice(region_files)
         file_path = os.path.join(region_folder, selected_file)
         with rasterio.open(file_path) as src:
-            data = src.read()
-            data = np.moveaxis(data, 0, -1)
-            trans = src.transform
-        return data, trans
+            image_data = src.read()
+            image_data = np.moveaxis(image_data, 0, -1)
+            transform = src.transform
+        return GeoTIFFData(image_data, transform)
 
     def clear_cache(self) -> None:
         """
@@ -176,8 +191,8 @@ class EarthImageSimulator:
 
         # Load and assign data for each region
         for region in present_regions:
-            data, trans = self.cache.load_geotiff_data(region)
-            if data is None:
+            geotiff_data = self.cache.load_geotiff_data(region)
+            if geotiff_data is None:
                 continue
 
             # Mask for the current region
@@ -189,7 +204,7 @@ class EarthImageSimulator:
 
             # Query pixel colors for the region
             pixel_colors_region = query_pixel_colors(
-                latitudes[region_mask.flatten()], longitudes[region_mask.flatten()], data, trans
+                latitudes[region_mask.flatten()], longitudes[region_mask.flatten()], geotiff_data.data, geotiff_data.trans
             )
 
             # Assign pixel values to the full image
