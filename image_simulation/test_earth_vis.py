@@ -56,8 +56,7 @@ def simulate_image(
     camera_model_manager = CameraModelManager()
 
     ecef_position = lat_lon_to_ecef(lat_lon)
-    R_earth = 6379.0088e3
-    ecef_position *= (R_earth + altitude) / np.linalg.norm(ecef_position)
+    ecef_position *= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
 
     # choose a velocity vector that results in north pointing upwards in the image
     ecef_velocity = np.cross(np.array([0, 0, 1]), ecef_position)
