@@ -1,2 +1,4 @@
 # Path to the folder containing directories named with MGRS region IDs containing geotiff files used for image simulation
 geotiff_folder: /path/to/geotiff/folder
+# The name of the Earth Engine project that will be used by image_simulator/eedl.py to fetch the geotiff files
+earth_engine_project_name: your_earth_engine_project_name

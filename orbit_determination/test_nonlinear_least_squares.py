@@ -22,6 +22,7 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from sensors.camera_model import CameraModelManager
 from utils.brahe_utils import load_brahe_data_files
 from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
@@ -52,16 +53,17 @@ def test_od() -> None:
     # TODO: move this into the config file itself
     # decrease world update rate since we only care about position dynamics
     config["solver"]["world_update_rate"] = 1 / 60  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s, roughly 1 orbit
+    config["mission"]["duration"] = 20 * 90 * 60  # s, roughly 1 orbit
 
     # set up simulation parameters
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
-    # landmark_bearing_sensor = RandomLandmarkBearingSensor(config)
-    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(config)
+    # landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
+    # landmark_bearing_sensor = RandomLandmarkBearingSensor()
+    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
+    camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
@@ -74,8 +76,10 @@ def test_od() -> None:
         data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
 
         # take a set of measurements every 5 minutes
-        if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
-            data_manager.take_measurement(landmark_bearing_sensor)
+        if (
+            t % 5 == 0
+        ):  # and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
+            data_manager.take_measurement(landmark_bearing_sensor, camera_model_manager["x+"])
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
@@ -140,5 +144,5 @@ def test_od() -> None:
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    load_brahe_data_files()
+    # load_brahe_data_files()
     test_od()

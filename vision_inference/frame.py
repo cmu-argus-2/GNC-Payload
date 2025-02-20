@@ -15,13 +15,13 @@ class Frame:
     A class to store a frame from one of the cameras and associated metadata.
 
     :param image: The image as a numpy array.
-    :param camera_id: The ID of the camera that captured the frame.
+    :param camera_name: The name of the camera that captured the frame.
     :param timestamp: The timestamp of the frame.
     :param frame_id: The unique ID of the frame, generated from the timestamp.
     """
 
     image: np.ndarray
-    camera_id: int
+    camera_name: str
     timestamp: datetime
     frame_id: str = field(init=False)
 

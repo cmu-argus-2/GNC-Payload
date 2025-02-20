@@ -19,6 +19,7 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.bias import BiasParams
+from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.config_utils import load_config
@@ -81,6 +82,7 @@ def run_simulation() -> None:
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
+    camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
@@ -132,14 +134,19 @@ def run_simulation() -> None:
         ekf.predict(u=gyro_meas)
 
         if t % 4 == 0:
-            data_manager.take_measurement(landmark_bearing_sensor)
+            for camera_name in CameraModelManager.CAMERA_NAMES:
+                data_manager.take_measurement(
+                    landmark_bearing_sensor, camera_model_manager[camera_name]
+                )
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
-            z = data_manager.latest_measurements
+            measurement_camera_names, *z = data_manager.latest_measurements
+            body_Rs_camera = camera_model_manager.get_body_Rs_camera(measurement_camera_names)
+
             if z[0].shape[0] > 0:
-                ekf.measurement(z, data_manager, num_iter)
+                ekf.measurement(z, body_Rs_camera, data_manager, num_iter)
             else:
                 ekf.no_measurement()
         else:

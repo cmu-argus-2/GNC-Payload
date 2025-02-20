@@ -20,14 +20,30 @@ satellite:
       mtb_orientation : [[1,0,0], [0,1,0], [0,0,1]] # alignment axis of each magnetorquer in the body frame
 
       # Sensors
-      camera:
-            image_width: 720  # px
-            image_height: 720  # px
-            intrinsics: [[ 10000, 0, 360 ],
-                         [ 0, 10000, 360 ],
-                         [ 0, 0, 1 ]]  # 3x3 matrix representing the intrinsic parameters of the camera
-            t_body_to_camera: [ 0.05, 0.0, 0.0 ]  # m, position of camera in the satellite's body frame
-            body_R_camera: [[0,0,1], [-1,0,0], [0,-1,0]]  # rotation matrix representing a transformation from camera-frame to body-frame
+      cameras:
+            [
+                  {
+                        "name": "x+",
+                        # TODO: double check if the cameras are rotated by 180 degrees (i.e. we might get the images upside down as is)
+                        "body_R_camera": [ [ 0,0,1 ], [ -1,0,0 ], [ 0,-1,0 ] ],  # rotation matrix representing a transformation from camera-frame to body-frame
+                        "t_body_to_camera": [ 0.05116, -0.000198, -0.02927 ],  # m, position of camera in the satellite's body frame
+                  },
+                  {
+                        "name": "y+",
+                        "body_R_camera": [ [ 1,0,0 ], [ 0,0,1 ], [ 0,-1,0 ] ],
+                        "t_body_to_camera": [ -0.00018, 0.051362, -0.02927 ],
+                  },
+                  {
+                        "name": "x-",
+                        "body_R_camera": [ [ 0,0,-1 ], [ 1,0,0 ], [ 0,-1,0 ] ],
+                        "t_body_to_camera": [ -0.05214, 0.000022, -0.02927 ],
+                  },
+                  {
+                        "name": "y-",
+                        "body_R_camera": [ [ -1,0,0 ], [ 0,0,-1 ], [ 0,-1,0 ] ],
+                        "t_body_to_camera": [ -0.00030, -0.051438, -0.02927 ],
+                  },
+            ]
 
 
 solver:

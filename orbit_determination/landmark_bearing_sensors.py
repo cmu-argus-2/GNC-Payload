@@ -14,6 +14,7 @@ from scipy.spatial.transform import Rotation
 
 # pylint: disable=import-error
 from image_simulation.earth_vis import EarthImageSimulator
+from sensors.camera_model import CameraModel
 from utils.config_utils import load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.frame import Frame
@@ -30,7 +31,11 @@ class LandmarkBearingSensor(ABC):
 
     @abstractmethod
     def take_measurement(
-        self, epoch: Epoch, cubesat_position: np.ndarray, eci_R_body: np.ndarray
+        self,
+        epoch: Epoch,
+        cubesat_position: np.ndarray,
+        eci_R_body: np.ndarray,
+        camera_model: CameraModel,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a landmark bearing measurement using the sensor.
@@ -39,6 +44,7 @@ class LandmarkBearingSensor(ABC):
         :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
         :param eci_R_body: The rotation matrix from the body frame to the ECI frame as a numpy
         array of shape (3, 3).
+        :param camera_model: The camera model to use for the measurement.
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors
         in the body frame and a numpy array of shape (N, 3) containing the landmark positions in
         ECI coordinates.
@@ -51,27 +57,21 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
     A sensor that randomly generates landmark bearing measurements within a cone centered about the camera's boresight.
     """
 
-    def __init__(
-        self, config: dict, max_measurements: int = 10, fov: float = np.deg2rad(120)
-    ) -> None:
+    def __init__(self, max_measurements: int = 10, fov: float = np.deg2rad(120)) -> None:
         """
-        :param config: The configuration dictionary.
         :param fov: The field of view of the camera in radians.
         :param max_measurements: The number of measurements to attempt to take at once. The actual number may be less.
         """
-        camera_params = config["satellite"]["camera"]
-        self.body_R_camera = np.asarray(camera_params["body_R_camera"])
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
-
         self.max_measurements = max_measurements
         self.fov = fov
         self.cos_fov = np.cos(fov)
 
-    def sample_bearing_unit_vectors(self) -> np.ndarray:
+    def sample_bearing_unit_vectors(self, camera_model: CameraModel) -> np.ndarray:
         """
         Sample self.max_measurements random bearing unit vectors in the body frame that are within the camera's field
         of view, which is a cone centered about the camera's boresight.
 
+        :param camera_model: The camera model to use for the measurement.
         :return: A numpy array of shape (self.max_measurements, 3) containing the sampled bearing unit vectors in the
         body frame.
         """
@@ -85,7 +85,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         # sanity check
         assert np.all(bearing_unit_vectors_cf[:, 2] > self.cos_fov)
 
-        bearing_unit_vectors_body = (self.body_R_camera @ bearing_unit_vectors_cf.T).T
+        bearing_unit_vectors_body = (camera_model.body_R_camera @ bearing_unit_vectors_cf.T).T
         return bearing_unit_vectors_body
 
     @staticmethod
@@ -129,7 +129,11 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         return valid_intersections, intersection_points
 
     def take_measurement(
-        self, _: Epoch, cubesat_position: np.ndarray, eci_R_body: np.ndarray
+        self,
+        _: Epoch,
+        cubesat_position: np.ndarray,
+        eci_R_body: np.ndarray,
+        camera_model: CameraModel,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -138,12 +142,13 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         :param _: The epoch as an instance of brahe's Epoch class. Not used.
         :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
         :param eci_R_body: The rotation matrix from the body frame to the ECI frame as a numpy array of shape (3, 3).
+        :param camera_model: The camera model to use for the measurement.
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
-        bearing_unit_vectors_body = self.sample_bearing_unit_vectors()
+        bearing_unit_vectors_body = self.sample_bearing_unit_vectors(camera_model)
         bearing_unit_vectors_eci = (eci_R_body @ bearing_unit_vectors_body.T).T
-        camera_position_eci = cubesat_position + eci_R_body @ self.t_body_to_camera
+        camera_position_eci = camera_model.get_camera_position(cubesat_position, eci_R_body)
 
         valid_intersections, landmark_positions_eci = self.get_ray_and_earth_intersections(
             bearing_unit_vectors_eci, camera_position_eci
@@ -169,11 +174,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
     Note that this DOES NOT (yet) accurately simulate the camera's field of view.
     """
 
-    def __init__(self, config: dict, fov: float = np.deg2rad(100)) -> None:
-        camera_params = config["satellite"]["camera"]
-        self.body_R_camera = np.asarray(camera_params["body_R_camera"])
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
-
+    def __init__(self, fov: float = np.deg2rad(100)) -> None:
         self.fov = fov
         self.cos_fov_on_2 = np.cos(fov / 2)
         self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
@@ -200,7 +201,11 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
 
     # pylint: disable=too-many-locals
     def take_measurement(
-        self, epoch: Epoch, cubesat_position: np.ndarray, eci_R_body: np.ndarray
+        self,
+        epoch: Epoch,
+        cubesat_position: np.ndarray,
+        eci_R_body: np.ndarray,
+        camera_model: CameraModel,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -208,22 +213,24 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         :param epoch: The epoch as an instance of brahe's Epoch class.
         :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
         :param eci_R_body: The rotation matrix from the body frame to ECI as a numpy array of shape (3, 3).
+        :param camera_model: The camera model to use for the measurement.
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
         ecef_R_eci = brahe.frames.rECItoECEF(epoch)
+        position_ecef = ecef_R_eci @ cubesat_position
         ecef_R_body = ecef_R_eci @ eci_R_body
-        position_ecef = ecef_R_eci @ cubesat_position + ecef_R_body @ self.t_body_to_camera
-        ecef_R_camera = ecef_R_body @ self.body_R_camera
-        camera_axis_ecef = ecef_R_camera[:, 2]
+
+        camera_axis_ecef = camera_model.get_camera_axis(ecef_R_body)
+        camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
 
         # TODO: optimize this by using the MGRS regions to filter out landmarks that are definitely not visible
         all_landmarks_ecef = np.concatenate(list(self.region_landmarks_ecef.values()), axis=0)
 
-        is_same_hemisphere = all_landmarks_ecef @ position_ecef > 0
+        is_same_hemisphere = all_landmarks_ecef @ camera_position_ecef > 0
         hemisphere_landmarks_ecef = all_landmarks_ecef[is_same_hemisphere, :]
 
-        bearing_vectors_ecef = hemisphere_landmarks_ecef - position_ecef
+        bearing_vectors_ecef = hemisphere_landmarks_ecef - camera_position_ecef
         bearing_unit_vectors_ecef = bearing_vectors_ecef / np.linalg.norm(
             bearing_vectors_ecef, axis=1, keepdims=True
         )
@@ -242,20 +249,20 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
     bearing measurements.
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self) -> None:
         """
-        :param config: The configuration dictionary.
+        Initialize this SimulatedMLLandmarkBearingSensor.
         """
-        camera_params = config["satellite"]["camera"]
-        self.body_R_camera = np.asarray(camera_params["body_R_camera"])
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])  # in the body frame
-
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
 
     # pylint: disable=too-many-locals
     def take_measurement(
-        self, epoch: Epoch, cubesat_position: np.ndarray, eci_R_body: np.ndarray
+        self,
+        epoch: Epoch,
+        cubesat_position: np.ndarray,
+        eci_R_body: np.ndarray,
+        camera_model: CameraModel,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -263,25 +270,24 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         :param epoch: The epoch as an instance of brahe's Epoch class.
         :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
         :param eci_R_body: The rotation matrix from the body frame to the ECI frame as a numpy array of shape (3, 3).
+        :param camera_model: The camera model to use for the measurement.
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
-        ecef_R_eci = brahe.frames.rECItoECEF(epoch)
-        ecef_R_body = ecef_R_eci @ eci_R_body
-        position_ecef = ecef_R_eci @ cubesat_position + ecef_R_body @ self.t_body_to_camera
-        ecef_R_camera = ecef_R_body @ self.body_R_camera
-
         print(f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
 
-        # simulate image
-        image = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_camera)
+        ecef_R_eci = brahe.frames.rECItoECEF(epoch)
+        position_ecef = ecef_R_eci @ cubesat_position
+        ecef_R_body = ecef_R_eci @ eci_R_body
 
-        if np.all(image == 0):
+        # simulate image
+        frame = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body, camera_model)
+
+        if np.all(frame.image == 0):
             print("No image detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         # run the ML pipeline on the image
-        frame = Frame(image, 0, datetime.now())
         # TODO: queue requests to the model and send them in batches as the sim runs
         landmark_detections, region_slices = self.ml_pipeline.run_ml_pipeline_on_single(frame)
 
@@ -302,10 +308,10 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
 
         landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.latlons)
         landmark_positions_eci = (ecef_R_eci.T @ landmark_positions_ecef.T).T
-        bearing_unit_vectors_cf = self.earth_image_simulator.camera.pixel_to_bearing_unit_vector(
+        bearing_unit_vectors_cf = camera_model.pixel_to_bearing_unit_vector(
             landmark_detections.pixel_coordinates
         )
-        bearing_unit_vectors_body = (self.body_R_camera @ bearing_unit_vectors_cf.T).T
+        bearing_unit_vectors_body = (camera_model.body_R_camera @ bearing_unit_vectors_cf.T).T
 
         print(f"Detected {len(landmark_positions_eci)} landmarks")
 

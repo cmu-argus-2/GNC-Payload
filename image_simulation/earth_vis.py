@@ -3,20 +3,18 @@ Module to simulate and visualize Earth images from satellite data.
 """
 
 import os
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 
+from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
-from utils.earth_utils import (
-    calculate_mgrs_zones,
-    ecef_to_lat_lon,
-    get_nadir_rotation,
-    lat_lon_to_ecef,
-)
+from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon
+from vision_inference.frame import Frame
 
 
 class EarthImageSimulator:
@@ -29,24 +27,16 @@ class EarthImageSimulator:
 
     FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
 
-    def __init__(self, geotiff_folder: str = None, resolution=None, hfov=None):
+    def __init__(self, geotiff_folder: str = None):
         """
         Initialize the Earth image simulator.
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
-            resolution (tuple): Camera resolution (width, height).
-            hfov (float): Horizontal field of view in degrees.
         """
         if geotiff_folder is None:
             geotiff_folder = EarthImageSimulator.get_default_geotiff_folder()
-        if resolution is None:
-            resolution = np.array([4608, 2592])  # width, height
-        if hfov is None:
-            hfov = 66.1
         self.cache = GeoTIFFCache(geotiff_folder)
-        self.resolution = resolution
-        self.camera = CameraSimulation(self.resolution, hfov)
 
     @staticmethod
     def get_default_geotiff_folder() -> str:
@@ -62,22 +52,27 @@ class EarthImageSimulator:
         print("User configuration file not found. Using fallback GeoTIFF folder.")
         return EarthImageSimulator.FALLBACK_GEOTIFF_FOLDER
 
-    def simulate_image(self, position, orientation):
+    def simulate_image(
+        self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
+    ) -> Frame:
         """
-        Simulate an Earth image given the satellite position and orientation.
+        Simulate an Earth image given the satellite position, attitude, and camera model.
 
         Parameters:
-            position (np.ndarray): Satellite position in ECEF coordinates (3,).
-            orientation (np.ndarray): Satellite orientation as a 3x3 rotation matrix from the camera frame to ECEF.
+            position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
+            ecef_R_body: A numpy array of shape (3, 3) representing the rotation matrix from body to ECEF coordinates.
+            camera_model: The camera model to use to simulate the image.
 
         Returns:
-            np.ndarray: Simulated RGB image.
+            The simulated RGB image.
         """
         # Generate ray directions in ECEF frame
-        ray_directions_ecef = self.camera.rays_in_ecef(orientation)
+        ray_directions_body = camera_model.ray_directions()
+        ray_directions_ecef = ray_directions_body @ ecef_R_body.T
 
         # Intersect rays with the Earth
-        intersection_points = intersect_ellipsoid(ray_directions_ecef, position)
+        camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
+        intersection_points = intersect_ellipsoid(ray_directions_ecef, camera_position_ecef)
 
         # Convert intersection points to lat/lon
         lat_lon = ecef_to_lat_lon(intersection_points)
@@ -92,7 +87,7 @@ class EarthImageSimulator:
         present_regions = np.unique([region for region in mgrs_regions if region is not None])
 
         # Initialize full image with zeros
-        width, height = self.resolution
+        width, height = CameraModel.RESOLUTION
         pixel_colors_full = np.zeros((height, width, 3), dtype=np.uint8)
 
         # Load and assign data for each region
@@ -116,7 +111,7 @@ class EarthImageSimulator:
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
 
-        return pixel_colors_full
+        return Frame(pixel_colors_full, camera_model.camera_name, datetime.now())
 
     def display_image(self, image):
         """
@@ -189,83 +184,6 @@ class GeoTIFFCache:
 
     def clear_cache(self):
         self.cache = {}
-
-
-class CameraSimulation:
-    def __init__(self, resolution, fov):
-        """
-        Initialize the simulation camera parameters
-
-        Parameters:
-            resolution (tuple): Resolution of the camera (width, height).
-            fov (float): Field of view in degrees (assumes square FOV).
-        """
-        self.resolution = resolution
-        self.fov = np.radians(fov)  # Convert FOV to radians
-
-    def ray_directions(self):
-        """
-        Generate ray directions for the camera.
-
-        Returns:
-            np.ndarray: Array of ray directions (HxWx3) in the camera frame.
-        """
-        width, height = self.resolution
-        half_width = np.tan(self.fov / 2)
-        half_height = half_width * (height / width)
-
-        x = np.linspace(-half_width, half_width, width)
-        y = np.linspace(-half_height, half_height, height)
-        xx, yy = np.meshgrid(x, y)
-        zz = np.ones_like(xx)  # Assume unit depth
-
-        # Stack and normalize ray directions
-        ray_directions = np.stack([xx, yy, zz], axis=-1)
-        ray_directions /= np.linalg.norm(ray_directions, axis=-1, keepdims=True)
-        return ray_directions
-
-    def rays_in_ecef(self, orientation):
-        """
-        Transform ray directions from the camera frame to the ECEF frame.
-
-        Parameters:
-            orientation (np.ndarray): 3x3 rotation matrix for orientation.
-
-        Returns:
-            np.ndarray: Array of ray directions (HxWx3) in the ECEF frame.
-        """
-        return self.ray_directions() @ orientation.T
-
-    def pixel_to_bearing_unit_vector(self, pixel_coords):
-        """
-        Converts pixel coordinates to bearing unit vectors in the camera frame.
-
-        Parameters:
-            pixel_coords (np.ndarray): An array of shape (N, 2) with pixel coordinates.
-
-        Returns:
-            np.ndarray: An array of shape (N, 3) with bearing unit vectors in the camera frame.
-        """
-        width, height = self.resolution
-
-        half_width = np.tan(self.fov / 2)
-        half_height = half_width * (height / width)
-
-        u = pixel_coords[:, 0]  # Pixel x-coordinates
-        v = pixel_coords[:, 1]  # Pixel y-coordinates
-
-        # Normalize pixel coordinates to range [-half_width, half_width] and [half_height, -half_height]
-        # Assuming pixel (0,0) is at the top-left corner
-        x = -half_width + (2 * half_width) * (u / (width - 1))
-        y = half_height - (2 * half_height) * (
-            v / (height - 1)
-        )  # Invert y-axis for image coordinates
-        z = np.ones_like(x)
-
-        # Stack and normalize direction vectors
-        bearing_unit_vectors = np.stack([x, y, z], axis=-1)
-        bearing_unit_vectors /= np.linalg.norm(bearing_unit_vectors, axis=1, keepdims=True)
-        return bearing_unit_vectors
 
 
 def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=6356752.314245):
@@ -361,63 +279,3 @@ def query_pixel_colors(latitudes, longitudes, image_data, trans):
     pixel_values = pixel_values.reshape(output_shape)
 
     return pixel_values
-
-
-def sweep_lat_lon_test():
-    config = load_config()
-    body_R_camera = np.asarray(config["satellite"]["camera"]["body_R_camera"])
-    simulator = EarthImageSimulator()
-
-    latitudes = np.linspace(-90, 90, 90)
-    longitudes = np.linspace(-180, 180, 90)
-
-    lat_lon = np.stack(np.meshgrid(latitudes, longitudes), axis=-1)
-    ecef_positions = lat_lon_to_ecef(lat_lon)
-
-    # scale to 600km altitude
-    R_earth = 6371.0088e3
-    ecef_positions *= (R_earth + 600e3) / R_earth
-
-    i_stride = ecef_positions.shape[1]
-    total = np.prod(ecef_positions.shape[:2])
-    empty_indices = []
-    for i, j in np.ndindex(ecef_positions.shape[:2]):
-        ecef_position = ecef_positions[i, j, :]
-        ecef_velocity = np.array([0, 0, 1])
-
-        orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-        simulated_image = simulator.simulate_image(ecef_position, orientation @ body_R_camera)
-
-        if j % 20 == 0:
-            print(f"{i * i_stride + j}/{total}")
-        if np.all(simulated_image == 0):
-            empty_indices.append((i, j))
-        else:
-            print(f"Nonempty image at index ({i}, {j}), lat/lon: {lat_lon[i, j, :]}")
-
-    print(f"{len(empty_indices)}/{total} images are empty")
-    print(f"Empty images at indices: {empty_indices}")
-
-    with open("empty_images.txt", "w") as f:
-        f.write(str(empty_indices))
-
-
-def main():
-    config = load_config()
-    body_R_camera = np.asarray(config["satellite"]["camera"]["body_R_camera"])
-    simulator = EarthImageSimulator()
-
-    lat_lon = np.array([39.8283, -98.5795])
-    ecef_position = lat_lon_to_ecef(lat_lon[np.newaxis, np.newaxis, :])[0, 0, :]
-    R_earth = 6371.0088e3
-    ecef_position *= (R_earth + 6000e3) / np.linalg.norm(ecef_position)
-    ecef_velocity = np.array([0, 0, 1])
-    orientation = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
-
-    simulated_image = simulator.simulate_image(ecef_position, orientation @ body_R_camera)
-    print(np.all(simulated_image == 0))
-
-
-if __name__ == "__main__":
-    # sweep_lat_lon_test()
-    main()
