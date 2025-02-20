@@ -5,6 +5,7 @@ Module to simulate and visualize Earth images from satellite data.
 import os
 from datetime import datetime
 from typing import Tuple
+from functools import lru_cache
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -150,15 +151,19 @@ class EarthImageSimulator:
 
 
 class GeoTIFFCache:
-    def __init__(self, geotiff_folder: str):
+    def __init__(self, geotiff_folder: str, max_cache_size: int | None = None):
         """
         Initialize the GeoTIFF cache.
 
-        Parameters: geotiff_folder (str): Path to the folder containing GeoTIFF files.
+        Parameters:
+            geotiff_folder: Path to the folder containing GeoTIFF files.
+            max_cache_size: Maximum number of regions to maintain in the cache. Set to None for unlimited size.
         """
         self.geotiff_folder = geotiff_folder
-        self.cache = {}
         GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
+
+        # Dynamically wrap the member function with an LRU cache
+        self.load_geotiff_data = lru_cache(maxsize=max_cache_size)(self.load_geotiff_data)
 
     @staticmethod
     def validate_region_folders_exist(geotiff_folder: str) -> None:
@@ -184,18 +189,23 @@ class GeoTIFFCache:
         else:
             raise FileNotFoundError("One or more region folders not found.")
 
-    def load_geotiff_data(self, region):
-        if region in self.cache:
-            return self.cache[region]
+    def load_geotiff_data(self, region: str):
+        """
+        Load GeoTIFF data for a specific region.
 
+        Note that this function is dynamically wrapped with an LRU cache in the constructor, so it will cache its
+        outputs for recent regions. This makes it likely that temporally adjacent images will be loaded from the cache,
+        resulting in consistent image appearance.
+
+        :param region: The MGRS region to load data for.
+        :return: TODO
+        """
         region_folder = os.path.join(self.geotiff_folder, region)
         if not os.path.exists(region_folder):
-            self.cache[region] = (None, None)
-            return self.cache[region]
+            return None, None
         region_files = os.listdir(region_folder)
         if not region_files:
-            self.cache[region] = (None, None)
-            return self.cache[region]
+            return None, None
 
         selected_file = np.random.choice(region_files)
         file_path = os.path.join(region_folder, selected_file)
@@ -203,11 +213,13 @@ class GeoTIFFCache:
             data = src.read()
             data = np.moveaxis(data, 0, -1)
             trans = src.transform
-        self.cache[region] = (data, trans)
-        return self.cache[region]
+        return data, trans
 
-    def clear_cache(self):
-        self.cache = {}
+    def clear_cache(self) -> None:
+        """
+        Clear the GeoTIFF cache.
+        """
+        self.load_geotiff_data.cache_clear()
 
 
 def intersect_ellipsoid(ray_directions, satellite_position, a=6378137.0, b=6356752.314245):
