@@ -250,6 +250,9 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
     """
 
     def __init__(self) -> None:
+        """
+        Initialize this SimulatedMLLandmarkBearingSensor.
+        """
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
 

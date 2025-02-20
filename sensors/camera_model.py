@@ -125,6 +125,19 @@ class CameraModelManager:
         self.validate_camera_name(camera_name)
         return self.camera_models[camera_name]
 
+    def get_body_Rs_camera(self, camera_names: np.ndarray) -> np.ndarray:
+        """
+        Get the rotation matrices from camera to body frame for the specified cameras.
+
+        Parameters:
+            camera_names: A numpy array of shape (N,) containing the names of the cameras. Repeats are fine.
+
+        Returns:
+            A numpy array of shape (N, 3, 3) containing the rotation matrices from camera to body frame
+            for the specified cameras.
+        """
+        return np.stack([self[camera_name].body_R_camera for camera_name in camera_names], axis=0)
+
     @staticmethod
     def initialize_cameras() -> dict[str, CameraModel]:
         """
