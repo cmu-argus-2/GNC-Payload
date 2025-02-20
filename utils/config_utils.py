@@ -4,6 +4,7 @@ This module contains utility functions for loading configuration files.
 
 import os
 from typing import Any
+from functools import cache
 
 import yaml
 
@@ -11,6 +12,7 @@ MAIN_CONFIG_PATH = os.path.abspath(os.path.join(__file__, "../../config.yaml"))
 USER_CONFIG_PATH = os.path.abspath(os.path.join(__file__, "../../user_config.yaml"))
 
 
+@cache
 def load_config(config_path: str = MAIN_CONFIG_PATH) -> Any:
     """
     Loads a YAML configuration file.
