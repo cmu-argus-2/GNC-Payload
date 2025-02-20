@@ -35,7 +35,8 @@ class GeoTIFFCache:
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
-            max_cache_size: Maximum number of regions to maintain in the cache. Set to None for unlimited size.
+            max_cache_size: Maximum number of regions to maintain in the cache.
+                            Set to 0 to disable caching. Set to None for unlimited size.
         """
         self.geotiff_folder = geotiff_folder if geotiff_folder is not None else GeoTIFFCache.get_default_geotiff_folder()
         GeoTIFFCache.validate_region_folders_exist(geotiff_folder)
