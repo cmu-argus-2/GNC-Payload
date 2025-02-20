@@ -15,7 +15,7 @@ from scipy.spatial.transform import Rotation
 # pylint: disable=import-error
 from image_simulation.earth_vis import EarthImageSimulator
 from utils.config_utils import load_config
-from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement#, az_el_to_vector, vector_to_az_el
+from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
 from vision_inference.frame import Frame
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.ml_pipeline import MLPipeline
