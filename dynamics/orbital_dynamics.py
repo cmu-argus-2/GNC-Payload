@@ -7,6 +7,11 @@ from typing import Callable
 
 import numpy as np
 from brahe.constants import GM_EARTH
+from brahe.constants import J2_EARTH
+from brahe.constants import R_EARTH
+
+from dynamics.j2_dynamics import j2_derivative
+from dynamics.j2_dynamics import j2_jacobian_auto
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -19,8 +24,19 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     """
     r = x[:3]
     v = x[3:]
-    a = -r * GM_EARTH / np.linalg.norm(r) ** 3
-    return np.concatenate([v, a])
+    r_norm = np.linalg.norm(r)
+
+    a_grav = -r * GM_EARTH / np.linalg.norm(r) ** 3
+
+    factor = 1.5 * J2_EARTH * GM_EARTH * R_EARTH**2 / np.linalg.norm(r) ** 5
+    a_J2 = np.array([
+        factor * r[0] * (5 * (r[2]**2) / r_norm**2 - 1),
+        factor * r[1] * (5 * (r[2]**2) / r_norm**2 - 1),
+        factor * r[2] * (5 * (r[2]**2) / r_norm**2 - 3)
+    ])
+
+    a_total = a_grav + a_J2
+    return np.concatenate([v, a_total])
 
 
 def state_derivative_jac(x: np.ndarray) -> np.ndarray:
@@ -31,10 +47,13 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :return: A numpy array of shape (6, 6) containing the state derivative Jacobian.
     """
+    ### Choose between using the autodiff jacobian or the manually derived jacobian. 
+    # j2da_dv = j2_derivative(x[:3])
+    j2_auto = j2_jacobian_auto(x[:3])
     r = x[:3]
     r_norm = np.linalg.norm(r)
     dv_dr = np.zeros((3, 3))
-    da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
+    da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r) + j2_auto
     dv_dv = np.eye(3)
     da_dv = np.zeros((3, 3))
     return np.block([[dv_dr, dv_dv], [da_dr, da_dv]])
