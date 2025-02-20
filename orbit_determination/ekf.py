@@ -161,6 +161,9 @@ class EKF:
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
         z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
 
+        # convert from camera frame to body frame
+        z0 = np.einsum("ijk,ik->ij", body_Rs_camera[:z0.shape[0], ...], z0)
+
         # Flatten the measurement vector
         z0 = np.array(z0.reshape(-1))
 
