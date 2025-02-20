@@ -94,7 +94,12 @@ def run_simulation() -> None:
     num_iter = 4
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 18])
+    rot = np.array([0, 0, np.pi / 4])
+
+    # Apply error to init_rot
+    init_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
+    # Ensure orthonormality
+    init_rot = np.dot(init_rot, np.linalg.inv(np.linalg.cholesky(np.dot(init_rot.T, init_rot))))
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
@@ -133,7 +138,7 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 5 == 0:
+        if t % 3 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
