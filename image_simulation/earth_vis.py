@@ -33,6 +33,16 @@ class GeoTIFFData:
     image_data: np.ndarray
     transform: Affine
 
+    @property
+    def num_channels(self) -> int:
+        """
+        Get the number of channels in the GeoTIFF data.
+
+        Returns:
+            The number of channels in the GeoTIFF data.
+        """
+        return self.image_data.shape[-1]
+
     def query_pixel_colors(self, latitudes, longitudes) -> np.ndarray:
         latitudes_flat = latitudes.flatten()
         longitudes_flat = longitudes.flatten()
@@ -232,6 +242,10 @@ class EarthImageSimulator:
             geotiff_data = self.cache.load_geotiff_data(region)
             if geotiff_data is None:
                 continue
+
+            assert geotiff_data.num_channels == CameraModel.NUM_CHANNELS, (
+                "Number of channels in GeoTIFF data does not match the number of channels in the camera model."
+            )
 
             # Mask for the current region
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
