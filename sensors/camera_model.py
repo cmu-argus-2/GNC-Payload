@@ -15,7 +15,7 @@ class CameraModel:
     It also contains methods for various computations related to the camera.
     """
 
-    RESOLUTION = (4608, 2592)
+    RESOLUTION = (2592, 4608)
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
     def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
@@ -69,7 +69,7 @@ class CameraModel:
             A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
             in the body frame for each pixel.
         """
-        width, height = self.RESOLUTION
+        height, width = self.RESOLUTION
         half_width = np.tan(self.HORIZONTAL_FOV / 2)
         half_height = half_width * (height / width)
 
@@ -96,7 +96,7 @@ class CameraModel:
         Returns:
             A numpy array of shape (N, 3) with bearing unit vectors in the body frame.
         """
-        width, height = self.RESOLUTION
+        height, width = self.RESOLUTION
 
         half_width = np.tan(self.HORIZONTAL_FOV / 2)
         half_height = half_width * (height / width)

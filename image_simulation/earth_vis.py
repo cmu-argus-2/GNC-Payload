@@ -225,7 +225,7 @@ class EarthImageSimulator:
         present_regions = np.unique([region for region in mgrs_regions if region is not None])
 
         # Initialize full image with zeros
-        width, height = CameraModel.RESOLUTION
+        height, width = CameraModel.RESOLUTION
         pixel_colors_full = np.zeros((height, width, 3), dtype=np.uint8)
 
         # Load and assign data for each region
