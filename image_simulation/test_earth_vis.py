@@ -67,12 +67,12 @@ def compute_max_visible_regions(altitude: float = 510e3, iterations: int = 1000)
 
     for _ in trange(iterations):
         ecef_R_body = Rotation.random().as_matrix()
-        _ = simulator.simulate_image(
-            ecef_position, ecef_R_body, camera_model_manager["x+"]
-        )
+        _ = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"])
 
-    print(f"Max visible regions from an altitude of {altitude / 1000}km is "
-          f"{simulator.cache.load_geotiff_data.cache_info().currsize}")
+    print(
+        f"Max visible regions from an altitude of {altitude / 1000}km is "
+        f"{simulator.cache.load_geotiff_data.cache_info().currsize}"
+    )
 
 
 def simulate_image(

@@ -1,9 +1,11 @@
 """
 Common earth utilities.
 """
+
 from functools import cache
 
 import numpy as np
+
 
 # TODO: use brahe constants instead of hardcoding
 def ecef_to_lat_lon(
