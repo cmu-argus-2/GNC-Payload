@@ -25,7 +25,7 @@ from utils.earth_utils import get_MGRS_grid
 from retry import retry
 from tqdm.contrib.concurrent import process_map
 
-from utils.config_utils import load_config, USER_CONFIG_PATH
+from utils.config_utils import USER_CONFIG_PATH, load_config
 
 if os.path.exists(USER_CONFIG_PATH):
     config = load_config(USER_CONFIG_PATH)
