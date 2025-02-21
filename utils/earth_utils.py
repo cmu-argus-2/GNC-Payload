@@ -173,11 +173,11 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     Vectorized computation of MGRS regions for given latitude and longitude arrays.
 
     Parameters:
-        latitudes (np.ndarray): 1D or 2D array of latitudes in degrees.
-        longitudes (np.ndarray): 1D or 2D array of longitudes in degrees.
+        latitudes: A numpy array of any shape containing latitudes in degrees.
+        longitudes: A numpy array of the same shape as latitudes containing longitudes in degrees.
 
     Returns:
-        np.ndarray: Array of MGRS region identifiers (same shape as input).
+        A numpy array of MGRS region identifiers (same shape as inputs).
     """
     assert latitudes.shape == longitudes.shape, "latitudes and longitudes must have the same shape"
 
