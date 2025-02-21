@@ -37,7 +37,6 @@ class EKF:
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
-        config: dict,
         w: np.ndarray,
     ) -> None:
         """

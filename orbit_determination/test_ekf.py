@@ -108,7 +108,6 @@ def run_simulation() -> None:
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
-        config=config,
         w=rot,
     )
 
