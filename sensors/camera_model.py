@@ -1,9 +1,20 @@
+"""
+This module contains a class representing a model for a single camera on the satellite and a class managing all camera
+models.
+"""
+
 import numpy as np
 
 from utils.config_utils import load_config
 
 
 class CameraModel:
+    """
+    A class representing a model for a single camera on the satellite.
+    This class contains the camera_name and the transformation from the camera frame to the body frame.
+    It also contains methods for various computations related to the camera.
+    """
+
     RESOLUTION = (4608, 2592)
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
@@ -14,7 +25,8 @@ class CameraModel:
         Parameters:
             camera_name: The name of the camera.
             body_R_camera: A numpy array of shape (3, 3) representing the rotation matrix from body to camera frame.
-            t_body_to_camera: A numpy array of shape (3,) representing the translation vector from body to camera frame, in the body frame.
+            t_body_to_camera: A numpy array of shape (3,) representing the translation vector from body to camera frame,
+                              in the body frame.
         """
         self.camera_name = camera_name
         self.body_R_camera = body_R_camera
@@ -28,7 +40,8 @@ class CameraModel:
 
         Parameters:
             body_position: A numpy array of shape (3,) representing the position of the body in the frame of interest.
-            frame_R_body: A numpy array of shape (3, 3) representing the rotation matrix from the body frame to the frame of interest.
+            frame_R_body: A numpy array of shape (3, 3) representing the rotation matrix from the body frame to the
+                          frame of interest.
 
         Returns:
             A numpy array of shape (3,) representing the position of the camera in the frame of interest.
@@ -40,7 +53,8 @@ class CameraModel:
         Get the camera's boresight axis in the frame of interest.
 
         Parameters:
-            frame_R_body: A numpy array of shape (3, 3) representing the rotation matrix from the body frame to the frame of interest.
+            frame_R_body: A numpy array of shape (3, 3) representing the rotation matrix from the body frame to the
+                          frame of interest.
 
         Returns:
             A numpy array of shape (3,) representing the camera's boresight axis in the frame of interest.
@@ -107,6 +121,10 @@ class CameraModel:
 
 
 class CameraModelManager:
+    """
+    A class managing all camera models.
+    """
+
     CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
 
     def __init__(self):
@@ -157,5 +175,11 @@ class CameraModelManager:
 
     @staticmethod
     def validate_camera_name(camera_name: str) -> None:
+        """
+        Validate that the camera name is one of the valid camera names.
+
+        :param camera_name: The camera name to validate.
+        :raises ValueError: If the camera name is invalid.
+        """
         if camera_name not in CameraModelManager.CAMERA_NAMES:
             raise ValueError(f"Invalid camera name: {camera_name}")

@@ -90,7 +90,7 @@ class ODSimulationDataManager:
         """
         indices = self.measurement_indices == self.state_count - 1
         return (
-            self.measurement_camera_names[indices, :],
+            self.measurement_camera_names[indices],
             self.bearing_unit_vectors[indices, :],
             self.landmarks[indices, :],
         )

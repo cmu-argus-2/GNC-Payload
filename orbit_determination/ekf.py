@@ -11,6 +11,7 @@ import quaternion
 
 from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from sensors.camera_model import CameraModelManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
 
 # pylint: disable=invalid-name
@@ -36,7 +37,6 @@ class EKF:
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
-        config: dict,
         w: np.ndarray,
     ) -> None:
         """
@@ -85,9 +85,6 @@ class EKF:
         self.Q = Q
         self.R = R_vec
         self.dt = dt
-
-        camera_params = config["satellite"]["camera"]
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])
 
         self.cond_threshold = 1e15
         self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
@@ -141,8 +138,9 @@ class EKF:
     def measurement(
         self,
         z: Tuple[np.ndarray, np.ndarray],
-        body_Rs_camera: np.ndarray,
         data_manager: ODSimulationDataManager,
+        camera_model_manager: CameraModelManager,
+        measurement_camera_names: np.ndarray,
         num_iter: int = 1,
     ) -> None:
         """
@@ -151,8 +149,9 @@ class EKF:
 
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the
         landmark positions in ECI coordinates, both with shape (N, 3)
-        :param body_Rs_camera: Rotation matrices from the camera frame to the body frame with shape (N, 3, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param camera_model_manager: The camera model manager used to manage the cameras.
+        :param measurement_camera_names: The names of the cameras that took the measurements.
         :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
@@ -161,8 +160,7 @@ class EKF:
         z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
         z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
 
-        # convert from camera frame to body frame
-        z0 = np.einsum("ijk,ik->ij", body_Rs_camera[:z0.shape[0], ...], z0)
+        measurement_camera_names = measurement_camera_names[: len(z0)]
 
         # Flatten the measurement vector
         z0 = np.array(z0.reshape(-1))
@@ -182,8 +180,8 @@ class EKF:
         # Iterated Update
         for i in range(num_iter):
 
-            h = self.h_est(z1, data_manager, x_p)
-            H = self.h_jac(z1, data_manager, x_p)
+            h = self.h_est(z1, data_manager, camera_model_manager, measurement_camera_names, x_p)
+            H = self.h_jac(z1, data_manager, camera_model_manager, measurement_camera_names, x_p)
             S = H @ self.P_p @ H.T + self.R
 
             # Check for ill-conditioned matrix and add regularization if necessary
@@ -214,23 +212,37 @@ class EKF:
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
     def h_jac(
-        self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
+        self,
+        z: np.ndarray,
+        data_manager: ODSimulationDataManager,
+        camera_model_manager: CameraModelManager,
+        measurement_camera_names: np.ndarray,
+        x_p: jnp.ndarray,
     ) -> jnp.ndarray:
         """
         Calculate the Jacobian of the measurement model with respect to the state.
 
-        :param z: Measurement consisting of the landmark locations in ECI coordinates.
+        :param z: Measurement consisting of the landmark locations in ECI coordinates with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param camera_model_manager: The camera model manager used to manage the cameras.
+        :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (9,)
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
-        jac = jax.jacobian(self.h_est, argnums=2)(z, data_manager, x_p)
+        jac = jax.jacobian(self.h_est, argnums=4)(
+            z, data_manager, camera_model_manager, measurement_camera_names, x_p
+        )
 
         return jac
 
     def h_est(
-        self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
+        self,
+        z: np.ndarray,
+        data_manager: ODSimulationDataManager,
+        camera_model_manager: CameraModelManager,
+        measurement_camera_names: np.ndarray,
+        x_p: jnp.ndarray,
     ) -> jnp.ndarray:
         """
         Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide
@@ -239,6 +251,8 @@ class EKF:
         :param z: Measurements of the landmarks in frame, consisting of just the ECI coordinates of the landmarks
         with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param camera_model_manager: The camera model manager used to manage the cameras.
+        :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of [position, velocity, rotation_vector] with shape (9,)
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
@@ -253,11 +267,21 @@ class EKF:
 
         # Transform landmarks and position from ECI to ECEF
         landmarks_ecef = (ecef_R_eci @ z.T).T
-        position_ecef = ecef_R_eci @ x_p[0:3] + ecef_R_body @ self.t_body_to_camera
+        position_ecef = ecef_R_eci @ x_p[0:3]
+
+        # Assert landmarks and measurement camera names are the same length
+        assert landmarks_ecef.shape[0] == len(
+            measurement_camera_names
+        ), "Landmarks and measurement camera names must be the same length"
 
         # Calculate estimated bearing unit vectors in ECEF and transform to body frame
         for i, land_pos_ecef in enumerate(landmarks_ecef):
-            vec_ecef = land_pos_ecef - position_ecef
+            # account for camera position in ECEF
+            camera_position_ecef = camera_model_manager[
+                measurement_camera_names[i]
+            ].get_camera_position(position_ecef, ecef_R_body)
+
+            vec_ecef = land_pos_ecef - camera_position_ecef
             vec_ecef /= jnp.linalg.norm(vec_ecef)
             body_vec = ecef_R_body.T @ vec_ecef
             estimate = estimate.at[i * 3 : i * 3 + 3].set(body_vec)

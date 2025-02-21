@@ -75,13 +75,13 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 1 / 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s
+    config["mission"]["duration"] = 3 * 90 * 15  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
+    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
@@ -91,7 +91,7 @@ def run_simulation() -> None:
     data_manager.push_next_state(initial_state, init_rot)
 
     # Set the number of update iterations for the IEKF
-    num_iter = 4
+    num_iter = 2
 
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 4])
@@ -101,14 +101,13 @@ def run_simulation() -> None:
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 50000, 3),
-        v=initial_state[3:6] + np.random.normal(0, 50000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        v=initial_state[3:6] + np.random.normal(0, 5000, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(9) * 100,
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
-        config=config,
         w=rot,
     )
 
@@ -143,10 +142,11 @@ def run_simulation() -> None:
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
-            body_Rs_camera = camera_model_manager.get_body_Rs_camera(measurement_camera_names)
 
             if z[0].shape[0] > 0:
-                ekf.measurement(z, body_Rs_camera, data_manager, num_iter)
+                ekf.measurement(
+                    z, data_manager, camera_model_manager, measurement_camera_names, num_iter
+                )
             else:
                 ekf.no_measurement()
         else:
