@@ -74,7 +74,7 @@ class CameraModel:
             A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
             in the body frame for each pixel.
         """
-        half_width = np.tan(self.HORIZONTAL_FOV / 2)
+        half_width = np.tan(CameraModel.HORIZONTAL_FOV / 2)
         half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
 
         x = np.linspace(-half_width, half_width, CameraModel.IMAGE_WIDTH)
@@ -100,7 +100,7 @@ class CameraModel:
         Returns:
             A numpy array of shape (N, 3) with bearing unit vectors in the body frame.
         """
-        half_width = np.tan(self.HORIZONTAL_FOV / 2)
+        half_width = np.tan(CameraModel.HORIZONTAL_FOV / 2)
         half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
 
         u = pixel_coords[:, 0]  # Pixel x-coordinates
