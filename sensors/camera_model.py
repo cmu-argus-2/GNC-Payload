@@ -14,6 +14,7 @@ class CameraModel:
     This class contains the camera_name and the transformation from the camera frame to the body frame.
     It also contains methods for various computations related to the camera.
     """
+
     RESOLUTION = (4608, 2592)
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
@@ -123,6 +124,7 @@ class CameraModelManager:
     """
     A class managing all camera models.
     """
+
     CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
 
     def __init__(self):

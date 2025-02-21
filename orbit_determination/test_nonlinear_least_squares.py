@@ -76,9 +76,7 @@ def test_od() -> None:
         data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
 
         # take a set of measurements every 5 minutes
-        if (
-            t % 5 == 0
-        ):  # and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
+        if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
             data_manager.take_measurement(landmark_bearing_sensor, camera_model_manager["x+"])
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
@@ -144,5 +142,5 @@ def test_od() -> None:
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    # load_brahe_data_files()
+    load_brahe_data_files()
     test_od()
