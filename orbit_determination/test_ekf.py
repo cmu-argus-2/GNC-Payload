@@ -145,7 +145,7 @@ def run_simulation() -> None:
 
             if z[0].shape[0] > 0:
                 ekf.measurement(
-                    z, camera_model_manager, data_manager, measurement_camera_names, num_iter
+                    z, data_manager, camera_model_manager, measurement_camera_names, num_iter
                 )
             else:
                 ekf.no_measurement()
