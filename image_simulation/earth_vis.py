@@ -225,8 +225,7 @@ class EarthImageSimulator:
         present_regions = np.unique([region for region in mgrs_regions if region is not None])
 
         # Initialize full image with zeros
-        height, width = CameraModel.RESOLUTION
-        pixel_colors_full = np.zeros((height, width, 3), dtype=np.uint8)
+        pixel_colors_full = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=np.uint8)
 
         # Load and assign data for each region
         for region in present_regions:
@@ -235,7 +234,7 @@ class EarthImageSimulator:
                 continue
 
             # Mask for the current region
-            region_mask = (mgrs_regions == region).reshape(height, width)
+            region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
 
             # Skip if no pixels belong to this region
             if not np.any(region_mask):

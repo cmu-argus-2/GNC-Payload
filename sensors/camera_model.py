@@ -15,7 +15,12 @@ class CameraModel:
     It also contains methods for various computations related to the camera.
     """
 
-    RESOLUTION = (2592, 4608)
+    IMAGE_HEIGHT = 2592
+    IMAGE_WIDTH = 4608
+    RESOLUTION = (IMAGE_HEIGHT, IMAGE_WIDTH)
+    NUM_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
+    NUM_CHANNELS = 3
+    OUTPUT_SHAPE = RESOLUTION + (NUM_CHANNELS,)
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
     def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
@@ -69,12 +74,11 @@ class CameraModel:
             A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
             in the body frame for each pixel.
         """
-        height, width = self.RESOLUTION
         half_width = np.tan(self.HORIZONTAL_FOV / 2)
-        half_height = half_width * (height / width)
+        half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
 
-        x = np.linspace(-half_width, half_width, width)
-        y = np.linspace(-half_height, half_height, height)
+        x = np.linspace(-half_width, half_width, CameraModel.IMAGE_WIDTH)
+        y = np.linspace(-half_height, half_height, CameraModel.IMAGE_HEIGHT)
         xx, yy = np.meshgrid(x, y)
         zz = np.ones_like(xx)  # Assume unit depth
 
@@ -96,19 +100,17 @@ class CameraModel:
         Returns:
             A numpy array of shape (N, 3) with bearing unit vectors in the body frame.
         """
-        height, width = self.RESOLUTION
-
         half_width = np.tan(self.HORIZONTAL_FOV / 2)
-        half_height = half_width * (height / width)
+        half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
 
         u = pixel_coords[:, 0]  # Pixel x-coordinates
         v = pixel_coords[:, 1]  # Pixel y-coordinates
 
         # Normalize pixel coordinates to range [-half_width, half_width] and [half_height, -half_height]
         # Assuming pixel (0,0) is at the top-left corner
-        x = -half_width + (2 * half_width) * (u / (width - 1))
+        x = -half_width + (2 * half_width) * (u / (CameraModel.IMAGE_WIDTH - 1))
         y = half_height - (2 * half_height) * (
-            v / (height - 1)
+            v / (CameraModel.IMAGE_HEIGHT - 1)
         )  # Invert y-axis for image coordinates
         z = np.ones_like(x)
 
