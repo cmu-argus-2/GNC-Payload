@@ -232,7 +232,7 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma=np.sqrt(0.001)):
         np.ndarray: The noisy bearing vector.
     """
     # Choose an arbitrary vector that isn't parallel to vec
-    if np.allclose(vec, [0, 0, 1]):
+    if abs(vec[0]) <= abs(vec[2]):
         arbitrary = np.array([1, 0, 0])
     else:
         arbitrary = np.array([0, 0, 1])

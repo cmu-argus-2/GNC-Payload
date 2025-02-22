@@ -99,7 +99,7 @@ def run_simulation() -> None:
     # Apply error to init_rot
     init_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
     # Ensure orthonormality
-    init_rot = np.dot(init_rot, np.linalg.inv(np.linalg.cholesky(np.dot(init_rot.T, init_rot))))
+    init_rot = init_rot @ np.linalg.inv(np.linalg.cholesky(init_rot.T @ init_rot))
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
