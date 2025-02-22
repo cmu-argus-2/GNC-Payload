@@ -27,9 +27,11 @@ class GeoTIFFData:
     Dataclass to store the data contained in a GeoTIFF file.
 
     Attributes:
+        image_path: The path to the GeoTIFF file.
         image_data: The image data contained in the GeoTIFF file.
         transform: The affine transformation matrix for the GeoTIFF file.
     """
+    image_path: str
     image_data: np.ndarray
     transform: Affine
 
@@ -171,7 +173,7 @@ class GeoTIFFCache:
             image_data = src.read()
             image_data = np.moveaxis(image_data, 0, -1)
             transform = src.transform
-        return GeoTIFFData(image_data, transform)
+        return GeoTIFFData(file_path, image_data, transform)
 
     def clear_cache(self) -> None:
         """
