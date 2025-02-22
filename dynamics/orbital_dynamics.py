@@ -37,22 +37,18 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :return: A numpy array of shape (6, 6) containing the state derivative Jacobian.
     """
-    ### Choose between using the autodiff jacobian or the manually derived jacobian.
-    # j2da_dv = j2_derivative(x[:3])
-    # TODO: RETURN TO BASE JACOBIAN AND FINISH WRAPPER
-    j2_auto = j2_jacobian_auto(x[:3])
     r = x[:3]
     r_norm = np.linalg.norm(r)
     dv_dr = np.zeros((3, 3))
     da_dr = (
-        (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r) + j2_auto
+        (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
     )
     dv_dv = np.eye(3)
     da_dv = np.zeros((3, 3))
     return np.block([[dv_dr, dv_dv], [da_dr, da_dv]])
 
 
-def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float, **kwargs) -> np.ndarray:
+def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> np.ndarray:
     """
     Computes the state at the next timestep from the current state and the continuous-time state transition function
     using Runge-Kutta 4th order integration.
@@ -63,10 +59,10 @@ def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float, **kw
     :param kwargs: Additional keyword arguments to pass to the state transition function.
     :return: The state vector at the next timestep.
     """
-    k1 = func(x, **kwargs)
-    k2 = func(x + 0.5 * dt * k1, **kwargs)
-    k3 = func(x + 0.5 * dt * k2, **kwargs)
-    k4 = func(x + dt * k3, **kwargs)
+    k1 = func(x)
+    k2 = func(x + 0.5 * dt * k1)
+    k3 = func(x + 0.5 * dt * k2)
+    k4 = func(x + dt * k3)
 
     x_next = x + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
     return x_next
@@ -94,14 +90,14 @@ def RK4_jac(
     :param kwargs: Additional keyword arguments to pass to the state transition function.
     :return: The Jacobian of the RK4-discretized state transition function at the current state vector.
     """
-    k1 = func(x, **kwargs)
-    k2 = func(x + 0.5 * dt * k1, **kwargs)
-    k3 = func(x + 0.5 * dt * k2, **kwargs)
+    k1 = func(x)
+    k2 = func(x + 0.5 * dt * k1)
+    k3 = func(x + 0.5 * dt * k2)
 
-    k1_jac = func_jac(x, **kwargs)
-    k2_jac = func_jac(x + 0.5 * dt * k1, **kwargs) @ (np.eye(6) + 0.5 * dt * k1_jac)
-    k3_jac = func_jac(x + 0.5 * dt * k2, **kwargs) @ (np.eye(6) + 0.5 * dt * k2_jac)
-    k4_jac = func_jac(x + dt * k3, **kwargs) @ (np.eye(6) + dt * k3_jac)
+    k1_jac = func_jac(x)
+    k2_jac = func_jac(x + 0.5 * dt * k1) @ (np.eye(6) + 0.5 * dt * k1_jac)
+    k3_jac = func_jac(x + 0.5 * dt * k2) @ (np.eye(6) + 0.5 * dt * k2_jac)
+    k4_jac = func_jac(x + dt * k3) @ (np.eye(6) + dt * k3_jac)
 
     return np.eye(6) + (dt / 6) * (k1_jac + 2 * k2_jac + 2 * k3_jac + k4_jac)
 
@@ -132,18 +128,17 @@ def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
 
 # Decorator functions
 def second_order_effects(func):
-    def wrapper(
-        x: np.ndarray, config: dict, data_manager: ODSimulationDataManager, *args, **kwargs
-    ):
-        # Extract parameters from the config dictionary
-        base_derivative = func(x, *args, **kwargs)
+    def wrapper(x, config, data_manager):
 
+        base_derivative = func(x)
+
+        # Extract parameters from the config dictionary
         CD = config["satellite"]["Cd"]
         AREA = config["satellite"]["area"]
         MASS = config["satellite"]["mass"]
         latest_epoch = data_manager.latest_epoch
 
-        # Compute drag
+        # Compute drag in [kg/m^3]
         density = density_harris_priester(x=x, epoch=latest_epoch)
         r = x[:3]
         v = x[3:]
@@ -163,7 +158,7 @@ def second_order_effects(func):
                 factor * r[2] * (5 * (r[2] ** 2) / r_norm**2 - 3),
             ]
         )
-        updated_a = base_derivative[3:] + a_drag + a_J2
+        updated_a = base_derivative[3:] + a_J2 + a_drag
         return np.concatenate([base_derivative[:3], updated_a])
 
     return wrapper
@@ -171,10 +166,10 @@ def second_order_effects(func):
 
 def second_order_effects_jac(func):
     def wrapper(
-        x: np.ndarray, config: dict, data_manager: ODSimulationDataManager, *args, **kwargs
+        x: np.ndarray, config: dict, data_manager: ODSimulationDataManager,
     ):
         # Extract parameters from the config dictionary
-        base_jacobian = func(x, *args, **kwargs)
+        base_jacobian = func(x)
 
         CD = config["satellite"]["Cd"]
         AREA = config["satellite"]["area"]
@@ -185,32 +180,41 @@ def second_order_effects_jac(func):
         density = density_harris_priester(x=x, epoch=latest_epoch)
         r = x[:3]
         v = x[3:]
-        r_norm = np.linalg.norm(r)
         v_norm = np.linalg.norm(v)
         if v_norm == 0:
-            a_drag = np.zeros(3)
             da_drag_dv = np.zeros((3, 3))
-            da_drag_dr = np.zeros((3, 3))
-        # TODO: EXTEND JACOBIAN
 
-        # return np.block([[dv_dr, dv_dv], [da_dr_NEW, da_dv_NEW]])
-        return None
+        # Compute J2 either using autodiff or manually
+        # j2da_dv = j2_derivative(x[:3])
+        daj2auto_dr = j2_jacobian_auto(x[:3])
+        
+        F = -0.5 * density * CD * AREA / MASS
+        da_drag_dv = F * ((np.eye(3)/v_norm) - np.outer(v, v) / v_norm**3)
 
+        da_dr = base_jacobian[3:,:3] + daj2auto_dr
+        da_dv = da_drag_dv
+        # da_dv = np.zeros((3, 3))
+
+        return np.block([[base_jacobian[0:3,0:3], base_jacobian[0:3,3:]], [da_dr, da_dv]])
     return wrapper
 
 
 @second_order_effects
-def f_full(x: np.ndarray, dt: float):
-    return f(x, dt)
+def state_derivative_full(x: np.ndarray) -> np.ndarray:
+    return state_derivative(x)
+
+
+def f_full(x: np.ndarray, config: dict, data_manager: ODSimulationDataManager, dt: float) -> np.ndarray:
+    dynamics = lambda state: state_derivative_full(state,config=config, data_manager=data_manager)
+    return RK4(x=x, func=dynamics, dt=dt)
 
 
 @second_order_effects_jac
-def f_full_jac(x: np.ndarray, dt: float):
-    return f_jac(x, dt)
+def state_derivative_full_jac(x: np.ndarray) -> np.ndarray:
+    return state_derivative_jac(x)
 
 
-"""
-In your function call use:
-    f_full(x, dt, config, data_manager)
-    f_full_jac(x, dt, config, data_manager)
-"""
+def f_full_jac(x: np.ndarray, config: dict, data_manager: ODSimulationDataManager, dt: float) -> np.ndarray:
+    dynamics = lambda state: state_derivative_full(state,config=config, data_manager=data_manager)
+    jacobian = lambda state: state_derivative_full_jac(state,config=config, data_manager=data_manager)
+    return RK4_jac(x=x,func=dynamics,func_jac=jacobian, dt=dt)

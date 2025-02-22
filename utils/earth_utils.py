@@ -1,6 +1,8 @@
 """
 Common earth utilities.
 """
+import math
+
 import brahe
 import numpy as np
 
@@ -275,16 +277,16 @@ def density_harris_priester(x, epoch):
 
 
     # Sun right ascension, declination
-    ra_sun  = np.atan(r_sun[1], r_sun[0] )
-    dec_sun = np.atan(r_sun[2], np.sqrt( r_sun[0]^2 + r_sun[1]^2 ) )
+    ra_sun  = math.atan(r_sun[1]/ r_sun[0])
+    dec_sun = math.atan(r_sun[2]/ np.sqrt( r_sun[0]**2 + r_sun[1]**2 ) )
 
 
     # Unit vector u towards the apex of the diurnal bulge
     # in inertial geocentric coordinates
-    c_dec = np.cos(dec_sun)
-    u     = np.array([c_dec * np.cos(ra_sun + HP_RA_LAG),
+    c_dec = math.cos(dec_sun)
+    u     = np.array([c_dec * math.cos(ra_sun + HP_RA_LAG),
              c_dec * np.sin(ra_sun + HP_RA_LAG),
-             np.sin(dec_sun)])
+             math.sin(dec_sun)])
 
 
     # Cosine of half angle between satellite position vector and
@@ -299,14 +301,14 @@ def density_harris_priester(x, epoch):
             break
 
 
-    h_min = ( hp_h[ih] - hp_h[ih+1] )/np.log( hp_c_min[ih+1]/hp_c_min[ih] )
-    h_max = ( hp_h[ih] - hp_h[ih+1] )/np.log( hp_c_max[ih+1]/hp_c_max[ih] )
+    h_min = ( hp_h[ih] - hp_h[ih+1] )/math.log( hp_c_min[ih+1]/hp_c_min[ih] )
+    h_max = ( hp_h[ih] - hp_h[ih+1] )/math.log( hp_c_max[ih+1]/hp_c_max[ih] )
 
-    d_min = hp_c_min[ih] * np.exp( (hp_h[ih]-height)/h_min )
-    d_max = hp_c_max[ih] * np.exp( (hp_h[ih]-height)/h_max )
+    d_min = hp_c_min[ih] * math.exp( (hp_h[ih]-height)/h_min )
+    d_max = hp_c_max[ih] * math.exp( (hp_h[ih]-height)/h_max )
 
     # Density computation
-    density = d_min + (d_max-d_min) * c_psi2^HP_N_PRM
+    density = d_min + (d_max-d_min) * c_psi2**HP_N_PRM
 
     # Convert from g/km^3 to kg/m^3
     density *= 1.0e-12

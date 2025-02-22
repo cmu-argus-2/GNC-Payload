@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 import quaternion
 
-from dynamics.orbital_dynamics import f, f_jac
+from dynamics.orbital_dynamics import f_full, f_full_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
@@ -37,6 +37,9 @@ class EKF:
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
+        w: np.ndarray,
+        config: dict,
+        data_manager: ODSimulationDataManager,
     ) -> None:
         """
         Initialize the EKF
@@ -51,6 +54,9 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
+        :param w: The angular velocity of the satellite with shape (3,)
+        :param config: The configuration dictionary.
+        :param data_manager: The ODSimulationDataManager object containing the simulation data.
 
         :return: None
 
@@ -84,6 +90,8 @@ class EKF:
 
         self.cond_threshold = 1e15
         self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
+        self.config = config
+        self.data_manager = data_manager
 
     def predict(self, u: np.ndarray) -> None:
         """
@@ -104,8 +112,8 @@ class EKF:
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
         x = np.concatenate([self.r_m, self.v_m])
-        A_pos = f_jac(x, self.dt)
-        x_new = f(x, self.dt)
+        A_pos = f_full_jac(x=x,config=self.config, data_manager=self.data_manager,dt=self.dt)
+        x_new = f_full(x=x,config=self.config, data_manager=self.data_manager,dt=self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
             quaternion.from_rotation_vector(self.dt * w)
