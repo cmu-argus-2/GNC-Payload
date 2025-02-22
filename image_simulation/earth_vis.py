@@ -29,7 +29,8 @@ class GeoTIFFData:
     Attributes:
         image_path: The path to the GeoTIFF file.
         image_data: The image data contained in the GeoTIFF file.
-        transform: The affine transformation matrix for the GeoTIFF file.
+        transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (longitudes, latitudes)
+                   to a tuple of (us, vs) (i.e. pixel coordinates).
     """
     image_path: str
     image_data: np.ndarray
