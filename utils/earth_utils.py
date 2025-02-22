@@ -138,6 +138,7 @@ def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
 
 
 # Define MGRS latitude bands and UTM exceptions
+# TODO: consolidate functionality between this and the get_MGRS_grid function
 mgrs_latitude_bands = [
     {"name": "C", "min_lat": -80, "max_lat": -72},
     {"name": "D", "min_lat": -72, "max_lat": -64},
