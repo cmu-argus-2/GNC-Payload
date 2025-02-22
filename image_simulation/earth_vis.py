@@ -77,12 +77,14 @@ class GeoTIFFData:
         """
         return self.image_data.dtype
 
-    def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
+    def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
-        :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
+        :return: A Tuple containing:
+                 - A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
+                 - A numpy array of shape lat_lon.shape[:-1] indicating which output pixels contain valid data.
         """
         assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
 
@@ -106,7 +108,7 @@ class GeoTIFFData:
         # Handle invalid indices (e.g., set to NaN)
         # image_flat[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
 
-        return image_flat.reshape(*shape_prefix, num_channels)
+        return image_flat.reshape(*shape_prefix, num_channels), valid_mask.reshape(shape_prefix)
 
 
 class GeoTIFFCache:
@@ -288,7 +290,7 @@ class EarthImageSimulator:
                 continue
 
             # Query pixel colors for the region
-            region_image = geotiff_data.query_pixel_colors(lat_lon[region_mask])
+            region_image, _ = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
