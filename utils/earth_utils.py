@@ -170,18 +170,22 @@ mgrs_utm_exceptions = [
 ]
 
 
-def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
+def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     """
-    Vectorized computation of MGRS regions for given latitude and longitude arrays.
+    Vectorized computation of MGRS region identifiers for given latitude and longitude coordinates.
 
     Parameters:
-        latitudes: A numpy array of any shape containing latitudes in degrees.
-        longitudes: A numpy array of the same shape as latitudes containing longitudes in degrees.
+        lat_lon: A numpy array of shape (..., 2) containing latitudes and longitudes in degrees. May contain np.nan.
 
     Returns:
-        A numpy array of MGRS region identifiers (same shape as inputs).
+        A numpy array of MGRS region identifiers with shape lat_lon.shape[:-1], unless lat_lon.shape == (2,) in which
+        case the output will be shape (1,). Output elements will be None if either the latitude or longitude is np.nan,
+        or if the coordinates correspond to polar regions that are not covered by the MGRS.
     """
-    assert latitudes.shape == longitudes.shape, "latitudes and longitudes must have the same shape"
+    assert lat_lon.shape[-1] == 2, "Input must have shape (..., 2)"
+    if len(lat_lon.shape) == 1:
+        # Special case for single lat/lon pair
+        return calculate_mgrs_zones(lat_lon[np.newaxis, :])[0, :]
 
     # Create lookup tables for vectorized latitude band calculation
     latitude_band_names = np.array([band["name"] for band in mgrs_latitude_bands])
@@ -190,12 +194,11 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     )
 
     # Flatten lat/lon for processing
-    valid_indices = ~np.isnan(latitudes) & ~np.isnan(longitudes)
-    lat_flat = latitudes[valid_indices]
-    lon_flat = longitudes[valid_indices]
+    valid_indices = np.all(~np.isnan(lat_lon), axis=-1)
+    lat_flat, lon_flat = lat_lon[valid_indices, :].T
 
     # Determine latitude bands
-    lat_bands = np.full(lat_flat.shape, None, dtype=object)
+    lat_bands = np.full(len(lat_flat), None, dtype=object)
     for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
         lat_bands[mask] = name
@@ -218,7 +221,7 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     )
 
     # Reshape to match input lat/lon shape
-    mgrs_regions = np.full(latitudes.shape, None, dtype=object)
+    mgrs_regions = np.full(valid_indices.shape, None, dtype=object)
     mgrs_regions[valid_indices] = mgrs_regions_flat
 
     return mgrs_regions

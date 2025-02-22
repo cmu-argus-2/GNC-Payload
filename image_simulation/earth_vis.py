@@ -252,14 +252,10 @@ class EarthImageSimulator:
         # Convert intersection points to lat/lon
         lat_lon = ecef_to_lat_lon(intersection_points)
 
-        # Flatten latitude/longitude grid
-        lat_lon_flat = lat_lon.reshape(-1, 2)
-        latitudes = lat_lon_flat[:, 0]
-        longitudes = lat_lon_flat[:, 1]
-
         # Calculate present MGRS regions
-        mgrs_regions = calculate_mgrs_zones(latitudes, longitudes)
-        present_regions = np.unique([region for region in mgrs_regions if region is not None])
+        # TODO: see if we can avoid calculating this for every pixel
+        mgrs_regions = calculate_mgrs_zones(lat_lon)
+        present_regions = np.unique(mgrs_regions[mgrs_regions != None])
 
         # Initialize full image with zeros
         pixel_colors_full = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
