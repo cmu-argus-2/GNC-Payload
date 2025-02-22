@@ -284,7 +284,7 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     Note that keys corresponding to single digit region identifiers have a leading zero (e.g. "01C").
 
     Returns:
-        A dictionary mapping MGRS region identifiers to corresponding longitude and latitude ranges.
+        A dictionary mapping MGRS region identifiers to a tuple containing (min_lon, min_lat, max_lon, max_lat).
     """
     LON_STEP = 6
     LAT_STEP = 8
