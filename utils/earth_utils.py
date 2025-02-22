@@ -160,22 +160,10 @@ def intersect_ellipsoid(
 
     ray_directions_flat = ray_directions.reshape(-1, 3)
 
-    A = (
-        ray_directions_flat[:, 0] ** 2 / a**2
-        + ray_directions_flat[:, 1] ** 2 / a**2
-        + ray_directions_flat[:, 2] ** 2 / b**2
-    )
-    B = 2 * (
-        satellite_position[0] * ray_directions_flat[:, 0] / a**2
-        + satellite_position[1] * ray_directions_flat[:, 1] / a**2
-        + satellite_position[2] * ray_directions_flat[:, 2] / b**2
-    )
-    C = (
-        satellite_position[0] ** 2 / a**2
-        + satellite_position[1] ** 2 / a**2
-        + satellite_position[2] ** 2 / b**2
-        - 1
-    )
+    aab_squared = np.array([a, a, b]) ** 2
+    A = np.sum(ray_directions_flat**2 / aab_squared, axis=1)
+    B = 2 * ray_directions_flat @ (satellite_position / aab_squared)
+    C = np.sum(satellite_position**2 / aab_squared) - 1
     discriminant = B**2 - 4 * A * C
 
     # Initialize intersection points as NaN
