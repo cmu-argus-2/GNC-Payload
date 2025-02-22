@@ -126,7 +126,8 @@ def main() -> None:
 
             perturbed_camera_R_nominal_camera = Rotation.from_euler(
                 "ZX",
-                [np.random.uniform(-np.pi, np.pi), np.random.uniform(0, args.off_nadir_variation)],
+                [np.random.uniform(0, 360), np.random.uniform(0, args.off_nadir_variation)],
+                degrees=True,
             ).as_matrix()
             nominal_body_R_nominal_camera = perturbed_body_R_perturbed_camera = camera_manager[
                 "x+"
