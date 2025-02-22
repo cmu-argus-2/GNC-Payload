@@ -247,7 +247,9 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     )
 
     # Filter out invalid coordinates and flatten
-    valid_indices = np.all(~np.isnan(lat_lon), axis=-1) & (lat_lon[..., 0] >= -80) & (lat_lon[..., 0] < 84)
+    valid_indices = (
+        np.all(~np.isnan(lat_lon), axis=-1) & (lat_lon[..., 0] >= -80) & (lat_lon[..., 0] < 84)
+    )
     lat_flat, lon_flat = lat_lon[valid_indices, :].T
 
     # Determine latitude bands
