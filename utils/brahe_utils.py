@@ -29,3 +29,13 @@ def load_brahe_data_files() -> None:
     # pylint: disable=bare-except
     except Exception as e:
         print(f"One or the other files always errors out. Not a problem though. Exception: {e}")
+
+
+def load_brahe_data_files_if_needed() -> None:
+    """
+    Load up-to-date brahe files if they are not already present.
+    """
+    try:
+        _ = brahe.rECItoECEF(Epoch(*brahe.time.mjd_to_caldate(60431.0)))
+    except Exception:
+        load_brahe_data_files()
