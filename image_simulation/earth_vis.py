@@ -102,9 +102,6 @@ class GeoTIFFData:
         image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
         image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
-        # Handle invalid indices (e.g., set to NaN)
-        # image_flat[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
-
         return image_flat.reshape(*shape_prefix, num_channels), valid_mask.reshape(shape_prefix)
 
 
@@ -241,27 +238,19 @@ class EarthImageSimulator:
             - A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
               pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
-        # Generate ray directions in ECEF frame
         ray_directions_body = camera_model.ray_directions_body()
         ray_directions_ecef = ray_directions_body @ ecef_R_body.T
 
-        # Intersect rays with the Earth
         camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
         intersection_points = intersect_ellipsoid(ray_directions_ecef, camera_position_ecef)
-
-        # Convert intersection points to lat/lon
         lat_lon = ecef_to_lat_lon(intersection_points)
 
-        # Calculate present MGRS regions
         # TODO: see if we can avoid calculating this for every pixel
         mgrs_regions = calculate_mgrs_zones(lat_lon)
         present_regions = np.unique(mgrs_regions[mgrs_regions != None])
 
-        # Initialize full image with zeros
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
         valid_mask = np.zeros(CameraModel.RESOLUTION, dtype=bool)
-
-        # Load and assign data for each region
         for region in present_regions:
             geotiff_data = self.cache.load_geotiff_data(region)
             if geotiff_data is None:
@@ -276,13 +265,9 @@ class EarthImageSimulator:
                 f"{CameraModel.DTYPE} as expected in the camera model."
             )
 
-            # Mask for the current region
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
-
-            # Query pixel colors for the region
             region_image, region_valid_mask = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
-            # Assign pixel values to the full image
             image[region_mask] = region_image
             valid_mask[region_mask] |= region_valid_mask
 
