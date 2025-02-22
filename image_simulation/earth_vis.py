@@ -190,7 +190,7 @@ class GeoTIFFCache:
         if not os.path.exists(region_folder):
             return None
         region_files = os.listdir(region_folder)
-        if not region_files:
+        if len(region_files) == 0:
             return None
 
         selected_file = np.random.choice(region_files)
