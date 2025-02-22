@@ -3,8 +3,8 @@ This module contains utility functions for loading configuration files.
 """
 
 import os
-from typing import Any
 from functools import cache
+from typing import Any
 
 import yaml
 

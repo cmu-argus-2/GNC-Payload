@@ -1,9 +1,8 @@
 from time import perf_counter
 
 import numpy as np
-from scipy.spatial.transform import Rotation
 from brahe.constants import R_EARTH
-
+from scipy.spatial.transform import Rotation
 from tqdm import trange
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
