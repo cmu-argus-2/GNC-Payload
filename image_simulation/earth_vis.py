@@ -45,6 +45,16 @@ class GeoTIFFData:
         """
         return self.image_data.shape[-1]
 
+    @property
+    def dtype(self) -> np.dtype:
+        """
+        Get the data type of the GeoTIFF data.
+
+        Returns:
+            The data type of the GeoTIFF data.
+        """
+        return self.image_data.dtype
+
     def query_pixel_colors(self, latitudes, longitudes) -> np.ndarray:
         latitudes_flat = latitudes.flatten()
         longitudes_flat = longitudes.flatten()
@@ -246,7 +256,12 @@ class EarthImageSimulator:
                 continue
 
             assert geotiff_data.num_channels == CameraModel.NUM_CHANNELS, (
-                "Number of channels in GeoTIFF data does not match the number of channels in the camera model."
+                f"The GeoTIFF data located at '{geotiff_data.image_path}' does not have {CameraModel.NUM_CHANNELS} "
+                f"channels as expected in the camera model."
+            )
+            assert geotiff_data.dtype == CameraModel.DTYPE, (
+                f"The GeoTIFF data located at {geotiff_data.image_path} does not have a dtype of "
+                f"{CameraModel.DTYPE} as expected in the camera model."
             )
 
             # Mask for the current region
