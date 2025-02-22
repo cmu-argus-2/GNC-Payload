@@ -15,6 +15,16 @@ class CameraModel:
     A class representing a model for a single camera on the satellite.
     This class contains the camera_name and the transformation from the camera frame to the body frame.
     It also contains methods for various computations related to the camera.
+
+    The camera frame has an origin located at the optical center of the camera, with the x-axis pointing right, the
+    y-axis pointing down, and the z-axis pointing out of the camera lens.
+
+    The pixel coordinates have an origin located in the top-left corner of the image, with the u axis pointing right
+    (aligned with the camera frame x-axis), and the v axis pointing down (aligned with the camera frame y-axis).
+
+    Note that this means that the u axis corresponds to the image width and the v axis corresponds to the image height.
+    Thus, to access the pixel values in an image with shape CameraModel.OUTPUT_SHAPE, you would do image[v, u, :].
+    Nonetheless, pixel coordinates will still be stored as (u, v) in numpy arrays since this is the standard convention.
     """
 
     IMAGE_HEIGHT = 2592
