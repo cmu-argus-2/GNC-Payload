@@ -100,10 +100,7 @@ class GeoTIFFData:
 
         num_pixels = np.prod(shape_prefix)
         image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
-
-        # Only retrieve pixel values for valid indices
-        if np.any(valid_mask):
-            image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
+        image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
         # Handle invalid indices (e.g., set to NaN)
         # image_flat[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
