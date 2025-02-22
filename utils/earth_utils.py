@@ -257,20 +257,21 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
         [[band["min_lat"], band["max_lat"]] for band in mgrs_latitude_bands]
     )
 
-    # Flatten lat/lon for processing
-    valid_indices = np.all(~np.isnan(lat_lon), axis=-1)
+    # Filter out invalid coordinates and flatten
+    valid_indices = np.all(~np.isnan(lat_lon), axis=-1) & (lat_lon[..., 0] >= -80) & (lat_lon[..., 0] < 84)
     lat_flat, lon_flat = lat_lon[valid_indices, :].T
 
     # Determine latitude bands
-    lat_bands = np.full(len(lat_flat), None, dtype=object)
+    lat_bands = np.empty(len(lat_flat), dtype=str)
+    seen_mask = np.zeros(len(lat_flat), dtype=bool)
     for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
         lat_bands[mask] = name
+        seen_mask |= mask
+    assert np.all(seen_mask)
 
     # Determine UTM zones (default calculation)
     utm_zones = ((lon_flat + 180) // 6 + 1).astype(int)
-
-    # Apply UTM exceptions
     for exception in mgrs_utm_exceptions:
         mask = (
             (lon_flat >= exception["min_lon"])
@@ -278,16 +279,10 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
             & np.isin(lat_bands, exception["bands"])
         )
         utm_zones[mask] = exception["zone"]
+    utm_zones = utm_zones.astype(str)
 
-    # Combine UTM zones and latitude bands
-    mgrs_regions_flat = np.array(
-        [f"{zone}{band}" if band is not None else None for zone, band in zip(utm_zones, lat_bands)]
-    )
-
-    # Reshape to match input lat/lon shape
     mgrs_regions = np.full(valid_indices.shape, None, dtype=object)
-    mgrs_regions[valid_indices] = mgrs_regions_flat
-
+    mgrs_regions[valid_indices] = np.char.add(utm_zones, lat_bands)
     return mgrs_regions
 
 
