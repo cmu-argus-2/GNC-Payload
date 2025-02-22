@@ -89,30 +89,24 @@ class GeoTIFFData:
         shape_prefix = lat_lon.shape[:-1]
         lat_flat, lon_flat = lat_lon.reshape(-1, 2).T
 
-        cols, rows = self.transform * (lon_flat, lat_flat)
+        us, vs = self.transform * (lon_flat, lat_flat)
+        us = np.floor(us).astype(int)
+        vs = np.floor(vs).astype(int)
 
-        # Round and convert to integers
-        cols = np.floor(cols).astype(int)
-        rows = np.floor(rows).astype(int)
+        height, width, num_channels = self.image_data.shape
+        valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
 
-        # Get image dimensions
-        height, width, num_bands = self.image_data.shape
-
-        # Create a mask for valid indices
-        valid_mask = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
-
-        # Prepare an array for the pixel values
         num_pixels = np.prod(shape_prefix)
-        pixel_values = np.zeros((num_pixels, num_bands), dtype=self.image_data.dtype)
+        image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
 
         # Only retrieve pixel values for valid indices
         if np.any(valid_mask):
-            pixel_values[valid_mask, :] = self.image_data[rows[valid_mask], cols[valid_mask], :]
+            image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
         # Handle invalid indices (e.g., set to NaN)
-        # pixel_values[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
+        # image_flat[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
 
-        return pixel_values.reshape(*shape_prefix, num_bands)
+        return image_flat.reshape(*shape_prefix, num_channels)
 
 
 class GeoTIFFCache:
