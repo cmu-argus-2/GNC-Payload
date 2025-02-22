@@ -137,6 +137,69 @@ def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
     return np.column_stack([x_plus_dir, y_plus_dir, z_plus_dir])
 
 
+def intersect_ellipsoid(
+    ray_directions: np.ndarray,
+    satellite_position: np.ndarray,
+    a: float = 6378137.0,
+    b: float = 6356752.314245,
+) -> np.ndarray:
+    """
+    Vectorized computation of ray intersections with the WGS84 ellipsoid.
+
+    Parameters:
+        ray_directions: Array of ray directions (Nx3).
+        satellite_position: Satellite position in ECEF (3,).
+        a: Semi-major axis of the WGS84 ellipsoid (meters).
+        b: Semi-minor axis of the WGS84 ellipsoid (meters).
+
+    Returns:
+        Intersection points (Nx3), or NaN for rays that miss.
+    """
+    H, W, _ = ray_directions.shape
+    ray_directions_flat = ray_directions.reshape(-1, 3)
+
+    A = (
+        ray_directions_flat[:, 0] ** 2 / a**2
+        + ray_directions_flat[:, 1] ** 2 / a**2
+        + ray_directions_flat[:, 2] ** 2 / b**2
+    )
+    B = 2 * (
+        satellite_position[0] * ray_directions_flat[:, 0] / a**2
+        + satellite_position[1] * ray_directions_flat[:, 1] / a**2
+        + satellite_position[2] * ray_directions_flat[:, 2] / b**2
+    )
+    C = (
+        satellite_position[0] ** 2 / a**2
+        + satellite_position[1] ** 2 / a**2
+        + satellite_position[2] ** 2 / b**2
+        - 1
+    )
+    discriminant = B**2 - 4 * A * C
+
+    # Initialize intersection points as NaN
+    intersection_points_flat = np.full_like(ray_directions_flat, np.nan)
+
+    valid_mask = discriminant >= 0
+    if np.any(valid_mask):
+        # Compute roots of the quadratic equation
+        sqrt_discriminant = np.sqrt(discriminant[valid_mask])
+        t1 = (-B[valid_mask] - sqrt_discriminant) / (2 * A[valid_mask])
+        t2 = (-B[valid_mask] + sqrt_discriminant) / (2 * A[valid_mask])
+
+        # Choose the smallest positive t
+        t = np.where((t1 > 0) & ((t1 < t2) | (t2 <= 0)), t1, t2)
+        t = np.where(t > 0, t, np.nan)  # Filter out negative t values
+
+        # Calculate intersection points
+        valid_ray_directions = ray_directions_flat[valid_mask]
+        intersection_points_flat[valid_mask] = (
+            t[:, None] * valid_ray_directions + satellite_position
+        )
+    # Reshape intersection points back to original ray grid shape
+    intersection_points = intersection_points_flat.reshape(H, W, 3)
+    return intersection_points
+
+
 # Define MGRS latitude bands and UTM exceptions
 # TODO: consolidate functionality between this and the get_MGRS_grid function
 mgrs_latitude_bands = [
