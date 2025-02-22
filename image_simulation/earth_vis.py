@@ -259,6 +259,7 @@ class EarthImageSimulator:
 
         # Initialize full image with zeros
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
+        valid_mask = np.zeros(CameraModel.RESOLUTION, dtype=bool)
 
         # Load and assign data for each region
         for region in present_regions:
@@ -283,10 +284,13 @@ class EarthImageSimulator:
                 continue
 
             # Query pixel colors for the region
-            region_image, _ = geotiff_data.query_pixel_colors(lat_lon[region_mask])
+            region_image, region_valid_mask = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
             # Assign pixel values to the full image
             image[region_mask] = region_image
+            valid_mask[region_mask] |= region_valid_mask
+
+        # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
