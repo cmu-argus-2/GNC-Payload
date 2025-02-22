@@ -59,9 +59,7 @@ class GeoTIFFData:
         latitudes_flat = latitudes.flatten()
         longitudes_flat = longitudes.flatten()
 
-        inverse_transform = ~self.transform
-
-        cols, rows = inverse_transform * (longitudes_flat, latitudes_flat)
+        cols, rows = self.transform * (longitudes_flat, latitudes_flat)
 
         # Round and convert to integers
         cols = np.floor(cols).astype(int)
@@ -183,7 +181,7 @@ class GeoTIFFCache:
             image_data = src.read()
             image_data = np.moveaxis(image_data, 0, -1)
             transform = src.transform
-        return GeoTIFFData(file_path, image_data, transform)
+        return GeoTIFFData(file_path, image_data, ~transform)
 
     def clear_cache(self) -> None:
         """
