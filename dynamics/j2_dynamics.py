@@ -1,3 +1,7 @@
+"""
+J2 dynamics and jacobian
+"""
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -42,56 +46,56 @@ def j2_derivative(r: np.ndarray) -> np.ndarray:
     F = 1.5 * J2_EARTH * GM_EARTH * R_EARTH**2
     r_norm = np.linalg.norm(r)
 
-    """
-                    [dj2x_dx, dj2x_dy, dj2x_dz]
-    Jacobian   =    [dj2y_dx, dj2y_dy, dj2y_dz]
-                    [dj2z_dx, dj2z_dy, dj2z_dz]
-    """
+    #                             [dj2x_dx, dj2x_dy, dj2x_dz]
+    #             Jacobian   =    [dj2y_dx, dj2y_dy, dj2y_dz]
+    #                             [dj2z_dx, dj2z_dy, dj2z_dz]
+
+    #             Terms in the Jacobian have the following shape.
 
     # dj2x_dx
-    dA_dx = F * (r_norm**2 - 5 * r[0] ** 2) / r_norm**7
-    dB_dx = -10 * r[0] * r[2] ** 2 / r_norm**4
-    dj2x_dx = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + dB_dx * F * r[0] / r_norm**5
+    da_dx = F * (r_norm**2 - 5 * r[0] ** 2) / r_norm**7
+    db_dx = -10 * r[0] * r[2] ** 2 / r_norm**4
+    dj2x_dx = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + db_dx * F * r[0] / r_norm**5
 
     # dj2x_dy
-    dA_dx = -5 * F * r[0] * r[1] / r_norm**7
-    dB_dx = -10 * r[1] * r[2] ** 2 / r_norm**4
-    dj2x_dy = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + dB_dx * F * r[0] / r_norm**5
+    da_dx = -5 * F * r[0] * r[1] / r_norm**7
+    db_dx = -10 * r[1] * r[2] ** 2 / r_norm**4
+    dj2x_dy = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + db_dx * F * r[0] / r_norm**5
 
     # dj2x_dz
-    dA_dx = -5 * F * r[0] * r[2] / r_norm**7
-    dB_dx = (10 * r[2] * r_norm**2 - (10 * r[2] ** 3 - 2 * r[2])) / r_norm**4
-    dj2x_dz = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + dB_dx * F * r[0] / r_norm**5
+    da_dx = -5 * F * r[0] * r[2] / r_norm**7
+    db_dx = (10 * r[2] * r_norm**2 - (10 * r[2] ** 3 - 2 * r[2])) / r_norm**4
+    dj2x_dz = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + db_dx * F * r[0] / r_norm**5
 
     # dj2y_dx
-    dA_dx = -5 * F * r[1] * r[0] / r_norm**7
-    dB_dx = -10 * r[0] * r[2] ** 2 / r_norm**4
-    dj2y_dx = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + dB_dx * F * r[1] / r_norm**5
+    da_dx = -5 * F * r[1] * r[0] / r_norm**7
+    db_dx = -10 * r[0] * r[2] ** 2 / r_norm**4
+    dj2y_dx = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + db_dx * F * r[1] / r_norm**5
 
     # dj2y_dy
-    dA_dx = F * (r_norm**2 - 5 * r[1] ** 2) / r_norm**7
-    dB_dx = -10 * r[1] * r[2] ** 2 / r_norm**4
-    dj2y_dy = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + dB_dx * F * r[1] / r_norm**5
+    da_dx = F * (r_norm**2 - 5 * r[1] ** 2) / r_norm**7
+    db_dx = -10 * r[1] * r[2] ** 2 / r_norm**4
+    dj2y_dy = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + db_dx * F * r[1] / r_norm**5
 
     # dj2y_dz
-    dA_dx = -5 * F * r[1] * r[2] / r_norm**7
-    dB_dx = (10 * r[2] * r_norm**2 - (10 * r[2] ** 3 - 2 * r[2])) / r_norm**4
-    dj2y_dz = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + dB_dx * F * r[1] / r_norm**5
+    da_dx = -5 * F * r[1] * r[2] / r_norm**7
+    db_dx = (10 * r[2] * r_norm**2 - (10 * r[2] ** 3 - 2 * r[2])) / r_norm**4
+    dj2y_dz = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 1) + db_dx * F * r[1] / r_norm**5
 
     # dj2z_dx
-    dA_dx = -5 * F * r[2] * r[0] / r_norm**7
-    dB_dx = (-10 * r[0] * r[2] ** 2) / r_norm**4
-    dj2z_dx = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 3) + dB_dx * F * r[2] / r_norm**5
+    da_dx = -5 * F * r[2] * r[0] / r_norm**7
+    db_dx = (-10 * r[0] * r[2] ** 2) / r_norm**4
+    dj2z_dx = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 3) + db_dx * F * r[2] / r_norm**5
 
     # dj2z_dy
-    dA_dx = -5 * F * r[2] * r[1] / r_norm**7
-    dB_dx = (-10 * r[1] * r[2] ** 2) / r_norm**4
-    dj2z_dy = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 3) + dB_dx * F * r[2] / r_norm**5
+    da_dx = -5 * F * r[2] * r[1] / r_norm**7
+    db_dx = (-10 * r[1] * r[2] ** 2) / r_norm**4
+    dj2z_dy = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 3) + db_dx * F * r[2] / r_norm**5
 
     # dj2z_dz
-    dA_dx = F * (r_norm**2 - 5 * r[2] ** 2) / r_norm**7
-    dB_dx = 10 * r[2] * (r_norm**2 - r[2] ** 2) / r_norm**4
-    dj2z_dz = dA_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 3) + dB_dx * F * r[2] / r_norm**5
+    da_dx = F * (r_norm**2 - 5 * r[2] ** 2) / r_norm**7
+    db_dx = 10 * r[2] * (r_norm**2 - r[2] ** 2) / r_norm**4
+    dj2z_dz = da_dx * ((5 * r[2] ** 2 / (r_norm**2)) - 3) + db_dx * F * r[2] / r_norm**5
 
     return np.array(
         [[dj2x_dx, dj2x_dy, dj2x_dz], [dj2y_dx, dj2y_dy, dj2y_dz], [dj2z_dx, dj2z_dy, dj2z_dz]]
