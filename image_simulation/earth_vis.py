@@ -237,7 +237,7 @@ class EarthImageSimulator:
         present_regions = np.unique([region for region in mgrs_regions if region is not None])
 
         # Initialize full image with zeros
-        pixel_colors_full = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=np.uint8)
+        pixel_colors_full = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
 
         # Load and assign data for each region
         for region in present_regions:

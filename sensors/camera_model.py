@@ -33,6 +33,7 @@ class CameraModel:
     NUM_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
     NUM_CHANNELS = 3
     OUTPUT_SHAPE = RESOLUTION + (NUM_CHANNELS,)
+    DTYPE = np.uint8
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
     def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
