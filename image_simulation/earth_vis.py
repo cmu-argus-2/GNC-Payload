@@ -279,10 +279,6 @@ class EarthImageSimulator:
             # Mask for the current region
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
 
-            # Skip if no pixels belong to this region
-            if not np.any(region_mask):
-                continue
-
             # Query pixel colors for the region
             region_image, region_valid_mask = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
