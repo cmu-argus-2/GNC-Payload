@@ -215,7 +215,7 @@ class EarthImageSimulator:
               pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
         # Generate ray directions in ECEF frame
-        ray_directions_body = camera_model.ray_directions()
+        ray_directions_body = camera_model.ray_directions_body()
         ray_directions_ecef = ray_directions_body @ ecef_R_body.T
 
         # Intersect rays with the Earth

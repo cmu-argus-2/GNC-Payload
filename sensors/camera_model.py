@@ -3,6 +3,8 @@ This module contains a class representing a model for a single camera on the sat
 models.
 """
 
+from functools import cache
+
 import numpy as np
 
 from utils.config_utils import load_config
@@ -37,6 +39,10 @@ class CameraModel:
         self.body_R_camera = body_R_camera
         self.t_body_to_camera = t_body_to_camera
 
+        # Apply @cache at the instance level in the constructor to ensure separate caches for each instance
+        # and to avoid needing to call hash(self) in the cache implementation
+        self.ray_directions_body = cache(self.ray_directions_body)
+
     def get_camera_position(
         self, body_position: np.ndarray, frame_R_body: np.ndarray
     ) -> np.ndarray:
@@ -66,13 +72,15 @@ class CameraModel:
         """
         return frame_R_body @ self.body_R_camera @ np.array([0, 0, 1])
 
-    def ray_directions(self):
+    @staticmethod
+    @cache
+    def ray_directions_camera():
         """
-        Generate ray directions for the camera.
+        Generate ray directions in the camera frame for each pixel.
 
         Returns:
             A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
-            in the body frame for each pixel.
+            in the camera frame for each pixel.
         """
         half_width = np.tan(CameraModel.HORIZONTAL_FOV / 2)
         half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
@@ -83,11 +91,21 @@ class CameraModel:
         zz = np.ones_like(xx)  # Assume unit depth
 
         # Stack and normalize ray directions
-        # TODO: precompute this and store it as a class attribute
         ray_directions_cf = np.stack([xx, yy, zz], axis=-1)
         ray_directions_cf /= np.linalg.norm(ray_directions_cf, axis=-1, keepdims=True)
 
-        ray_directions_body = ray_directions_cf @ self.body_R_camera.T
+        return ray_directions_cf
+
+    def ray_directions_body(self) -> np.ndarray:
+        """
+        Get the ray directions in the body frame for each pixel.
+
+        Note that this method is dynamically wrapped with a cache in the constructor.
+
+        :return: A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
+                in the body frame for each pixel.
+        """
+        ray_directions_body = CameraModel.ray_directions_camera() @ self.body_R_camera.T
         return ray_directions_body
 
     def pixel_to_bearing_unit_vector(self, pixel_coords: np.ndarray) -> np.ndarray:
