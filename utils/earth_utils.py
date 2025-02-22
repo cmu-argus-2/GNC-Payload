@@ -147,15 +147,17 @@ def intersect_ellipsoid(
     Vectorized computation of ray intersections with the WGS84 ellipsoid.
 
     Parameters:
-        ray_directions: Array of ray directions (Nx3).
-        satellite_position: Satellite position in ECEF (3,).
+        ray_directions: A numpy array of shape (..., 3) containing ray directions.
+        satellite_position: Satellite position in ECEF as a numpy array of shape (3,).
         a: Semi-major axis of the WGS84 ellipsoid (meters).
         b: Semi-minor axis of the WGS84 ellipsoid (meters).
 
     Returns:
-        Intersection points (Nx3), or NaN for rays that miss.
+        The resulting intersection points as a numpy array of shape (..., 3), or NaN for rays that miss.
     """
-    H, W, _ = ray_directions.shape
+    assert ray_directions.shape[-1] == 3, "ray_directions must have shape (..., 3)"
+    assert np.allclose(np.linalg.norm(ray_directions, axis=-1), 1), "ray_dirs must be normalized"
+
     ray_directions_flat = ray_directions.reshape(-1, 3)
 
     A = (
@@ -195,9 +197,8 @@ def intersect_ellipsoid(
         intersection_points_flat[valid_mask] = (
             t[:, None] * valid_ray_directions + satellite_position
         )
-    # Reshape intersection points back to original ray grid shape
-    intersection_points = intersection_points_flat.reshape(H, W, 3)
-    return intersection_points
+
+    return intersection_points_flat.reshape(ray_directions.shape)
 
 
 # Define MGRS latitude bands and UTM exceptions
