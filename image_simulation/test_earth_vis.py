@@ -1,3 +1,5 @@
+from time import perf_counter
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 from brahe.constants import R_EARTH
@@ -90,11 +92,13 @@ def simulate_image(
     ecef_velocity = np.cross(np.array([0, 0, 1]), ecef_position)
     ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
+    start_time = perf_counter()
     simulated_image = simulator.simulate_image(
         ecef_position, ecef_R_body, camera_model_manager["x+"]
     ).image
+    print(f"Image simulation took {perf_counter() - start_time:.2f} seconds")
 
-    print(f"Simulated image is {'' if np.all(simulated_image == 0) else 'not'} blank")
+    print(f"Simulated image is {'blank' if np.all(simulated_image == 0) else 'not blank'}")
     if display_image:
         simulator.display_image(simulated_image)
 
