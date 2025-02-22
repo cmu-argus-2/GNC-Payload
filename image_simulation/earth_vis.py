@@ -36,6 +36,26 @@ class GeoTIFFData:
     image_data: np.ndarray
     transform: Affine
 
+    @staticmethod
+    def load(file_path: str) -> "GeoTIFFData":
+        """
+        Load GeoTIFFData from a file.
+
+        Parameters:
+            file_path: Path to the GeoTIFF file.
+
+        Returns:
+            GeoTIFFData: The GeoTIFFData contained in the file.
+        """
+        with rasterio.open(file_path) as src:
+            image_data = src.read()
+            transform = src.transform
+
+        # convert from (channels, height, width) to (height, width, channels)
+        image_data = np.moveaxis(image_data, 0, -1)
+        inverse_transform = ~transform
+        return GeoTIFFData(file_path, image_data, inverse_transform)
+
     @property
     def num_channels(self) -> int:
         """
@@ -178,11 +198,7 @@ class GeoTIFFCache:
 
         selected_file = np.random.choice(region_files)
         file_path = os.path.join(region_folder, selected_file)
-        with rasterio.open(file_path) as src:
-            image_data = src.read()
-            image_data = np.moveaxis(image_data, 0, -1)
-            transform = src.transform
-        return GeoTIFFData(file_path, image_data, ~transform)
+        return GeoTIFFData.load(file_path)
 
     def clear_cache(self) -> None:
         """
