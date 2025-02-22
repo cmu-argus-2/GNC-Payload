@@ -207,7 +207,7 @@ class LandmarkDetector:
         """
         Logger.log(
             "INFO",
-            f"[Camera {frame.camera_id} frame {frame.frame_id}] Starting the landmark detection process.",
+            f"[Camera {frame.camera_name} frame {frame.frame_id}] Starting the landmark detection process.",
         )
 
         try:
@@ -256,13 +256,13 @@ class LandmarkDetector:
             if len(landmark_detections) == 0:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame.camera_id} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
+                    f"[Camera {frame.camera_name} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
                 )
                 return LandmarkDetections.empty()
 
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] "
+                f"[Camera {frame.camera_name} frame {frame.frame_id}] "
                 f"{len(landmark_detections)} landmarks detected.",
             )
             Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
@@ -270,13 +270,13 @@ class LandmarkDetector:
             # Logging details for each detected landmark
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_id} frame {frame.frame_id}] "
+                f"[Camera {frame.camera_name} frame {frame.frame_id}] "
                 f"class_id\tpixel_coordinates\tlatlon\tconfidence",
             )
             for (x, y), (lat, lon), class_id, confidence in landmark_detections:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame.camera_id} frame {frame.frame_id}] "
+                    f"[Camera {frame.camera_name} frame {frame.frame_id}] "
                     f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
                 )
 

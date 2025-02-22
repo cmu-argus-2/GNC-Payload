@@ -91,7 +91,7 @@ class MLPipeline:
         if len(pred_regions) == 0:
             Logger.log(
                 "INFO",
-                f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] No salient regions detected. ",
+                f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] No salient regions detected. ",
             )
             return LandmarkDetections.empty(), {}
 
@@ -219,7 +219,7 @@ class MLPipeline:
 
         # ========================== Metadata displaying ========================================
         # Metadata drawing first to determine right edge for alignment
-        metadata_info = f"Camera ID: {frame_obj.camera_id} | Time: {frame_obj.timestamp} | Frame: {frame_obj.frame_id}"
+        metadata_info = f"Camera ID: {frame_obj.camera_name} | Time: {frame_obj.timestamp} | Frame: {frame_obj.frame_id}"
         font = cv2.FONT_HERSHEY_SIMPLEX
         metadata_font_scale = 1
         text_thickness = 2
@@ -335,7 +335,9 @@ class MLPipeline:
             # Move down for the next entry
             legend_y += text_height + 10
 
-        landmark_save_path = os.path.join(save_dir, f"frame_w_landmarks_{frame_obj.camera_id}.png")
+        landmark_save_path = os.path.join(
+            save_dir, f"frame_w_landmarks_{frame_obj.camera_name}.png"
+        )
         cv2.imwrite(landmark_save_path, image)
 
         img_save_path = os.path.join(save_dir, "frame.png")
@@ -343,12 +345,12 @@ class MLPipeline:
 
         metadata_path = os.path.join(save_dir, "frame_metadata.txt")
         with open(metadata_path, "w") as f:
-            f.write(f"Camera ID: {frame_obj.camera_id}\n")
+            f.write(f"Camera ID: {frame_obj.camera_name}\n")
             f.write(f"Timestamp: {frame_obj.timestamp}\n")
             f.write(f"Frame ID: {frame_obj.frame_id}\n")
 
         Logger.log(
             "INFO",
-            f"[Camera {frame_obj.camera_id} frame {frame_obj.frame_id}] "
+            f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] "
             f"Landmark visualization saved to data/inference_output",
         )
