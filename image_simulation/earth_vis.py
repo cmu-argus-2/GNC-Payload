@@ -3,10 +3,10 @@ Module to simulate and visualize Earth images from satellite data.
 """
 
 import os
-from datetime import datetime
-from typing import Tuple
-from functools import lru_cache
 from dataclasses import dataclass
+from datetime import datetime
+from functools import lru_cache
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,6 +32,7 @@ class GeoTIFFData:
         transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (longitudes, latitudes)
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
+
     image_path: str
     image_data: np.ndarray
     transform: Affine
@@ -76,11 +77,19 @@ class GeoTIFFData:
         """
         return self.image_data.dtype
 
-    def query_pixel_colors(self, latitudes, longitudes) -> np.ndarray:
-        latitudes_flat = latitudes.flatten()
-        longitudes_flat = longitudes.flatten()
+    def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
+        """
+        Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
-        cols, rows = self.transform * (longitudes_flat, latitudes_flat)
+        :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
+        :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
+        """
+        assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
+
+        shape_prefix = lat_lon.shape[:-1]
+        lat_flat, lon_flat = lat_lon.reshape(-1, 2).T
+
+        cols, rows = self.transform * (lon_flat, lat_flat)
 
         # Round and convert to integers
         cols = np.floor(cols).astype(int)
@@ -93,21 +102,17 @@ class GeoTIFFData:
         valid_mask = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
 
         # Prepare an array for the pixel values
-        num_pixels = latitudes_flat.size
+        num_pixels = np.prod(shape_prefix)
         pixel_values = np.zeros((num_pixels, num_bands), dtype=self.image_data.dtype)
 
         # Only retrieve pixel values for valid indices
         if np.any(valid_mask):
-            pixel_values[valid_mask] = self.image_data[rows[valid_mask], cols[valid_mask], :]
+            pixel_values[valid_mask, :] = self.image_data[rows[valid_mask], cols[valid_mask], :]
 
         # Handle invalid indices (e.g., set to NaN)
         # pixel_values[~valid_mask] = np.nan  # Uncomment if you prefer NaN for invalid pixels
 
-        # Reshape the output to match the input shape (H x W x bands)
-        output_shape = latitudes.shape + (num_bands,)
-        pixel_values = pixel_values.reshape(output_shape)
-
-        return pixel_values
+        return pixel_values.reshape(*shape_prefix, num_bands)
 
 
 class GeoTIFFCache:
@@ -289,9 +294,7 @@ class EarthImageSimulator:
                 continue
 
             # Query pixel colors for the region
-            pixel_colors_region = geotiff_data.query_pixel_colors(
-                latitudes[region_mask.flatten()], longitudes[region_mask.flatten()]
-            )
+            region_image = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
             # Assign pixel values to the full image
             pixel_colors_full[region_mask] = pixel_colors_region
