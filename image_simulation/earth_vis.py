@@ -258,7 +258,7 @@ class EarthImageSimulator:
         present_regions = np.unique(mgrs_regions[mgrs_regions != None])
 
         # Initialize full image with zeros
-        pixel_colors_full = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
+        image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
 
         # Load and assign data for each region
         for region in present_regions:
@@ -286,10 +286,10 @@ class EarthImageSimulator:
             region_image, _ = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
             # Assign pixel values to the full image
-            pixel_colors_full[region_mask] = pixel_colors_region
+            image[region_mask] = region_image
 
         return (
-            Frame(pixel_colors_full, camera_model.camera_name, datetime.now()),
+            Frame(image, camera_model.camera_name, datetime.now()),
             mgrs_regions,
             lat_lon,
         )
