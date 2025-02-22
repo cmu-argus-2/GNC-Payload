@@ -128,26 +128,10 @@ class CameraModel:
         Returns:
             A numpy array of shape (N, 3) with bearing unit vectors in the body frame.
         """
-        half_width = np.tan(CameraModel.HORIZONTAL_FOV / 2)
-        half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
-
-        u = pixel_coords[:, 0]  # Pixel x-coordinates
-        v = pixel_coords[:, 1]  # Pixel y-coordinates
-
-        # Normalize pixel coordinates to range [-half_width, half_width] and [half_height, -half_height]
-        # Assuming pixel (0,0) is at the top-left corner
-        x = -half_width + (2 * half_width) * (u / (CameraModel.IMAGE_WIDTH - 1))
-        y = half_height - (2 * half_height) * (
-            v / (CameraModel.IMAGE_HEIGHT - 1)
-        )  # Invert y-axis for image coordinates
-        z = np.ones_like(x)
-
-        # Stack and normalize direction vectors
-        bearing_unit_vectors_cf = np.stack([x, y, z], axis=-1)
-        bearing_unit_vectors_cf /= np.linalg.norm(bearing_unit_vectors_cf, axis=1, keepdims=True)
-
-        bearing_unit_vectors_body = bearing_unit_vectors_cf @ self.body_R_camera.T
-        return bearing_unit_vectors_body
+        # since it'll be cached anyway, we can just look up the desired values
+        ray_directions_body = self.ray_directions_body()
+        u, v = pixel_coords.T
+        return ray_directions_body[v, u, :]
 
 
 class CameraModelManager:
