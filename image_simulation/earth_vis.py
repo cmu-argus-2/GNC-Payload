@@ -138,6 +138,8 @@ class GeoTIFFCache:
         GeoTIFFCache.validate_region_folders_exist(self.geotiff_folder)
 
         # Dynamically wrap the member function with an LRU cache
+        # This also ensures that each instance has its own cache and prevents the need to call hash(self) inside the
+        # cache implementation
         self.load_geotiff_data = lru_cache(maxsize=max_cache_size)(self.load_geotiff_data)
 
     @staticmethod
