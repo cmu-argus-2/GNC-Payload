@@ -196,9 +196,9 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
 
     # Determine latitude bands
     lat_bands = np.full(lat_flat.shape, None, dtype=object)
-    for i, (min_lat, max_lat) in enumerate(latitude_band_edges):
+    for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
-        lat_bands[mask] = latitude_band_names[i]
+        lat_bands[mask] = name
 
     # Determine UTM zones (default calculation)
     utm_zones = ((lon_flat + 180) // 6 + 1).astype(int)
