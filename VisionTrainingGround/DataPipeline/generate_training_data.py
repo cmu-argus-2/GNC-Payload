@@ -144,6 +144,7 @@ def main() -> None:
                 ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
             )
 
+            # TODO: integrate with RC and LD training scripts
             pickle_path = os.path.join(region_dir, f"{i:05d}.pkl")
             with open(pickle_path, "wb") as f:
                 pickle.dump(
