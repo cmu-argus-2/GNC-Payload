@@ -212,10 +212,9 @@ class LandmarkDetector:
 
         try:
             # Detect landmarks using the YOLO model
-            img = Image.fromarray(cv2.cvtColor(frame.image, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
             results: Results = self.model.predict(
-                img,
+                Image.fromarray(frame.image),
                 conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
                 imgsz=LandmarkDetector.IMAGE_SIZE,
                 verbose=False,
