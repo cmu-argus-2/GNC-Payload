@@ -81,6 +81,9 @@ class GeoTIFFData:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
+        The pixel colors' channels will be returned in the same order as the GeoTIFF data, which should be in the order
+        (red, green, blue).
+
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
         :return: A Tuple containing:
                  - A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
