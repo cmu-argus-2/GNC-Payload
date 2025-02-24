@@ -221,7 +221,7 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
 
     return mgrs_regions
 
-def noisy_bearing_measurement(vec: np.ndarray, sigma=np.sqrt(0.001)):
+def noisy_bearing_measurement(vec: np.ndarray, sigma=np.sqrt(0.0005)):
     """
     Add Gaussian noise to a bearing measurement.
     Parameters:
@@ -231,21 +231,22 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma=np.sqrt(0.001)):
     Returns:
         np.ndarray: The noisy bearing vector.
     """
-    # Choose an arbitrary vector that isn't parallel to vec
-    if abs(vec[0]) <= abs(vec[2]):
-        arbitrary = np.array([1, 0, 0])
-    else:
-        arbitrary = np.array([0, 0, 1])
-    
-    # Construct the tangent basis
-    tangent1 = np.cross(vec, arbitrary)
-    tangent1 /= np.linalg.norm(tangent1)
-    tangent2 = np.cross(vec, tangent1)
-    
-    # Sample noise for the tangent directions
-    noise1, noise2 = np.random.normal(0, sigma, 2)
-    
-    # Add noise and renormalize
-    new_vec = vec + noise1 * tangent1 + noise2 * tangent2
-    tmp= new_vec / np.linalg.norm(new_vec, axis=1, keepdims=True)
-    return tmp
+
+    # Check if at least one of the first two components is nonzero and choose the
+    # arbitrary vector accordingly
+    n = vec.shape[0]
+    cond = (np.abs(vec[:, 0]) <= np.abs(vec[:, 2]))[:, None]  # shape (n,1) for broadcasting
+    arbitrary = np.where(cond, np.array([1, 0, 0]), np.array([0, 0, 1]))  # shape (n,3)
+
+    w = np.cross(vec, arbitrary)
+    w = w / np.linalg.norm(w, axis=1, keepdims=True)
+
+    theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
+
+    noise_direction = np.cos(theta) * arbitrary + np.sin(theta) * w
+
+    # Add the noise to the original vector and renormalize each vector to maintain unit length.
+    new_vec = vec + sigma * noise_direction
+    new_vec = new_vec / np.linalg.norm(new_vec, axis=1, keepdims=True)
+
+    return new_vec

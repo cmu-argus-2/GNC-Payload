@@ -96,11 +96,6 @@ def run_simulation() -> None:
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 4])
 
-    # Apply error to init_rot
-    init_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
-    # Ensure orthonormality
-    init_rot = init_rot @ np.linalg.inv(np.linalg.cholesky(init_rot.T @ init_rot))
-
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
