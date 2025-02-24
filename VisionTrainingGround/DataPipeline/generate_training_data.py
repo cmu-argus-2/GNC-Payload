@@ -48,6 +48,9 @@ def parse_args() -> argparse.Namespace:
         "--overwrite", action="store_true", help="Overwrite the output directory if it exists."
     )
     parser.add_argument(
+        "--lat_lon_buffer", type=float, default=0.0, help="Extra buffer in lat/lon for each region."
+    )
+    parser.add_argument(
         "--num_images", type=int, default=1000, help="Number of images to generate per region."
     )
     parser.add_argument(
@@ -121,9 +124,15 @@ def main() -> None:
         os.makedirs(region_dir)
 
         min_lon, min_lat, max_lon, max_lat = grid[region]
+        min_lon -= args.lat_lon_buffer
+        min_lat -= args.lat_lon_buffer
+        max_lon += args.lat_lon_buffer
+        max_lat += args.lat_lon_buffer
         for i in range(args.num_images):
             lat = np.random.uniform(min_lat, max_lat)
             lon = np.random.uniform(min_lon, max_lon)
+            lat = np.clip(lat, -90, 90)
+            lon = np.clip(lon, -180, 180)
             altitude = args.nominal_altitude + np.random.uniform(
                 -args.altitude_variation, args.altitude_variation
             )
