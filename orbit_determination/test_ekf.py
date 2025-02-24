@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import f
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -39,18 +43,18 @@ def imu_init(dt: float) -> IMU:
     # [units] and [(units/s)/sqrt(Hz)]
     bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
