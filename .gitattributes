@@ -1,0 +1,2 @@
+VisionTrainingGround/LD/runs/*/weights/*.pt filter=lfs diff=lfs merge=lfs -text
+VisionTrainingGround/RCnet/model/model.pth filter=lfs diff=lfs merge=lfs -text
