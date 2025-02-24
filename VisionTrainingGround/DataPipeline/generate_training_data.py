@@ -38,6 +38,13 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--regions", type=str, nargs="+", default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to generate training data for."
+    )
+    parser.add_argument(
+        "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
+    )
+    parser.add_argument(
         "--overwrite", action="store_true", help="Overwrite the output directory if it exists."
     )
     parser.add_argument(
@@ -100,8 +107,8 @@ def main() -> None:
             f"Output directory {args.output_dir} could not be emptied. Set --overwrite to clear any existing data."
         )
         return
+    regions = list(set(args.regions) - set(args.skip_regions))
 
-    config = load_config()
     image_simulator = EarthImageSimulator(
         GeoTIFFCache(geotiff_folder=args.geotiff_folder, max_cache_size=0)
     )
@@ -109,7 +116,7 @@ def main() -> None:
     grid = get_MGRS_grid()
     ecef_velocity = np.array([0, 0, 1])
 
-    for region in config["vision"]["salient_mgrs_region_ids"]:
+    for region in regions:
         region_dir = os.path.join(args.output_dir, region)
         os.makedirs(region_dir)
 
