@@ -11,6 +11,7 @@ import quaternion
 
 from dynamics.orbital_dynamics import f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from sensors.camera_model import CameraModelManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
 
 # pylint: disable=invalid-name
@@ -18,7 +19,6 @@ from utils.math_utils import R, left_q, rot_2_q  # right_q
 # pylint: disable=too-many-positional-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
-
 
 
 class EKF:
@@ -37,8 +37,6 @@ class EKF:
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
-        config: dict,
-        w: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -53,7 +51,6 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
-        :param w: The angular velocity of the satellite with shape (3,)
 
         :return: None
 
@@ -75,17 +72,15 @@ class EKF:
         # self.a_b = a_b
         # self.w_b = w_b
 
+        # Scale the attitude Covariance
+        P[6:9, 6:9] *= (1e-9,)
+
         self.P_m = P
         self.P_p = P
-
-        self.w = w
 
         self.Q = Q
         self.R = R_vec
         self.dt = dt
-
-        camera_params = config["satellite"]["camera"]
-        self.t_body_to_camera = np.asarray(camera_params["t_body_to_camera"])
 
         self.cond_threshold = 1e15
         self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
@@ -137,21 +132,37 @@ class EKF:
         self.P_m = self.P_p
 
     def measurement(
-        self, z: Tuple[np.ndarray, np.ndarray], data_manager: ODSimulationDataManager
+        self,
+        z: Tuple[np.ndarray, np.ndarray],
+        data_manager: ODSimulationDataManager,
+        camera_model_manager: CameraModelManager,
+        measurement_camera_names: np.ndarray,
+        num_iter: int = 1,
     ) -> None:
         """
         Update the state estimate based on the measurement. This corresponds to the posterior update step
         in the EKF algorithm.
 
         :param z: Measurement consisting of a tuple of the bearing unit vectors in the body frame and the
-        landmark positions in ECI coordinates with shape (N, 3)
+        landmark positions in ECI coordinates, both with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param camera_model_manager: The camera model manager used to manage the cameras.
+        :param measurement_camera_names: The names of the cameras that took the measurements.
+        :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
         """
-        # x_p = jnp.array(
-        #     np.concatenate((self.r_p, quaternion.as_rotation_vector(self.q_p), self.v_p), axis=0)
-        # )
+        # Select a fraction of the measurements to use to speed up computations
+        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
+        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+
+        measurement_camera_names = measurement_camera_names[: len(z0)]
+
+        # Flatten the measurement vector
+        z0 = np.array(z0.reshape(-1))
+
+        # Let R take the dimensionality of the number of measurements
+        self.R = np.diag([1e-5] * z0.shape[0])
 
         x_p = jnp.array(
             np.concatenate(
@@ -162,60 +173,72 @@ class EKF:
                 ]
             )
         )
+        # Iterated Update
+        for i in range(num_iter):
 
-        # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
-        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+            h = self.h_est(z1, data_manager, camera_model_manager, measurement_camera_names, x_p)
+            H = self.h_jac(z1, data_manager, camera_model_manager, measurement_camera_names, x_p)
+            S = H @ self.P_p @ H.T + self.R
 
-        h = self.h_est(z1, data_manager, x_p)
-        H = self.h_jac(z1, data_manager, x_p)
+            # Check for ill-conditioned matrix and add regularization if necessary
+            if i == 0:
+                cond = np.linalg.cond(S)
+                if cond > self.cond_threshold:
+                    S += np.eye(S.shape[0]) * 1e-6
+                    print("Ill-conditioned matrix detected. Regularization applied.")
 
-        # Flatten the measurement vector
-        z0 = np.array(z0.reshape(-1))
+            K = self.P_p @ H.T @ np.linalg.inv(S)
 
-        # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([1e-5] * z0.shape[0])
+            delta = K @ (z0 - h)
 
-        S = H @ self.P_p @ H.T + self.R
+            self.r_m = np.array(x_p[0:3]) + delta[0:3]
+            self.v_m = np.array(x_p[3:6]) + delta[3:6]
+            self.q_m = quaternion.as_rotation_vector(
+                quaternion.from_rotation_vector(np.array(x_p[6:9]))
+                * quaternion.from_rotation_vector(delta[6:9])
+            )
 
-        # Check for ill-conditioned matrix and add regularization if necessary
-        cond = np.linalg.cond(S)
-        if cond > self.cond_threshold:
-            S += np.eye(S.shape[0]) * 1e-6
-            print("Ill-conditioned matrix detected. Regularization applied.")
+            # Joseph form covariance update
+            self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
+                np.eye(self.P_m.shape[0]) - K @ H
+            ).T + K @ self.R @ K.T
 
-        K = self.P_p @ H.T @ np.linalg.inv(S)
-
-        delta = K @ (z0 - h)
-
-        self.r_m = self.r_p + delta[0:3]
-        self.v_m = self.v_p + delta[3:6]
-        self.q_m = quaternion.as_float_array(
-            quaternion.as_quat_array(self.q_p) * quaternion.from_rotation_vector(delta[6:9])
-        )
-
-        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
-            np.eye(self.P_m.shape[0]) - K @ H
-        ).T + K @ self.R @ K.T  # Joseph form covariance update
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.q_m]))
+        # Convert final iterated rotation vector to quaternion
+        self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
     def h_jac(
-        self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
+        self,
+        z: np.ndarray,
+        data_manager: ODSimulationDataManager,
+        camera_model_manager: CameraModelManager,
+        measurement_camera_names: np.ndarray,
+        x_p: jnp.ndarray,
     ) -> jnp.ndarray:
         """
         Calculate the Jacobian of the measurement model with respect to the state.
 
-        :param z: Measurement consisting of the landmark locations in ECI coordinates.
+        :param z: Measurement consisting of the landmark locations in ECI coordinates with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param camera_model_manager: The camera model manager used to manage the cameras.
+        :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (9,)
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
-        jac = jax.jacobian(self.h_est, argnums=2)(z, data_manager, x_p)
+        jac = jax.jacobian(self.h_est, argnums=4)(
+            z, data_manager, camera_model_manager, measurement_camera_names, x_p
+        )
 
         return jac
 
     def h_est(
-        self, z: np.ndarray, data_manager: ODSimulationDataManager, x_p: jnp.ndarray
+        self,
+        z: np.ndarray,
+        data_manager: ODSimulationDataManager,
+        camera_model_manager: CameraModelManager,
+        measurement_camera_names: np.ndarray,
+        x_p: jnp.ndarray,
     ) -> jnp.ndarray:
         """
         Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide
@@ -224,6 +247,8 @@ class EKF:
         :param z: Measurements of the landmarks in frame, consisting of just the ECI coordinates of the landmarks
         with shape (N, 3)
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param camera_model_manager: The camera model manager used to manage the cameras.
+        :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of [position, velocity, rotation_vector] with shape (9,)
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
@@ -238,11 +263,21 @@ class EKF:
 
         # Transform landmarks and position from ECI to ECEF
         landmarks_ecef = (ecef_R_eci @ z.T).T
-        position_ecef = ecef_R_eci @ x_p[0:3] + ecef_R_body @ self.t_body_to_camera
+        position_ecef = ecef_R_eci @ x_p[0:3]
+
+        # Assert landmarks and measurement camera names are the same length
+        assert landmarks_ecef.shape[0] == len(
+            measurement_camera_names
+        ), "Landmarks and measurement camera names must be the same length"
 
         # Calculate estimated bearing unit vectors in ECEF and transform to body frame
         for i, land_pos_ecef in enumerate(landmarks_ecef):
-            vec_ecef = land_pos_ecef - position_ecef
+            # account for camera position in ECEF
+            camera_position_ecef = camera_model_manager[
+                measurement_camera_names[i]
+            ].get_camera_position(position_ecef, ecef_R_body)
+
+            vec_ecef = land_pos_ecef - camera_position_ecef
             vec_ecef /= jnp.linalg.norm(vec_ecef)
             body_vec = ecef_R_body.T @ vec_ecef
             estimate = estimate.at[i * 3 : i * 3 + 3].set(body_vec)

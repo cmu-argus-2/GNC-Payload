@@ -19,6 +19,7 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.bias import BiasParams
+from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.config_utils import load_config
@@ -34,7 +35,10 @@ def imu_init(dt: float) -> IMU:
     :return: The initialized IMU.
     """
     # Initialize the IMU
+    # bias params are min max range of bias and sigma_w
+    # [units] and [(units/s)/sqrt(Hz)]
     bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+    # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
@@ -43,7 +47,7 @@ def imu_init(dt: float) -> IMU:
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
-
+    # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
@@ -69,15 +73,16 @@ def run_simulation() -> None:
     """
 
     config = load_config()
-
-    config["solver"]["world_update_rate"] = 1 / 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s, roughly 1 orbit
+    # Set the world update rate and mission duration to a rate that is workable for testing
+    config["solver"]["world_update_rate"] = 1 / 4  # Hz
+    config["mission"]["duration"] = 3 * 90 * 20  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor(config)
+    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
+    camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
@@ -85,22 +90,24 @@ def run_simulation() -> None:
 
     data_manager.push_next_state(initial_state, init_rot)
 
+    # Set the number of update iterations for the IEKF
+    num_iter = 3
+
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 2])
+    rot = np.array([0, 0, np.pi / 4])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
-        # TODO: Adjust and tune noise and error init
-        r=initial_state[0:3] + np.random.normal(0, 10, 3),
-        v=initial_state[3:6] + np.random.normal(0, 10, 3),
+        # TODO: Apply initial error to quaternion initialization
+        # error ranges are in meters and m/s
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        v=initial_state[3:6] + np.random.normal(0, 5000, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(9) * 10,
+        P=np.eye(9) * 100,
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
-        config=config,
-        w=rot,
     )
 
     error = []
@@ -109,8 +116,10 @@ def run_simulation() -> None:
         # take a set of measurements every minute
         x = data_manager.latest_state
         q = data_manager.latest_attitude
-        w = rot
-        # x = np.concatenate([x, quaternion.as_float_array(quaternion.from_rotation_matrix(q)), w])
+
+        # Apply noise to x, y to generate angular wobble around the primary rotation axis z
+        x_y_wobble = np.random.normal(0, 5e-2, 2)
+        w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
         next_state = f(x, dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
@@ -124,15 +133,21 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 4 == 0:
-            data_manager.take_measurement(landmark_bearing_sensor)
+        if t % 3 == 0:
+            for camera_name in CameraModelManager.CAMERA_NAMES:
+                data_manager.take_measurement(
+                    landmark_bearing_sensor, camera_model_manager[camera_name]
+                )
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
-            z = data_manager.latest_measurements
+            measurement_camera_names, *z = data_manager.latest_measurements
+
             if z[0].shape[0] > 0:
-                ekf.measurement(z, data_manager)
+                ekf.measurement(
+                    z, data_manager, camera_model_manager, measurement_camera_names, num_iter
+                )
             else:
                 ekf.no_measurement()
         else:

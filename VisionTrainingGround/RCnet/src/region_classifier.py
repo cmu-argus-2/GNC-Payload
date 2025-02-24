@@ -28,11 +28,6 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-# from add_dead_pixels import AddDeadPixels
-
-
-
-
 
 class ImageClassifier:
     """

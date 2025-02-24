@@ -23,7 +23,7 @@ def demo_frame_cycle_generator(image_dir: str) -> Generator[Frame, None, None]:
     for image_path in cycle(image_files):
         image = cv2.imread(image_path)
         if image is not None:
-            yield Frame(image=image, camera_id=0, timestamp=datetime.now())
+            yield Frame(image=image, camera_name="x+", timestamp=datetime.now())
         else:
             yield None
 
