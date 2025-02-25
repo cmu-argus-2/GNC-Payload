@@ -94,7 +94,7 @@ def run_simulation() -> None:
     num_iter = 4
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 4])
+    rot = np.array([0, 0, np.pi / 18])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
