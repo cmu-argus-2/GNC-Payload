@@ -66,6 +66,9 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         self.fov = fov
         self.cos_fov = np.cos(fov)
 
+        # Scaling of the noise in measurement
+        self.SCALE = np.sqrt(0.0005)
+
     def sample_bearing_unit_vectors(self, camera_model: CameraModel) -> np.ndarray:
         """
         Sample self.max_measurements random bearing unit vectors in the body frame that are within the camera's field
@@ -164,7 +167,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
 
             assert np.allclose(true_bearing_unit_vector_eci, eci_R_body @ bearing_unit_vector_body)
 
-        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body)
+        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body, self.SCALE)
 
         return bearing_unit_vectors_body_noisy, landmark_positions_eci
 
@@ -180,6 +183,9 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         self.fov = fov
         self.cos_fov_on_2 = np.cos(fov / 2)
         self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
+        
+        # Scaling of the noise in measurement
+        self.SCALE = np.sqrt(0.0005)
 
     @staticmethod
     def load_region_landmark_ecef() -> dict[str, np.ndarray]:
@@ -242,7 +248,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         visible_landmarks_eci = (ecef_R_eci.T @ visible_landmarks_ecef.T).T
 
         bearing_unit_vectors_body = (ecef_R_body.T @ bearing_unit_vectors_ecef[is_visible, :].T).T
-        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body)
+        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body, self.SCALE)
 
         return bearing_unit_vectors_body_noisy, visible_landmarks_eci
 
