@@ -37,7 +37,6 @@ class EKF:
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
-        w: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -52,7 +51,6 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
-        :param w: The angular velocity of the satellite with shape (3,)
 
         :return: None
 
@@ -79,8 +77,6 @@ class EKF:
 
         self.P_m = P
         self.P_p = P
-
-        self.w = w
 
         self.Q = Q
         self.R = R_vec
