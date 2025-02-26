@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 import quaternion
 
-from dynamics.orbital_dynamics import f_full, f_full_jac
+from dynamics.orbital_dynamics import f_full, f_full_jac, f, f_jac
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
@@ -78,8 +78,10 @@ class EKF:
         # self.a_b = a_b
         # self.w_b = w_b
 
+        self.ua = np.zeros(3)
+
         # Scale the attitude Covariance
-        P[6:9, 6:9] *= (1e-9,)
+        P[9:12, 9:12] *= 1e-9
 
         self.P_m = P
         self.P_p = P
@@ -112,8 +114,10 @@ class EKF:
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
         x = np.concatenate([self.r_m, self.v_m])
-        A_pos = f_full_jac(x=x, config=self.config, data_manager=self.data_manager, dt=self.dt)
-        x_new = f_full(x=x, config=self.config, data_manager=self.data_manager, dt=self.dt)
+        # A_pos = f_full_jac(x=x, config=self.config, data_manager=self.data_manager, dt=self.dt)
+        # x_new = f_full(x=x, config=self.config, data_manager=self.data_manager, dt=self.dt)
+        A_pos = f_jac(x,self.dt)
+        x_new = f(x,self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
             quaternion.from_rotation_vector(0.5 * self.dt * w)
@@ -126,7 +130,7 @@ class EKF:
         # quaternion.from_rotation_vector(self.w))) @ self.H
         A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
 
-        A = np.block([[A_pos, np.zeros((6, 3))], [np.zeros((3, 6)), A_att]])
+        A = np.block([[A_pos, np.zeros((9, 3))], [np.zeros((3, 9)), A_att]])
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -177,6 +181,7 @@ class EKF:
                 [
                     self.r_p,
                     self.v_p,
+                    self.ua,
                     quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
                 ]
             )
@@ -201,9 +206,10 @@ class EKF:
 
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
+            self.ua = np.array(x_p[6:9]) + delta[6:9]
             self.q_m = quaternion.as_rotation_vector(
-                quaternion.from_rotation_vector(np.array(x_p[6:9]))
-                * quaternion.from_rotation_vector(delta[6:9])
+                quaternion.from_rotation_vector(np.array(x_p[9:12]))
+                * quaternion.from_rotation_vector(delta[9:12])
             )
 
             # Joseph form covariance update
@@ -211,7 +217,7 @@ class EKF:
                 np.eye(self.P_m.shape[0]) - K @ H
             ).T + K @ self.R @ K.T
 
-            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.q_m]))
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m]))
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 

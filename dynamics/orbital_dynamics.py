@@ -19,15 +19,20 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity.
     J2 perturbations are not included.
 
-    :param x: A numpy array of shape (6,) containing the current state (position and velocity).
-    :return: A numpy array of shape (6,) containing the state derivative.
+    :param x: A numpy array of shape (9,) containing the current state (position, velocity and unmodelled acceleration terms).
+    :return: A numpy array of shape (9,) containing the state derivative.
     """
     r = x[:3]
-    v = x[3:]
+    v = x[3:6]
+    ua = x[6:9]
 
-    a = -r * GM_EARTH / np.linalg.norm(r) ** 3
+    # r_dot = v
+    # v_dot = -GM_EARTH * r / np.linalg.norm(r) ** 3 
+    # ua_dot = 0
 
-    return np.concatenate([v, a])
+    a = -r * GM_EARTH / np.linalg.norm(r) ** 3 + ua
+
+    return np.concatenate([v, a, np.zeros(3)])
 
 
 def state_derivative_jac(x: np.ndarray) -> np.ndarray:
@@ -40,11 +45,20 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     """
     r = x[:3]
     r_norm = np.linalg.norm(r)
+
     dv_dr = np.zeros((3, 3))
-    da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
     dv_dv = np.eye(3)
+    dv_dua = np.zeros((3, 3))
+
+    da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
     da_dv = np.zeros((3, 3))
-    return np.block([[dv_dr, dv_dv], [da_dr, da_dv]])
+    da_dua = np.eye(3)
+
+    dua_dr = np.zeros((3, 3))
+    dua_dv = np.zeros((3, 3))
+    dua_dua = np.zeros((3, 3))
+
+    return np.block([[dv_dr, dv_dv, dv_dua], [da_dr, da_dv, da_dua], [dua_dr, dua_dv, dua_dua]])
 
 
 def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> np.ndarray:
@@ -174,7 +188,7 @@ def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[
             ]
         )
         updated_a = base_derivative[3:] + a_J2 + a_drag
-        return np.concatenate([base_derivative[:3], updated_a])
+        return np.concatenate([base_derivative[:3], updated_a, base_derivative[6:]])
 
     return wrapper
 
@@ -228,7 +242,7 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
         da_dv = da_drag_dv
         # da_dv = np.zeros((3, 3))
 
-        return np.block([[base_jacobian[0:3, 0:3], base_jacobian[0:3, 3:]], [da_dr, da_dv]])
+        return np.block([[base_jacobian[0:3,0:9]], [da_dr, da_dv, base_jacobian[3:6, 6:9]], [base_jacobian[6:9, 0:9]]])
 
     return wrapper
 

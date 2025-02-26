@@ -11,6 +11,11 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+
+import sys
+root = '/home/frederik/cmu/GNC-Payload'
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import f_full
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -75,8 +80,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s
+    config["solver"]["world_update_rate"] = 1 / 4  # Hz
+    config["mission"]["duration"] = 3 * 90 * 25  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -95,18 +100,18 @@ def run_simulation() -> None:
     num_iter = 4
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 4])
+    rot = np.array([0, 0, np.pi / 18])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 10000, 3),
-        v=initial_state[3:6] + np.random.normal(0, 10000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
+        v=initial_state[3:6] + np.random.normal(0, 10, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(9) * 100,
-        Q=np.eye(9) * 1e-12,
+        P=np.eye(12) * 5,
+        Q=np.eye(12) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
         config=config,
@@ -175,5 +180,5 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
-    load_brahe_data_files()
+    # load_brahe_data_files()
     run_simulation()
