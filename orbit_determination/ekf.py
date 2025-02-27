@@ -80,6 +80,8 @@ class EKF:
 
         self.ua = np.zeros(3)
 
+        # Scale the unmodelled acceleration Covariance
+        P[6:9, 6:9] *= 1e-6
         # Scale the attitude Covariance
         P[9:12, 9:12] *= 1e-9
 

@@ -125,8 +125,8 @@ class CameraModelManager:
     A class managing all camera models.
     """
 
-    # CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
-    CAMERA_NAMES = ["x+"]
+    CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
+    # CAMERA_NAMES = ["x+"]
 
 
     def __init__(self):

@@ -225,8 +225,8 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
         latest_epoch = data_manager.latest_epoch
 
         # Compute drag
-        density = density_harris_priester(x=x, epoch=latest_epoch)
-        v = x[3:]
+        density = density_harris_priester(x=x[0:6], epoch=latest_epoch)
+        v = x[3:6]
         v_norm = np.linalg.norm(v)
         if v_norm == 0:
             da_drag_dv = np.zeros((3, 3))
@@ -238,7 +238,7 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
         F = -0.5 * density * CD * AREA / MASS
         da_drag_dv = F * ((np.eye(3) / v_norm) - np.outer(v, v) / v_norm**3)
 
-        da_dr = base_jacobian[3:6, :3] + daj2auto_dr
+        da_dr = base_jacobian[3:6, 0:3] + daj2auto_dr
         da_dv = da_drag_dv
         # da_dv = np.zeros((3, 3))
 
