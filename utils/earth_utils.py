@@ -221,7 +221,8 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
 
     return mgrs_regions
 
-def noisy_bearing_measurement(vec: np.ndarray, sigma=np.sqrt(0.0005)):
+
+def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
     """
     Add Gaussian noise to a bearing measurement.
     Parameters:
