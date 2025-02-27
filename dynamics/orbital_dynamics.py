@@ -30,7 +30,7 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     # v_dot = -GM_EARTH * r / np.linalg.norm(r) ** 3 
     # ua_dot = 0
 
-    a = -r * GM_EARTH / np.linalg.norm(r) ** 3 + ua
+    a = (-r * GM_EARTH / np.linalg.norm(r) ** 3) + ua
 
     return np.concatenate([v, a, np.zeros(3)])
 
@@ -107,11 +107,11 @@ def RK4_jac(
     k3 = func(x + 0.5 * dt * k2)
 
     k1_jac = func_jac(x)
-    k2_jac = func_jac(x + 0.5 * dt * k1) @ (np.eye(6) + 0.5 * dt * k1_jac)
-    k3_jac = func_jac(x + 0.5 * dt * k2) @ (np.eye(6) + 0.5 * dt * k2_jac)
-    k4_jac = func_jac(x + dt * k3) @ (np.eye(6) + dt * k3_jac)
+    k2_jac = func_jac(x + 0.5 * dt * k1) @ (np.eye(9) + 0.5 * dt * k1_jac)
+    k3_jac = func_jac(x + 0.5 * dt * k2) @ (np.eye(9) + 0.5 * dt * k2_jac)
+    k4_jac = func_jac(x + dt * k3) @ (np.eye(9) + dt * k3_jac)
 
-    return np.eye(6) + (dt / 6) * (k1_jac + 2 * k2_jac + 2 * k3_jac + k4_jac)
+    return np.eye(9) + (dt / 6) * (k1_jac + 2 * k2_jac + 2 * k3_jac + k4_jac)
 
 
 def f(x: np.ndarray, dt: float) -> np.ndarray:
@@ -170,7 +170,7 @@ def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[
         # Compute drag in [kg/m^3]
         density = density_harris_priester(x=x, epoch=latest_epoch)
         r = x[:3]
-        v = x[3:]
+        v = x[3:6]
         r_norm = np.linalg.norm(r)
         v_norm = np.linalg.norm(v)
         if v_norm == 0:
@@ -187,7 +187,7 @@ def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[
                 factor * r[2] * (5 * (r[2] ** 2) / r_norm**2 - 3),
             ]
         )
-        updated_a = base_derivative[3:] + a_J2 + a_drag
+        updated_a = base_derivative[3:6] + a_J2 + a_drag
         return np.concatenate([base_derivative[:3], updated_a, base_derivative[6:]])
 
     return wrapper
@@ -238,7 +238,7 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
         F = -0.5 * density * CD * AREA / MASS
         da_drag_dv = F * ((np.eye(3) / v_norm) - np.outer(v, v) / v_norm**3)
 
-        da_dr = base_jacobian[3:, :3] + daj2auto_dr
+        da_dr = base_jacobian[3:6, :3] + daj2auto_dr
         da_dv = da_drag_dv
         # da_dv = np.zeros((3, 3))
 

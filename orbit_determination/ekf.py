@@ -113,14 +113,14 @@ class EKF:
         # self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
-        x = np.concatenate([self.r_m, self.v_m])
+        x = np.concatenate([self.r_m, self.v_m, self.ua])
         # A_pos = f_full_jac(x=x, config=self.config, data_manager=self.data_manager, dt=self.dt)
         # x_new = f_full(x=x, config=self.config, data_manager=self.data_manager, dt=self.dt)
         A_pos = f_jac(x,self.dt)
         x_new = f(x,self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(0.5 * self.dt * w)
+            quaternion.from_rotation_vector(self.dt * w)
         )
 
         self.r_p = x_new[0:3]
@@ -128,7 +128,7 @@ class EKF:
 
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
         # quaternion.from_rotation_vector(self.w))) @ self.H
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
+        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
 
         A = np.block([[A_pos, np.zeros((9, 3))], [np.zeros((3, 9)), A_att]])
 
@@ -271,7 +271,7 @@ class EKF:
 
         # Define rotation matrices
         # transform rotation_vector to rotation matrix via quaternion
-        eci_R_body = R(rot_2_q(x_p[6:9]))
+        eci_R_body = R(rot_2_q(x_p[9:12]))
         ecef_R_eci = brahe.frames.rECItoECEF(data_manager.latest_epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 

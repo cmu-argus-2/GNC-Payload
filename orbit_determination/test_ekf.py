@@ -11,11 +11,6 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-
-import sys
-root = '/home/frederik/cmu/GNC-Payload'
-sys.path.append(root)
-
 from dynamics.orbital_dynamics import f_full
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -80,7 +75,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 4  # Hz
+    config["solver"]["world_update_rate"] = 1 / 3  # Hz
     config["mission"]["duration"] = 3 * 90 * 25  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -124,6 +119,7 @@ def run_simulation() -> None:
     for t in range(0, N - 1):
         # take a set of measurements every minute
         x = data_manager.latest_state
+        x = np.concatenate([x, ekf.ua])
         q = data_manager.latest_attitude
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
@@ -132,17 +128,17 @@ def run_simulation() -> None:
 
         next_state = f_full(x=x, config=config, data_manager=data_manager, dt=dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            w * dt * 0.5
+            w * dt
         )
 
-        data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
         # gyro_meas = np.zeros((3))  # TEMPORARY
 
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 3 == 0:
+        if t % 6 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
