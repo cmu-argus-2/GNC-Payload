@@ -23,6 +23,7 @@ from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.brahe_utils import load_brahe_data_files
+from utils.earth_utils import transform_eci_to_lvlh
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
@@ -75,8 +76,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 3  # Hz
-    config["mission"]["duration"] = 3 * 90 * 25  # s
+    config["solver"]["world_update_rate"] = 1 / 20  # Hz
+    config["mission"]["duration"] = 3 * 90 * 40  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -97,6 +98,10 @@ def run_simulation() -> None:
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
 
+    # Prep Q matrix for the EKF. Unmodelled attitude has larger uncertainty
+    Q = np.eye(12) * 1e-12
+    Q[6:9, 6:9] = np.eye(3) * 1e-5
+
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
@@ -104,9 +109,10 @@ def run_simulation() -> None:
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
+        ua = np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(12) * 5,
-        Q=np.eye(12) * 1e-12,
+        P=np.eye(12) * 100,
+        Q=Q,
         R_vec=np.zeros((3, 3)),
         dt=dt,
         config=config,
@@ -115,6 +121,8 @@ def run_simulation() -> None:
     )
 
     error = []
+    vec_error = []
+    ua_error = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -138,13 +146,14 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 6 == 0:
+        if t % 10 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
+            print(f"State position: {next_state[0:3]}")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -158,7 +167,11 @@ def run_simulation() -> None:
         else:
             ekf.no_measurement()
 
-        error.append(ekf.r_m - next_state[0:3])
+        R = transform_eci_to_lvlh(ekf.r_m, ekf.v_m)
+
+        error.append(R@ekf.r_m - R@next_state[0:3])
+        vec_error.append(ekf.v_m - next_state[3:6])
+        ua_error.append(ekf.ua)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -170,6 +183,23 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Position error [m]")
     plt.title("EKF Position Error")
+
+    plt.figure()
+
+    plt.plot(vec_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Velocity error [m/s]")
+    plt.title("EKF Velocity Error")
+
+    plt.figure()
+
+    plt.plot(ua_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Unmodelled acc error [m/s^2]")
+    plt.title("EKF Unmodelled Acceleration Error")
+
     plt.show()
     # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
 

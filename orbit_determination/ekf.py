@@ -40,6 +40,7 @@ class EKF:
         w: np.ndarray,
         config: dict,
         data_manager: ODSimulationDataManager,
+        ua: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -57,6 +58,7 @@ class EKF:
         :param w: The angular velocity of the satellite with shape (3,)
         :param config: The configuration dictionary.
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param ua: The unmodelled acceleration with shape (3,)
 
         :return: None
 
@@ -78,10 +80,12 @@ class EKF:
         # self.a_b = a_b
         # self.w_b = w_b
 
-        self.ua = np.zeros(3)
+        self.ua = ua
 
+        # Scale the velocity Covariance
+        P[3:6, 3:6] *= 1e-3
         # Scale the unmodelled acceleration Covariance
-        P[6:9, 6:9] *= 1e-6
+        P[6:9, 6:9] *= 1e-5
         # Scale the attitude Covariance
         P[9:12, 9:12] *= 1e-9
 
@@ -166,11 +170,13 @@ class EKF:
 
         :return: None
         """
-        # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
-        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+        # Generate mask to select set fraction of measurements at random
+        mask = np.random.choice([True, False], size=z[0].shape[0], p=[0.02, 0.98])
+        # Select masked section of the measurements to use to speed up computations
+        z0 = z[0][mask]
+        z1 = z[1][mask]
 
-        measurement_camera_names = measurement_camera_names[: len(z0)]
+        measurement_camera_names = measurement_camera_names[mask]
 
         # Flatten the measurement vector
         z0 = np.array(z0.reshape(-1))

@@ -22,7 +22,7 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     :param x: A numpy array of shape (9,) containing the current state (position, velocity and unmodelled acceleration terms).
     :return: A numpy array of shape (9,) containing the state derivative.
     """
-    r = x[:3]
+    r = x[0:3]
     v = x[3:6]
     ua = x[6:9]
 
@@ -31,8 +31,9 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     # ua_dot = 0
 
     a = (-r * GM_EARTH / np.linalg.norm(r) ** 3) + ua
+    ua_dot = np.random.normal(0, 1e-5, 3)
 
-    return np.concatenate([v, a, np.zeros(3)])
+    return np.concatenate([v, a, ua_dot])
 
 
 def state_derivative_jac(x: np.ndarray) -> np.ndarray:
@@ -40,10 +41,10 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity.
     J2 perturbations are not included.
 
-    :param x: A numpy array of shape (6,) containing the current state (position and velocity).
-    :return: A numpy array of shape (6, 6) containing the state derivative Jacobian.
+    :param x: A numpy array of shape (9,) containing the current state (position and velocity).
+    :return: A numpy array of shape (9, 9) containing the state derivative Jacobian.
     """
-    r = x[:3]
+    r = x[0:3]
     r_norm = np.linalg.norm(r)
 
     dv_dr = np.zeros((3, 3))

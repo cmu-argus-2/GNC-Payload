@@ -316,3 +316,23 @@ def density_harris_priester(x, epoch):
     # Finished
     return density
 
+def transform_eci_to_lvlh(x: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """
+    Transform ECI coordinates to LVLH frame.
+    Args:
+        x: ECI position vector
+        v: ECI velocity vector
+    
+    Returns:
+        R: Rotation matrix from ECI to LVLH frame
+    """
+    h_new = np.cross(x, v)
+    h_new = h_new / np.linalg.norm(h_new)
+    z_new = -x / np.linalg.norm(x)
+    x_new = np.cross(z_new, h_new)
+    # Define y_new to complete right handed system
+    y_new = np.cross(z_new, x_new)
+
+    R = np.column_stack((x_new, y_new, z_new))
+
+    return R
