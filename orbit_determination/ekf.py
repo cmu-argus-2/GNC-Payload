@@ -107,21 +107,20 @@ class EKF:
         x_new = f(x, self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(0.5 * self.dt * (wf - self.w_b))
+            quaternion.from_rotation_vector(self.dt * (wf - self.w_b))
         )
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
 
         dqdq = quaternion.as_rotation_matrix(
-            quaternion.from_rotation_vector(-0.5 * self.dt * (wf - self.w_b))
+            quaternion.from_rotation_vector(-1 * self.dt * (wf - self.w_b))
         )
         dqdw = (
-            -0.5
-            * self.dt
+            self.dt
             * G(self.q_p).T
             @ left_q(self.q_m)
-            @ Drp2q(0.5 * self.dt * (wf - self.w_b))
+            @ Drp2q(self.dt * (wf - self.w_b))
         )
 
         A = np.block(
@@ -201,8 +200,12 @@ class EKF:
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
             self.q_m = quaternion.as_rotation_vector(
-                quaternion.from_rotation_vector(np.array(x_p[6:9]))
-                * quaternion.from_rotation_vector(delta[6:9])
+                quaternion.as_quat_array(
+                    left_q(quaternion.as_float_array(quaternion.from_rotation_vector(x_p[6:9])))
+                    @ quaternion.as_float_array(
+                        quaternion.from_rotation_vector(np.array(delta[6:9]))
+                    )
+                )
             )
             self.w_b = np.array(x_p[9:12]) + delta[9:12]
 

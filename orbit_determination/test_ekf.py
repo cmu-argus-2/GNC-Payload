@@ -93,7 +93,7 @@ def run_simulation() -> None:
     num_iter = 5
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 3])
+    rot = np.array([0, 0, np.pi / 18])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
@@ -102,7 +102,7 @@ def run_simulation() -> None:
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 500, 3),
-        v=initial_state[3:6] + np.random.normal(0, 500, 3),
+        v=initial_state[3:6] + np.random.normal(0, 10, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(12) * 10,
         Q=np.eye(12) * 1e-12,
@@ -124,7 +124,7 @@ def run_simulation() -> None:
 
         next_state = f(x, dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            (w - bias) * dt * 0.5
+            (w - bias) * dt
         )
 
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
