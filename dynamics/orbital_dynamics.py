@@ -27,7 +27,7 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     ua = x[6:9]
 
     # r_dot = v
-    # v_dot = -GM_EARTH * r / np.linalg.norm(r) ** 3 
+    # v_dot = -GM_EARTH * r / np.linalg.norm(r) ** 3
     # ua_dot = 0
 
     a = (-r * GM_EARTH / np.linalg.norm(r) ** 3) + ua
@@ -140,7 +140,9 @@ def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
 
 
 # Decorator functions
-def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
+def second_order_effects(
+    func: Callable[[np.ndarray], np.ndarray]
+) -> Callable[[np.ndarray], np.ndarray]:
     """
     The decorator function for computing the state derivative with second order effects
     (drag and J2 perturbations).
@@ -194,7 +196,9 @@ def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[
     return wrapper
 
 
-def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
+def second_order_effects_jac(
+    func: Callable[[np.ndarray], np.ndarray]
+) -> Callable[[np.ndarray], np.ndarray]:
     """
     The decorator function for computing the Jacobian of the state derivative with second order effects
     (drag and J2 perturbations).
@@ -243,7 +247,13 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
         da_dv = da_drag_dv
         # da_dv = np.zeros((3, 3))
 
-        return np.block([[base_jacobian[0:3,0:9]], [da_dr, da_dv, base_jacobian[3:6, 6:9]], [base_jacobian[6:9, 0:9]]])
+        return np.block(
+            [
+                [base_jacobian[0:3, 0:9]],
+                [da_dr, da_dv, base_jacobian[3:6, 6:9]],
+                [base_jacobian[6:9, 0:9]],
+            ]
+        )
 
     return wrapper
 

@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import f_full
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -23,8 +27,8 @@ from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.brahe_utils import load_brahe_data_files
-from utils.earth_utils import transform_eci_to_lvlh
 from utils.config_utils import load_config
+from utils.earth_utils import transform_eci_to_lvlh
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
 
@@ -76,8 +80,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 20  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s
+    config["solver"]["world_update_rate"] = 1 / 3 # Hz
+    config["mission"]["duration"] = 3 * 90 * 30  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -107,9 +111,9 @@ def run_simulation() -> None:
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
-        ua = np.random.normal(0, 1e-5, 3),
+        ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(12) * 100,
         Q=Q,
@@ -135,9 +139,7 @@ def run_simulation() -> None:
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
         next_state = f_full(x=x, config=config, data_manager=data_manager, dt=dt)
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            w * dt
-        )
+        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
@@ -146,7 +148,7 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 10 == 0:
+        if t % 5 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
@@ -169,7 +171,7 @@ def run_simulation() -> None:
 
         R = transform_eci_to_lvlh(ekf.r_m, ekf.v_m)
 
-        error.append(R@ekf.r_m - R@next_state[0:3])
+        error.append(R @ ekf.r_m - R @ next_state[0:3])
         vec_error.append(ekf.v_m - next_state[3:6])
         ua_error.append(ekf.ua)
 
