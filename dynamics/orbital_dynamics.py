@@ -55,7 +55,6 @@ def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> n
     :param x: The current state vector.
     :param func: The continuous-time state transition function, dot{x} = f_c(x).
     :param dt: The amount of time between each time step.
-    :param kwargs: Additional keyword arguments to pass to the state transition function.
     :return: The state vector at the next timestep.
     """
     k1 = func(x)
@@ -85,7 +84,6 @@ def RK4_jac(
     :param func: The continuous-time state transition function, dot{x} = f_c(x).
     :param func_jac: The continuous-time state transition Jacobian function, d(f_c)/dx.
     :param dt: The amount of time between each time step.
-    :param kwargs: Additional keyword arguments to pass to the state transition function.
     :return: The Jacobian of the RK4-discretized state transition function at the current state vector.
     """
     k1 = func(x)

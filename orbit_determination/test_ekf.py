@@ -173,5 +173,5 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
-    # load_brahe_data_files()
+    load_brahe_data_files()
     run_simulation()
