@@ -72,21 +72,7 @@ class GeoTIFFData:
         """
         ocean_data_path = np.random.choice(os.listdir(GeoTIFFData.OCEAN_DATA_DIR))
         ocean_data = GeoTIFFData.load(ocean_data_path)
-
-        height, width, _ = ocean_data.image_data.shape
-        min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
-        scale_x = width / (max_lon - min_lon)
-        scale_y = height / (max_lat - min_lat)
-
-        # maps (lon, lat) to (u, v) (i.e. width, height)
-        ocean_data.transform = Affine(
-            a=scale_x,
-            b=0,
-            c=-min_lon * scale_x,
-            d=0,
-            e=-scale_y,
-            f=max_lat * scale_y,
-        )
+        ocean_data.remap_to_mgrs_region(region_id)
         return ocean_data
 
     @property
@@ -108,6 +94,32 @@ class GeoTIFFData:
             The data type of the GeoTIFF data.
         """
         return self.image_data.dtype
+
+    def remap_to_mgrs_region(self, region_id: str) -> None:
+        """
+        Remap this GeoTIFFData to represent the specified MGRS region.
+        Note that this overwrites the current transform, which is loaded from the underlying GeoTIFF file by default.
+
+        :param region_id: The MGRS region ID to remap this GeoTIFFData to.
+        """
+        height, width, _ = self.image_data.shape
+        min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+        scale_x = width / (max_lon - min_lon)
+        scale_y = height / (max_lat - min_lat)
+
+        # maps (lon, lat) to (u, v) (i.e. width, height)
+        self.transform = Affine(
+            # don't flip the x-axis since increasing u corresponds to increasing longitude
+            a=scale_x,
+            b=0,
+            # choose offset such that min_lon maps to u=0
+            c=-min_lon * scale_x,
+            d=0,
+            # flip the y-axis since increasing v corresponds to decreasing latitude
+            e=-scale_y,
+            # choose offset such that max_lat maps to v=0
+            f=max_lat * scale_y,
+        )
 
     def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
