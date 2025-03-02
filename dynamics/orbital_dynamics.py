@@ -7,11 +7,11 @@ J2 perturbations are not included.
 from typing import Callable
 
 import numpy as np
-from brahe.constants import GM_EARTH, J2_EARTH, R_EARTH
+from brahe.constants import GM_EARTH
 from brahe.epoch import Epoch
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
-from dynamics.j2_dynamics import j2_dynamics, j2_derivative, j2_jacobian_auto
+from dynamics.j2_dynamics import j2_derivative, j2_dynamics, j2_jacobian_auto
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:

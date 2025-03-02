@@ -112,8 +112,12 @@ class EKF:
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
         x = np.concatenate([self.r_m, self.v_m])
-        A_pos = f_full_jac(x=x, config=self.config, latest_epoch=self.data_manager.latest_epoch, dt=self.dt)
-        x_new = f_full(x=x, config=self.config, latest_epoch=self.data_manager.latest_epoch, dt=self.dt)
+        A_pos = f_full_jac(
+            x=x, config=self.config, latest_epoch=self.data_manager.latest_epoch, dt=self.dt
+        )
+        x_new = f_full(
+            x=x, config=self.config, latest_epoch=self.data_manager.latest_epoch, dt=self.dt
+        )
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
             quaternion.from_rotation_vector(self.dt * w)

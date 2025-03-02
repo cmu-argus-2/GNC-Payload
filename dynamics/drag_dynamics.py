@@ -3,11 +3,13 @@ Module that defines drag dynamics and its jacobian.
 """
 
 import numpy as np
+from brahe import Epoch
 
+#pylint: disable=import-error
 from utils.earth_utils import density_harris_priester
 
 
-def drag_dynamics(x: np.ndarray, DRAG_CONST: float, latest_epoch: float) -> np.ndarray:
+def drag_dynamics(x: np.ndarray, DRAG_CONST: float, latest_epoch: Epoch) -> np.ndarray:
     """
     Computes the drag acceleration.
 
@@ -28,7 +30,7 @@ def drag_dynamics(x: np.ndarray, DRAG_CONST: float, latest_epoch: float) -> np.n
     return a_drag
 
 
-def drag_jacobian(x: np.ndarray, DRAG_CONST: float, latest_epoch: float) -> np.ndarray:
+def drag_jacobian(x: np.ndarray, DRAG_CONST: float, latest_epoch: Epoch) -> np.ndarray:
     """
     Compute the drag acceleration jacobian.
 
