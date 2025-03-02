@@ -125,10 +125,8 @@ def run_simulation() -> None:
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
-        next_state = f_full(x=x, config=config, data_manager=data_manager, dt=dt)
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            w * dt
-        )
+        next_state = f_full(x=x, config=config, latest_epoch=data_manager.latest_epoch, dt=dt)
+        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
 
@@ -175,5 +173,5 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
-    load_brahe_data_files()
+    # load_brahe_data_files()
     run_simulation()

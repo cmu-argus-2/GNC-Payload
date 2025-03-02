@@ -8,10 +8,10 @@ from typing import Callable
 
 import numpy as np
 from brahe.constants import GM_EARTH, J2_EARTH, R_EARTH
+from brahe.epoch import Epoch
 
-from dynamics.j2_dynamics import j2_derivative, j2_jacobian_auto
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from utils.earth_utils import density_harris_priester
+from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
+from dynamics.j2_dynamics import j2_dynamics, j2_derivative, j2_jacobian_auto
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -22,8 +22,8 @@ def state_derivative(x: np.ndarray) -> np.ndarray:
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :return: A numpy array of shape (6,) containing the state derivative.
     """
-    r = x[:3]
-    v = x[3:]
+    r = x[0:3]
+    v = x[3:6]
 
     a = -r * GM_EARTH / np.linalg.norm(r) ** 3
 
@@ -38,7 +38,7 @@ def state_derivative_jac(x: np.ndarray) -> np.ndarray:
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :return: A numpy array of shape (6, 6) containing the state derivative Jacobian.
     """
-    r = x[:3]
+    r = x[0:3]
     r_norm = np.linalg.norm(r)
     dv_dr = np.zeros((3, 3))
     da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
@@ -125,7 +125,9 @@ def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
 
 
 # Decorator functions
-def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
+def second_order_effects(
+    func: Callable[[np.ndarray], np.ndarray]
+) -> Callable[[np.ndarray], np.ndarray]:
     """
     The decorator function for computing the state derivative with second order effects
     (drag and J2 perturbations).
@@ -134,12 +136,12 @@ def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[
     :return: A wrapper function that computes the state derivative with second order effects.
     """
 
-    def wrapper(x: np.ndarray, config: dict, data_manager: ODSimulationDataManager) -> np.ndarray:
+    def wrapper(x: np.ndarray, config: dict, latest_epoch: Epoch) -> np.ndarray:
         """
         The wrapper function that computes the state derivative with second order effects.
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :param config: The configuration dictionary.
-        :param data_manager: The ODSimulationDataManager instance.
+        :param latest_epoch: The epoch for which we want to calculate drag.
 
         :return: A numpy array of shape (6,) containing the state derivative with second order effects.
         """
@@ -151,35 +153,21 @@ def second_order_effects(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[
         CD = config["satellite"]["Cd"]
         AREA = config["satellite"]["area"]
         MASS = config["satellite"]["mass"]
-        latest_epoch = data_manager.latest_epoch
-
-        # Compute drag in [kg/m^3]
-        density = density_harris_priester(x=x, epoch=latest_epoch)
         r = x[:3]
-        v = x[3:]
-        r_norm = np.linalg.norm(r)
-        v_norm = np.linalg.norm(v)
-        if v_norm == 0:
-            a_drag = np.zeros(3)
-        else:
-            a_drag = -0.5 * density * CD * AREA / (MASS * v_norm) * v
+        drag_const = -0.5 * CD * AREA / MASS
 
-        # Compute J2
-        factor = 1.5 * J2_EARTH * GM_EARTH * R_EARTH**2 / np.linalg.norm(r) ** 5
-        a_J2 = np.array(
-            [
-                factor * r[0] * (5 * (r[2] ** 2) / r_norm**2 - 1),
-                factor * r[1] * (5 * (r[2] ** 2) / r_norm**2 - 1),
-                factor * r[2] * (5 * (r[2] ** 2) / r_norm**2 - 3),
-            ]
-        )
+        a_drag = drag_dynamics(x=x, DRAG_CONST=drag_const, latest_epoch=latest_epoch)
+        a_J2 = j2_dynamics(r)
+
         updated_a = base_derivative[3:] + a_J2 + a_drag
         return np.concatenate([base_derivative[:3], updated_a])
 
     return wrapper
 
 
-def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
+def second_order_effects_jac(
+    func: Callable[[np.ndarray], np.ndarray]
+) -> Callable[[np.ndarray], np.ndarray]:
     """
     The decorator function for computing the Jacobian of the state derivative with second order effects
     (drag and J2 perturbations).
@@ -191,13 +179,13 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
     def wrapper(
         x: np.ndarray,
         config: dict,
-        data_manager: ODSimulationDataManager,
+        latest_epoch: Epoch,
     ) -> np.ndarray:
         """
         The wrapper function that computes the Jacobian of the state derivative with second order effects.
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :param config: The configuration dictionary.
-        :param data_manager: The ODSimulationDataManager instance.
+        :param latest_epoch: The latest epoch for which we want to calculate drag.
 
         :return: A numpy array of shape (6, 6) containing the Jacobian of the state derivative with
         second order effects.
@@ -208,27 +196,22 @@ def second_order_effects_jac(func: Callable[[np.ndarray], np.ndarray]) -> Callab
         CD = config["satellite"]["Cd"]
         AREA = config["satellite"]["area"]
         MASS = config["satellite"]["mass"]
-        latest_epoch = data_manager.latest_epoch
+        drag_const = -0.5 * CD * AREA / MASS
 
         # Compute drag
-        density = density_harris_priester(x=x, epoch=latest_epoch)
         v = x[3:]
         v_norm = np.linalg.norm(v)
         if v_norm == 0:
-            da_drag_dv = np.zeros((3, 3))
+            da_dv = np.zeros((3, 3))
+        else:
+            da_dv = drag_jacobian(x=x, DRAG_CONST=drag_const, latest_epoch=latest_epoch)
 
         # Compute J2 either using autodiff or manually
         # j2da_dv = j2_derivative(x[:3])
         daj2auto_dr = j2_jacobian_auto(x[:3])
+        da_dr = base_jacobian[3:6, 0:3] + daj2auto_dr
 
-        F = -0.5 * density * CD * AREA / MASS
-        da_drag_dv = F * ((np.eye(3) / v_norm) - np.outer(v, v) / v_norm**3)
-
-        da_dr = base_jacobian[3:, :3] + daj2auto_dr
-        da_dv = da_drag_dv
-        # da_dv = np.zeros((3, 3))
-
-        return np.block([[base_jacobian[0:3, 0:3], base_jacobian[0:3, 3:]], [da_dr, da_dv]])
+        return np.block([[base_jacobian[0:3, 0:3], base_jacobian[0:3, 3:6]], [da_dr, da_dv]])
 
     return wrapper
 
@@ -244,21 +227,19 @@ def state_derivative_full(x: np.ndarray) -> np.ndarray:
     return state_derivative(x)
 
 
-def f_full(
-    x: np.ndarray, config: dict, data_manager: ODSimulationDataManager, dt: float
-) -> np.ndarray:
+def f_full(x: np.ndarray, config: dict, latest_epoch: Epoch, dt: float) -> np.ndarray:
     """
     The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics
     with second order effects.
     J2 perturbations and drag are included.
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :param config: The configuration dictionary.
-    :param data_manager: The ODSimulationDataManager instance.
+    :param latest_epoch: The epoch for which we want to calculate drag.
     :param dt: The amount of time between each time step.
 
     :return: A numpy array of shape (6,) containing the next state (position and velocity).
     """
-    dynamics = lambda state: state_derivative_full(state, config=config, data_manager=data_manager)
+    dynamics = lambda state: state_derivative_full(state, config=config, latest_epoch=latest_epoch)
     return RK4(x=x, func=dynamics, dt=dt)
 
 
@@ -273,9 +254,7 @@ def state_derivative_full_jac(x: np.ndarray) -> np.ndarray:
     return state_derivative_jac(x)
 
 
-def f_full_jac(
-    x: np.ndarray, config: dict, data_manager: ODSimulationDataManager, dt: float
-) -> np.ndarray:
+def f_full_jac(x: np.ndarray, config: dict, latest_epoch: Epoch, dt: float) -> np.ndarray:
     """
     The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics
     with second order effects.
@@ -283,13 +262,13 @@ def f_full_jac(
 
     :param x: A numpy array of shape (6,) containing the current state (position and velocity).
     :param config: The configuration dictionary.
-    :param data_manager: The ODSimulationDataManager instance.
+    :param latest_epoch: The epoch for which we want to calculate drag.
     :param dt: The amount of time between each time step.
 
     :return: A numpy array of shape (6, 6) containing the state transition Jacobian.
     """
-    dynamics = lambda state: state_derivative_full(state, config=config, data_manager=data_manager)
+    dynamics = lambda state: state_derivative_full(state, config=config, latest_epoch=latest_epoch)
     jacobian = lambda state: state_derivative_full_jac(
-        state, config=config, data_manager=data_manager
+        state, config=config, latest_epoch=latest_epoch
     )
     return RK4_jac(x=x, func=dynamics, func_jac=jacobian, dt=dt)
