@@ -108,7 +108,7 @@ class EKF:
         x_new = f(x, self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(0.5 * self.dt * w)
+            quaternion.from_rotation_vector(self.dt * w)
         )
 
         self.r_p = x_new[0:3]
@@ -116,7 +116,7 @@ class EKF:
 
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
         # quaternion.from_rotation_vector(self.w))) @ self.H
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
+        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
 
         A = np.block([[A_pos, np.zeros((6, 3))], [np.zeros((3, 6)), A_att]])
 
