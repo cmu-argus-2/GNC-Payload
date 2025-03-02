@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
-from typing import Tuple
+from typing import Tuple, ClassVar
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +17,7 @@ from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
-from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon, intersect_ellipsoid
+from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon, intersect_ellipsoid, get_MGRS_grid
 from vision_inference.frame import Frame
 
 
@@ -32,6 +32,8 @@ class GeoTIFFData:
         transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (longitudes, latitudes)
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
+
+    OCEAN_DATA_DIR: ClassVar[str] = os.path.join(__file__, "../ocean_data/")
 
     image_path: str
     image_data: np.ndarray
@@ -56,6 +58,36 @@ class GeoTIFFData:
         image_data = np.moveaxis(image_data, 0, -1)
         inverse_transform = ~transform
         return GeoTIFFData(file_path, image_data, inverse_transform)
+
+    @staticmethod
+    def load_random_ocean_data(region_id: str) -> "GeoTIFFData":
+        """
+        Get the GeoTIFFData for a sample ocean data file, mapped to a specified region.
+
+        Parameters:
+            region_id: The MGRS region ID that the ocean data should be mapped to.
+
+        Returns:
+            GeoTIFFData: The GeoTIFFData for the ocean data, mapped to the specified region.
+        """
+        ocean_data_path = np.random.choice(os.listdir(GeoTIFFData.OCEAN_DATA_DIR))
+        ocean_data = GeoTIFFData.load(ocean_data_path)
+
+        height, width, _ = ocean_data.image_data.shape
+        min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+        scale_x = width / (max_lon - min_lon)
+        scale_y = height / (max_lat - min_lat)
+
+        # maps (lon, lat) to (u, v) (i.e. width, height)
+        ocean_data.transform = Affine(
+            a=scale_x,
+            b=0,
+            c=-min_lon * scale_x,
+            d=0,
+            e=-scale_y,
+            f=max_lat * scale_y,
+        )
+        return ocean_data
 
     @property
     def num_channels(self) -> int:
