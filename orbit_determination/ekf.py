@@ -152,11 +152,14 @@ class EKF:
 
         :return: None
         """
-        # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
-        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+        # Select a random fraction of the measurements to use to speed up computations
+        mask = np.random.choice(
+            [True, False], size=z[0].shape[0], p=[0.04, 0.96]
+        )
+        z0 = z[0][mask]
+        z1 = z[1][mask]
 
-        measurement_camera_names = measurement_camera_names[: len(z0)]
+        measurement_camera_names = measurement_camera_names[mask]
 
         # Flatten the measurement vector
         z0 = np.array(z0.reshape(-1))
