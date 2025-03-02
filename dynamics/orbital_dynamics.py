@@ -138,23 +138,16 @@ def second_order_effects(
         """
         The wrapper function that computes the state derivative with second order effects.
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
-        :param config: The configuration dictionary.
+        :param config: The satellite configuration dictionary.
         :param latest_epoch: The epoch for which we want to calculate drag.
 
         :return: A numpy array of shape (6,) containing the state derivative with second order effects.
         """
 
         base_derivative = func(x)
+        a_drag = drag_dynamics(x=x, config=config, latest_epoch=latest_epoch)
 
-        # Extract parameters from the config dictionary
-        # pylint: disable=invalid-name
-        CD = config["satellite"]["Cd"]
-        AREA = config["satellite"]["area"]
-        MASS = config["satellite"]["mass"]
         r = x[:3]
-        drag_const = -0.5 * CD * AREA / MASS
-
-        a_drag = drag_dynamics(x=x, DRAG_CONST=drag_const, latest_epoch=latest_epoch)
         a_J2 = j2_dynamics(r)
 
         updated_a = base_derivative[3:] + a_J2 + a_drag
@@ -182,7 +175,7 @@ def second_order_effects_jac(
         """
         The wrapper function that computes the Jacobian of the state derivative with second order effects.
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
-        :param config: The configuration dictionary.
+        :param config: The satellite configuration dictionary.
         :param latest_epoch: The latest epoch for which we want to calculate drag.
 
         :return: A numpy array of shape (6, 6) containing the Jacobian of the state derivative with
@@ -190,11 +183,6 @@ def second_order_effects_jac(
         """
         # Extract parameters from the config dictionary
         base_jacobian = func(x)
-        # pylint: disable=invalid-name
-        CD = config["satellite"]["Cd"]
-        AREA = config["satellite"]["area"]
-        MASS = config["satellite"]["mass"]
-        drag_const = -0.5 * CD * AREA / MASS
 
         # Compute drag
         v = x[3:]
@@ -202,7 +190,7 @@ def second_order_effects_jac(
         if v_norm == 0:
             da_dv = np.zeros((3, 3))
         else:
-            da_dv = drag_jacobian(x=x, DRAG_CONST=drag_const, latest_epoch=latest_epoch)
+            da_dv = drag_jacobian(x=x, config=config, latest_epoch=latest_epoch)
 
         # Compute J2 either using autodiff or manually
         # j2da_dv = j2_derivative(x[:3])
