@@ -74,7 +74,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 4  # Hz
+    config["solver"]["world_update_rate"] = 1 / 3  # Hz
     config["mission"]["duration"] = 3 * 90 * 20  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -91,20 +91,20 @@ def run_simulation() -> None:
     data_manager.push_next_state(initial_state, init_rot)
 
     # Set the number of update iterations for the IEKF
-    num_iter = 3
+    num_iter = 4
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 4])
+    rot = np.array([0, 0, np.pi / 18])
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
-        v=initial_state[3:6] + np.random.normal(0, 5000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 800, 3),
+        v=initial_state[3:6] + np.random.normal(0, 10, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(9) * 100,
+        P=np.eye(9) * 10,
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
@@ -123,7 +123,7 @@ def run_simulation() -> None:
 
         next_state = f(x, dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            w * dt * 0.5
+            w * dt
         )
 
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
@@ -133,7 +133,7 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 3 == 0:
+        if t % 5 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
