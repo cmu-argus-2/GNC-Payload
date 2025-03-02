@@ -181,6 +181,10 @@ class EKF:
         # Flatten the measurement vector
         z0 = np.array(z0.reshape(-1))
 
+        if z0.shape[0] == 0:
+            print("No measurements selected")
+            return
+
         # Let R take the dimensionality of the number of measurements
         self.R = np.diag([1e-5] * z0.shape[0])
 
