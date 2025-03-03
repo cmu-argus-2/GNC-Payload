@@ -11,11 +11,7 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-import sys
-root = "/home/frederik/cmu/GNC-Payload"
-sys.path.append(root)
-
-from dynamics.orbital_dynamics import f_full
+from dynamics.orbital_dynamics import OrbitalDynamics
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -106,6 +102,10 @@ def run_simulation() -> None:
     Q = np.eye(12) * 1e-12
     Q[6:9, 6:9] = np.eye(3) * 1e-5
 
+    # Set up dynamics instance for ground truth and EKF
+    ground_truth_dynamics = OrbitalDynamics(config=config, data_manager=data_manager, use_drag=True, use_j2=True)
+    ekf_dynamics = OrbitalDynamics(config=config, data_manager=data_manager, use_drag=False, use_j2=False)
+
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
@@ -122,12 +122,13 @@ def run_simulation() -> None:
         config=config,
         w=rot,
         data_manager=data_manager,
+        ekf_dynamics=ekf_dynamics,
     )
 
     error = []
     vec_error = []
     ua_error = []
-
+    cov_trace = []
     for t in range(0, N - 1):
         # take a set of measurements every minute
         x = data_manager.latest_state
@@ -138,7 +139,7 @@ def run_simulation() -> None:
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
-        next_state = f_full(x=x, config=config, data_manager=data_manager, dt=dt)
+        next_state = ground_truth_dynamics.full_f(x=x[0:9], dt=dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
@@ -164,8 +165,11 @@ def run_simulation() -> None:
                 ekf.measurement(
                     z, data_manager, camera_model_manager, measurement_camera_names, num_iter
                 )
+                ekf_dynamics.no_previous_measurement = False
             else:
                 ekf.no_measurement()
+                # Set flag if no measurement was taken when it was expected
+                ekf_dynamics.no_previous_measurement = True 
         else:
             ekf.no_measurement()
 
@@ -174,6 +178,7 @@ def run_simulation() -> None:
         error.append(R @ ekf.r_m - R @ next_state[0:3])
         vec_error.append(ekf.v_m - next_state[3:6])
         ua_error.append(ekf.ua)
+        cov_trace.append(np.trace(ekf.P_m))
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -201,6 +206,13 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Unmodelled acc error [m/s^2]")
     plt.title("EKF Unmodelled Acceleration Error")
+
+    plt.figure()
+
+    plt.plot(cov_trace)
+    plt.xlabel("Time step")
+    plt.ylabel("Covariance trace")
+    plt.title("EKF Covariance Trace")
 
     plt.show()
     # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
