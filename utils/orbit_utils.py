@@ -22,6 +22,7 @@ def get_cos_sso_inclination(altitude: float) -> float:
 
     :param altitude: The altitude of the sun-synchronous orbit, in meters.
     :return: The cosine of the inclination of the sun-synchronous orbit at the given altitude.
+             This will be in the range [-1, 0) since sun-synchronous orbits are always retrograde.
     """
     if altitude < 0 or altitude > 5973e3:
         # cos_inclination will be less than -1 if altitude > 5973km
@@ -42,7 +43,8 @@ def get_max_sso_latitude(altitude: float) -> float:
     :return: The maximum possible latitude for the given altitude, in degrees. This will be between 0 and 90 degrees.
     """
     inclination = np.rad2deg(np.arccos(get_cos_sso_inclination(altitude)))
-    return inclination if inclination < 90 else 180 - inclination
+    assert inclination > 90, "Inclination must be greater than 90 degrees for an sun-synchronous orbit!"
+    return 180 - inclination
 
 
 def get_sso_orbit_state(
@@ -60,8 +62,8 @@ def get_sso_orbit_state(
     :return: A numpy array of shape (6,) containing the state vector of the satellite at the specified epoch,
              which meets the specified conditions.
     """
-    if np.abs(np.cos(np.deg2rad(latitude))) < 0.001:
-        raise ValueError("Latitude must not be too close to the poles")
+    # No need to actually run this check, since the check on alpha below will catch this condition
+    # assert np.abs(latitude) <= get_max_sso_latitude(altitude), "Latitude is out of range for an SSO orbit!"
 
     cos_inclination = get_cos_sso_inclination(altitude)
 
