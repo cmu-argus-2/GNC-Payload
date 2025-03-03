@@ -158,12 +158,18 @@ class GeoTIFFCache:
 
     FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
 
-    def __init__(self, geotiff_folder: str | None = None, max_cache_size: int | None = 58):
+    def __init__(
+        self,
+        geotiff_folder: str | None = None,
+        use_ocean_imagery: bool = True,
+        max_cache_size: int | None = 58,
+    ):
         """
         Initialize the GeoTIFF cache.
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
+            use_ocean_imagery: Whether to return GeoTiIFFData objects containing ocean data for regions without data.
             max_cache_size: Maximum number of regions to maintain in the cache.
                             Set to 0 to disable caching. Set to None for unlimited size.
                             The default value was chosen via compute_max_visible_regions in test_earth_vis.py.
@@ -174,6 +180,7 @@ class GeoTIFFCache:
             else GeoTIFFCache.get_default_geotiff_folder()
         )
         GeoTIFFCache.validate_salient_region_data_exists(self.geotiff_folder)
+        self.use_ocean_imagery = use_ocean_imagery
 
         # Dynamically wrap the member function with an LRU cache
         # This also ensures that each instance has its own cache and prevents the need to call hash(self) inside the
@@ -232,12 +239,22 @@ class GeoTIFFCache:
         :param region: The MGRS region to load data for.
         :return: A GeoTIFFData object, or None if there is no data for the specified region.
         """
+        # TODO: the lru_cache for load_geotiff_data may contain duplicate image data data for different ocean regions
+        #       (although they'll have different transforms). We probably want to avoid this, possibly by using a
+        #       custom cache implementation.
+        def fallback_loader() -> GeoTIFFData | None:
+            if not self.use_ocean_imagery:
+                return None
+            ocean_data = GeoTIFFData.load_random_ocean_data()
+            ocean_data.remap_to_mgrs_region(region)
+            return ocean_data
+
         region_folder = os.path.join(self.geotiff_folder, region)
         if not os.path.exists(region_folder):
-            return None
+            return fallback_loader()
         region_files = os.listdir(region_folder)
         if len(region_files) == 0:
-            return None
+            return fallback_loader()
 
         selected_file = np.random.choice(region_files)
         file_path = os.path.join(region_folder, selected_file)
