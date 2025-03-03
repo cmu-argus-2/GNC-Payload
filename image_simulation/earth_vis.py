@@ -17,7 +17,12 @@ from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
-from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon, intersect_ellipsoid, get_MGRS_grid
+from utils.earth_utils import (
+    calculate_mgrs_zones,
+    ecef_to_lat_lon,
+    intersect_ellipsoid,
+    get_MGRS_grid,
+)
 from vision_inference.frame import Frame
 
 
@@ -333,8 +338,6 @@ class EarthImageSimulator:
 
             image[region_mask] = region_image
             valid_mask[region_mask] |= region_valid_mask
-
-        # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
