@@ -416,9 +416,13 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     geod = brahe.coordinates.sECEFtoGEOD(x[:3], use_degrees=True)
     height = geod[2] / 1.0e3  # height in [km]
 
-    # Exit with zero density outside height model limits
-    if height > HP_UPPER_LIMIT or height < HP_LOWER_LIMIT:
+    # Exit with zero density above height model limit
+    if height > HP_UPPER_LIMIT:
         return 0.0
+
+    # Set height to lower limit if below model limit
+    if height < HP_LOWER_LIMIT:
+        height = HP_LOWER_LIMIT
 
     # Sun right ascension, declination
     ra_sun = math.atan(r_sun[1] / r_sun[0])
