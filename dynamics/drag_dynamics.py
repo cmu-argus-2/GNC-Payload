@@ -5,7 +5,7 @@ Module that defines drag dynamics and its jacobian.
 import numpy as np
 from brahe import Epoch
 
-#pylint: disable=import-error
+# pylint: disable=import-error
 from utils.earth_utils import density_harris_priester
 
 
