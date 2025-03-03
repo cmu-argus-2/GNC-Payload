@@ -16,6 +16,35 @@ def is_over_daytime(epoch: Epoch, cubesat_position: np.ndarray) -> bool:
     return np.dot(brahe.ephemerides.sun_position(epoch), cubesat_position) > 0
 
 
+def get_cos_sso_inclination(altitude: float) -> float:
+    """
+    Compute the cosine of the inclination of a sun-synchronous orbit at the given altitude.
+
+    :param altitude: The altitude of the sun-synchronous orbit, in meters.
+    :return: The cosine of the inclination of the sun-synchronous orbit at the given altitude.
+    """
+    if altitude < 0 or altitude > 5973e3:
+        # cos_inclination will be less than -1 if altitude > 5973km
+        raise ValueError("Altitude must be between 0 and 5973km")
+
+    a = R_EARTH + altitude
+    # https://en.wikipedia.org/wiki/Sun-synchronous_orbit#Technical_details
+    # TODO: define this distance constant in terms of other constants
+    return -(a / 12_352e3) ** (7 / 2)
+
+
+def get_max_sso_latitude(altitude: float) -> float:
+    """
+    Compute the maximum possible latitude for a sun-synchronous orbit at the given altitude.
+    Note that the minimum possible latitude is the negative of the maximum possible latitude.
+
+    :param altitude: The altitude of the sun-synchronous orbit, in meters.
+    :return: The maximum possible latitude for the given altitude, in degrees. This will be between 0 and 90 degrees.
+    """
+    inclination = np.rad2deg(np.arccos(get_cos_sso_inclination(altitude)))
+    return inclination if inclination < 90 else 180 - inclination
+
+
 def get_sso_orbit_state(
     epoch: Epoch, latitude: float, longitude: float, altitude: float, northwards: bool = True
 ) -> np.ndarray:
@@ -31,21 +60,15 @@ def get_sso_orbit_state(
     :return: A numpy array of shape (6,) containing the state vector of the satellite at the specified epoch,
              which meets the specified conditions.
     """
-    if altitude < 0 or altitude > 5973e3:
-        # cos_inclination will be less than -1 if altitude > 5973km
-        raise ValueError("Altitude must be between 0 and 5973km")
     if np.abs(np.cos(np.deg2rad(latitude))) < 0.001:
         raise ValueError("Latitude must not be too close to the poles")
+
+    cos_inclination = get_cos_sso_inclination(altitude)
 
     a = R_EARTH + altitude
     position_ecef = lat_lon_to_ecef(np.array([latitude, longitude]))
     position_ecef *= a / np.linalg.norm(position_ecef)
     position_eci = brahe.frames.rECItoECEF(epoch).T @ position_ecef
-
-    # https://en.wikipedia.org/wiki/Sun-synchronous_orbit#Technical_details
-    cos_inclination = -(
-        (a / 12_352e3) ** (7 / 2)
-    )  # TODO: define this constant in terms of other constants
 
     # construct a right-handed orthonormal basis (r_hat, z_perp_hat, west_hat)
     r_hat = position_eci / np.linalg.norm(position_eci)
@@ -63,6 +86,14 @@ def get_sso_orbit_state(
     Thus, cos_inclination = np.dot(n_hat, z_hat) = alpha * np.dot(z_perp_hat, z_hat).
     """
     alpha = cos_inclination / np.dot(z_perp_hat, z_hat)
+    if np.abs(alpha) > 1:
+        inclination = np.rad2deg(np.arccos(cos_inclination))
+        max_sso_latitude = get_max_sso_latitude(altitude)
+        raise ValueError(
+            f"An SSO orbit at an altitude of {altitude / 1000:.2f}km requires an inclination of {inclination:.2f}"
+            f"degrees, so the latitude must be between {-max_sso_latitude:.2f} and {max_sso_latitude:.2f} degrees."
+        )
+
     beta = np.sqrt(1 - alpha**2)
     normal_1_hat = alpha * z_perp_hat + beta * west_hat
     normal_2_hat = alpha * z_perp_hat - beta * west_hat
