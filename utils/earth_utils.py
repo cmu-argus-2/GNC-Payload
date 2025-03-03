@@ -239,12 +239,13 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -
     cond = (np.abs(vec[:, 0]) <= np.abs(vec[:, 2]))[:, None]  # shape (n,1) for broadcasting
     arbitrary = np.where(cond, np.array([1, 0, 0]), np.array([0, 0, 1]))  # shape (n,3)
 
-    w = np.cross(vec, arbitrary)
-    w = w / np.linalg.norm(w, axis=1, keepdims=True)
+    perp_arb = arbitrary - np.sum(arbitrary * vec, axis=1, keepdims=True) * vec
+    perp_arb = perp_arb / np.linalg.norm(perp_arb, axis=1, keepdims=True)
+    third_vec = np.cross(vec, perp_arb)
 
     theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
 
-    noise_direction = np.cos(theta) * arbitrary + np.sin(theta) * w
+    noise_direction = np.cos(theta) * arbitrary + np.sin(theta) * third_vec
 
     # Add the noise to the original vector and renormalize each vector to maintain unit length.
     new_vec = vec + sigma * noise_direction
