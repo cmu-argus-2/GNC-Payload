@@ -60,19 +60,15 @@ class GeoTIFFData:
         return GeoTIFFData(file_path, image_data, inverse_transform)
 
     @staticmethod
-    def load_random_ocean_data(region_id: str) -> "GeoTIFFData":
+    def load_random_ocean_data() -> "GeoTIFFData":
         """
-        Get the GeoTIFFData for a sample ocean data file, mapped to a specified region.
-
-        Parameters:
-            region_id: The MGRS region ID that the ocean data should be mapped to.
+        Get the GeoTIFFData for a sample ocean data file.
 
         Returns:
-            GeoTIFFData: The GeoTIFFData for the ocean data, mapped to the specified region.
+            GeoTIFFData: The GeoTIFFData for the ocean data.
         """
         ocean_data_path = np.random.choice(os.listdir(GeoTIFFData.OCEAN_DATA_DIR))
         ocean_data = GeoTIFFData.load(ocean_data_path)
-        ocean_data.remap_to_mgrs_region(region_id)
         return ocean_data
 
     @property
