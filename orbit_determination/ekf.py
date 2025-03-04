@@ -37,7 +37,6 @@ class EKF:
         Q: np.ndarray,
         R_vec: np.ndarray,
         dt: float,
-        w: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -52,7 +51,6 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
-        :param w: The angular velocity of the satellite with shape (3,)
 
         :return: None
 
@@ -79,8 +77,6 @@ class EKF:
 
         self.P_m = P
         self.P_p = P
-
-        self.w = w
 
         self.Q = Q
         self.R = R_vec
@@ -112,7 +108,7 @@ class EKF:
         x_new = f(x, self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(0.5 * self.dt * w)
+            quaternion.from_rotation_vector(self.dt * w)
         )
 
         self.r_p = x_new[0:3]
@@ -120,7 +116,7 @@ class EKF:
 
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
         # quaternion.from_rotation_vector(self.w))) @ self.H
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-0.5 * self.dt * w))
+        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
 
         A = np.block([[A_pos, np.zeros((6, 3))], [np.zeros((3, 6)), A_att]])
 
