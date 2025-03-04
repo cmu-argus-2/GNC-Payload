@@ -35,9 +35,7 @@ class EKF:
         # w_b: np.ndarray,
         P: np.ndarray,
         Q: np.ndarray,
-        R_vec: np.ndarray,
         dt: float,
-        w: np.ndarray,
         config: dict,
         data_manager: ODSimulationDataManager,
         ua: np.ndarray,
@@ -54,20 +52,13 @@ class EKF:
         # :param w_b: Initial angular velocity bias with shape (3,)
         :param P: Initial covariance with shape (9, 9)
         :param Q: Process noise covariance with shape (16, 16)
-        :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
-        :param w: The angular velocity of the satellite with shape (3,)
         :param config: The configuration dictionary.
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
         :param ua: The unmodelled acceleration with shape (3,)
         :param ekf_dynamics: The dynamics instance used in the EKF.
 
         :return: None
-
-        Note on R_vec matrix dimensionality: As the number of landmarks observed will change between
-        individual time steps, the R matrix needs to be constructed at each time step where the vision
-        pipeline is used. The dimensionality of the matrix is 3n x 3n where n is the number of landmarks
-        observed.
         """
 
         self.r_m = r
@@ -95,7 +86,7 @@ class EKF:
         self.P_p = P
 
         self.Q = Q
-        self.R = R_vec
+        self.R = np.zeros((3, 3))
         self.dt = dt
 
         self.cond_threshold = 1e15
@@ -123,8 +114,8 @@ class EKF:
         # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
         x = np.concatenate([self.r_m, self.v_m, self.ua])
-        A_pos = self.ekf_dynamics.full_f_jac(x,self.dt)
-        x_new = self.ekf_dynamics.full_f(x,self.dt)
+        A_pos = self.ekf_dynamics.full_f_jac(x, self.dt)
+        x_new = self.ekf_dynamics.full_f(x, self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
             quaternion.from_rotation_vector(self.dt * w)
@@ -132,6 +123,7 @@ class EKF:
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
+        self.ua = x_new[6:9]
 
         # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
         # quaternion.from_rotation_vector(self.w))) @ self.H
@@ -172,7 +164,7 @@ class EKF:
         :return: None
         """
         # Generate mask to select set fraction of measurements at random
-        mask = np.random.choice([True, False], size=z[0].shape[0], p=[0.02, 0.98])
+        mask = np.random.choice([True, False], size=z[0].shape[0], p=[0.04, 0.96])
         # Select masked section of the measurements to use to speed up computations
         z0 = z[0][mask]
         z1 = z[1][mask]

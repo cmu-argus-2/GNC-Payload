@@ -41,18 +41,18 @@ def imu_init(dt: float) -> IMU:
     # [units] and [(units/s)/sqrt(Hz)]
     bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -76,7 +76,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 8 # Hz
+    config["solver"]["world_update_rate"] = 8  # Hz
     config["mission"]["duration"] = 3 * 90 * 20  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -87,7 +87,7 @@ def run_simulation() -> None:
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    initial_state = get_sso_orbit_state(starting_epoch, 30, 10, 600e3, northwards=True)
+    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
     init_rot = np.eye(3)
 
     data_manager.push_next_state(initial_state, init_rot)
@@ -103,24 +103,26 @@ def run_simulation() -> None:
     Q[6:9, 6:9] = np.eye(3) * 1e-5
 
     # Set up dynamics instance for ground truth and EKF
-    ground_truth_dynamics = OrbitalDynamics(config=config, data_manager=data_manager, use_drag=True, use_j2=True)
-    ekf_dynamics = OrbitalDynamics(config=config, data_manager=data_manager, use_drag=False, use_j2=False)
+    ground_truth_dynamics = OrbitalDynamics(
+        config=config, data_manager=data_manager, use_drag=True, use_j2=True
+    )
+    ekf_dynamics = OrbitalDynamics(
+        config=config, data_manager=data_manager, use_drag=False, use_j2=False
+    )
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 800, 3),
+        r=initial_state[0:3] + np.random.normal(0, 1000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(12) * 100,
         Q=Q,
-        R_vec=np.zeros((3, 3)),
         dt=dt,
         config=config,
-        w=rot,
         data_manager=data_manager,
         ekf_dynamics=ekf_dynamics,
     )
@@ -169,7 +171,7 @@ def run_simulation() -> None:
             else:
                 ekf.no_measurement()
                 # Set flag if no measurement was taken when it was expected
-                ekf_dynamics.no_previous_measurement = True 
+                ekf_dynamics.no_previous_measurement = True
         else:
             ekf.no_measurement()
 

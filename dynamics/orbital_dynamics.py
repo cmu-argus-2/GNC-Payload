@@ -46,6 +46,7 @@ class OrbitalDynamics:
 
         # If no measurement was made in the previous measurement step, set the unmodelled accelerations to zero
         self.no_previous_measurement = False
+        self.nominal_density = 1e-12
 
         self.j2_factor = 1.5 * J2_EARTH * GM_EARTH * R_EARTH**2
 
@@ -203,7 +204,7 @@ class OrbitalDynamics:
             )
 
         # Compute unmodelled accelerations
-        unmodelled_a = np.zeros(3) if self.no_previous_measurement else x[6:9]
+        unmodelled_a = x[6:9]
         ua_dot = np.random.normal(0, 1e-5, 3)
 
         updated_a = base_derivative[3:6] + a_J2 + a_drag + unmodelled_a
@@ -246,6 +247,14 @@ class OrbitalDynamics:
         dua_dr = np.zeros((3, 3))
         dua_dv = np.zeros((3, 3))
         dua_dua = np.zeros((3, 3))
+
+        # dest_drag = np.zeros((3,9))
+        # dv_dest_drag = np.zeros((3,1))
+        # da_dest_drag = -0.5 * self.nominal_density * self.drag_coefficient * self.area / (self.mass * v_norm) * v
+        # dua_dest_drag = np.zeros((3,1))
+        # dest_drag_dest_drag = np.eye((1))
+
+        # TODO: incorporate drag estimate into the jacobian
 
         return np.block(
             [
