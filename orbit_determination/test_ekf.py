@@ -11,7 +11,7 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-from dynamics.orbital_dynamics import f
+from dynamics.orbital_dynamics import f_full
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -22,6 +22,7 @@ from sensors.bias import BiasParams
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
+from utils.brahe_utils import load_brahe_data_files
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
@@ -108,6 +109,9 @@ def run_simulation() -> None:
         Q=np.eye(9) * 1e-12,
         R_vec=np.zeros((3, 3)),
         dt=dt,
+        config=config,
+        w=rot,
+        data_manager=data_manager,
     )
 
     error = []
@@ -121,10 +125,8 @@ def run_simulation() -> None:
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
-        next_state = f(x, dt)
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(
-            w * dt
-        )
+        next_state = f_full(x=x, config=config, latest_epoch=data_manager.latest_epoch, dt=dt)
+        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         data_manager.push_next_state(next_state, quaternion.as_rotation_matrix(next_quat))
 
@@ -145,9 +147,7 @@ def run_simulation() -> None:
             measurement_camera_names, *z = data_manager.latest_measurements
 
             if z[0].shape[0] > 0:
-                ekf.measurement(
-                    z, data_manager, camera_model_manager, measurement_camera_names, num_iter
-                )
+                ekf.measurement(z, camera_model_manager, measurement_camera_names, num_iter)
             else:
                 ekf.no_measurement()
         else:
@@ -171,4 +171,5 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
+    load_brahe_data_files()
     run_simulation()
