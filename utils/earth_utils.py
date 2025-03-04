@@ -245,7 +245,7 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -
 
     theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
 
-    noise_direction = np.cos(theta) * arbitrary + np.sin(theta) * third_vec
+    noise_direction = np.cos(theta) * perp_arb + np.sin(theta) * third_vec
 
     # Add the noise to the original vector and renormalize each vector to maintain unit length.
     new_vec = vec + sigma * noise_direction
