@@ -2,7 +2,6 @@
 Test the nonlinear least squares orbit determination algorithm.
 """
 
-import os
 import pickle
 from time import perf_counter, time
 
