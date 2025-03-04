@@ -72,6 +72,9 @@ class EKF:
         # self.a_b = a_b
         # self.w_b = w_b
 
+
+        # Scale the velocity Covariance
+        P[3:6, 3:6] *= (1e-9,)
         # Scale the attitude Covariance
         P[6:9, 6:9] *= (1e-9,)
 
@@ -153,8 +156,8 @@ class EKF:
         :return: None
         """
         # Select a fraction of the measurements to use to speed up computations
-        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.05))]
-        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.05))]
+        z0 = z[0][: int(math.ceil(z[0].shape[0] * 0.04))]
+        z1 = z[1][: int(math.ceil(z[1].shape[0] * 0.04))]
 
         measurement_camera_names = measurement_camera_names[: len(z0)]
 
