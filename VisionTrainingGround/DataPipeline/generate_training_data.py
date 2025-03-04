@@ -38,8 +38,11 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--regions", type=str, nargs="+", default=load_config()["vision"]["salient_mgrs_region_ids"],
-        help="MGRS regions to generate training data for."
+        "--regions",
+        type=str,
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to generate training data for.",
     )
     parser.add_argument(
         "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
