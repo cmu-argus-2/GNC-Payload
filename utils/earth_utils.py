@@ -226,6 +226,38 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     return mgrs_regions
 
 
+def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
+    """
+    Add Gaussian noise to a bearing measurement.
+    Parameters:
+        vec (np.ndarray): The original bearing vector.
+        sigma (float): The standard deviation of the noise.
+
+    Returns:
+        np.ndarray: The noisy bearing vector.
+    """
+
+    # Check if at least one of the first two components is nonzero and choose the
+    # arbitrary vector accordingly
+    n = vec.shape[0]
+    cond = (np.abs(vec[:, 0]) <= np.abs(vec[:, 2]))[:, None]  # shape (n,1) for broadcasting
+    arbitrary = np.where(cond, np.array([1, 0, 0]), np.array([0, 0, 1]))  # shape (n,3)
+
+    perp_arb = arbitrary - np.sum(arbitrary * vec, axis=1, keepdims=True) * vec
+    perp_arb = perp_arb / np.linalg.norm(perp_arb, axis=1, keepdims=True)
+    third_vec = np.cross(vec, perp_arb)
+
+    theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
+
+    noise_direction = np.cos(theta) * perp_arb + np.sin(theta) * third_vec
+
+    # Add the noise to the original vector and renormalize each vector to maintain unit length.
+    new_vec = vec + sigma * noise_direction
+    new_vec = new_vec / np.linalg.norm(new_vec, axis=1, keepdims=True)
+
+    return new_vec
+
+
 def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     """
     Harris-Priester atmospheric density model.

@@ -75,7 +75,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 1 / 3  # Hz
+    config["solver"]["world_update_rate"] = 8  # Hz
     config["mission"]["duration"] = 3 * 90 * 20  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -102,7 +102,7 @@ def run_simulation() -> None:
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 800, 3),
+        r=initial_state[0:3] + np.random.normal(0, 100, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
         P=np.eye(9) * 10,
@@ -135,7 +135,7 @@ def run_simulation() -> None:
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 5 == 0:
+        if t % 150 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
