@@ -11,7 +11,7 @@ from brahe.constants import GM_EARTH
 from brahe.epoch import Epoch
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
-from dynamics.j2_dynamics import j2_derivative, j2_dynamics, j2_jacobian_auto
+from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manual
 
 
 def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -193,7 +193,7 @@ def second_order_effects_jac(
             da_dv = drag_jacobian(x=x, config=config, latest_epoch=latest_epoch)
 
         # Compute J2 either using autodiff or manually
-        # j2da_dv = j2_derivative(x[:3])
+        # j2da_dv = j2_jacobian_manual(x[:3])
         daj2auto_dr = j2_jacobian_auto(x[:3])
         da_dr = base_jacobian[3:6, 0:3] + daj2auto_dr
 

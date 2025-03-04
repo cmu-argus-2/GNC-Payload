@@ -41,7 +41,7 @@ def j2_jacobian_auto(r: jnp.ndarray) -> jnp.ndarray:
     return jac
 
 
-def j2_derivative(r: np.ndarray) -> np.ndarray:
+def j2_jacobian_manual(r: np.ndarray) -> np.ndarray:
     """
     Provide the J2 perturbation jacobian without relying on autodiff
     :param r: position vector
