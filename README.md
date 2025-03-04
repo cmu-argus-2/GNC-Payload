@@ -41,6 +41,13 @@ Copy `user_config.example.yaml` to `user_config.yaml` and fill in the necessary 
 cp user_config.example.yaml user_config.yaml
 ```
 
+### Installing utils as a package
+After activating your environment, do the following to install the necessary modules as editable packages:
+```
+cd packages
+pip install -e .
+```
+
 ## Pre-Commit Hook 
 A pre-commit hook can be set up to run pylint and black formatter.
 
