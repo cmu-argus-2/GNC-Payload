@@ -1,6 +1,7 @@
 """
 Common earth utilities.
 """
+
 from functools import cache
 
 import numpy as np
