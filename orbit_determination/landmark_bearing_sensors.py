@@ -167,7 +167,9 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
 
             assert np.allclose(true_bearing_unit_vector_eci, eci_R_body @ bearing_unit_vector_body)
 
-        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body, self.scale)
+        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(
+            bearing_unit_vectors_body, self.scale
+        )
 
         return bearing_unit_vectors_body_noisy, landmark_positions_eci
 
@@ -183,7 +185,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         self.fov = fov
         self.cos_fov_on_2 = np.cos(fov / 2)
         self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
-        
+
         # Scaling of the noise in measurement
         self.scale = np.sqrt(0.0005)
 
@@ -248,9 +250,11 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         visible_landmarks_eci = (ecef_R_eci.T @ visible_landmarks_ecef.T).T
 
         bearing_unit_vectors_body = (ecef_R_body.T @ bearing_unit_vectors_ecef[is_visible, :].T).T
-        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body, self.scale)
+        # bearing_unit_vectors_body_noisy = noisy_bearing_measurement(
+        #     bearing_unit_vectors_body, self.scale
+        # )
 
-        return bearing_unit_vectors_body_noisy, visible_landmarks_eci
+        return bearing_unit_vectors_body, visible_landmarks_eci
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):

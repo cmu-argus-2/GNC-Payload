@@ -10,7 +10,7 @@ from scipy.optimize import least_squares
 from scipy.stats import circmean, circvar
 
 # pylint: disable=import-error
-from dynamics.orbital_dynamics import f, f_jac
+from dynamics.orbital_dynamics import OrbitalDynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
 
@@ -150,7 +150,7 @@ class OrbitDetermination:
 
             # dynamics residuals
             for i in range(N - 1):
-                res[idx : idx + 6] = states[i + 1, :] - f(states[i, :], self.dt)
+                res[idx : idx + 6] = states[i + 1, :] - OrbitalDynamics.f(states[i, :], self.dt)
                 idx += 6
 
             # measurement residuals
@@ -185,7 +185,9 @@ class OrbitDetermination:
 
             # dynamics Jacobian
             for i in range(N - 1):
-                jac[row_idx : row_idx + 6, row_idx : row_idx + 6] = -f_jac(states[i, :], self.dt)
+                jac[row_idx : row_idx + 6, row_idx : row_idx + 6] = -OrbitalDynamics.f_jac(
+                    states[i, :], self.dt
+                )
                 jac[row_idx : row_idx + 6, row_idx + 6 : row_idx + 12] = np.eye(6)
                 row_idx += 6
 
