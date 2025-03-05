@@ -44,18 +44,18 @@ def imu_init(dt: float) -> IMU:
     bias_params = BiasParams.get_random_params([1e-10, 1e-9], [1e-10, 1e-9])
     # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -124,7 +124,7 @@ def run_simulation() -> None:
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 10000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
@@ -164,7 +164,6 @@ def run_simulation() -> None:
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
-        gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
         if t % 150 == 0:

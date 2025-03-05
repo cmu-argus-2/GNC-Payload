@@ -1,6 +1,7 @@
 """
 Module that implements a sensor class that adds noise to a clean signal.
 """
+
 from math import sqrt
 
 import numpy as np
@@ -9,7 +10,14 @@ from sensors.bias import Bias, BiasParams
 
 
 class SensorNoiseParams:
-    def __init__(self, biasParams: BiasParams, sigma_v: float, scale_factor_error: float) -> None:
+    def __init__(
+        self,
+        biasParams: BiasParams,
+        sigma_v: float,
+        scale_factor_error: float,
+        misalignment1: float,
+        misalignment2: float,
+    ) -> None:
         """Parameters for a time-varying bias modeled as a random walk
 
         Args:
@@ -20,10 +28,15 @@ class SensorNoiseParams:
         self.bias_params = biasParams
         self.sigma_v = sigma_v
         self.scale_factor_error = scale_factor_error
+        self.misalignment1 = misalignment1
+        self.misalignment2 = misalignment2
 
     @staticmethod
     def get_random_params(
-        biasParams: BiasParams, sigma_v_range: list, scale_factor_error_range: list
+        biasParams: BiasParams,
+        sigma_v_range: list,
+        scale_factor_error_range: list,
+        misalignment_range: list,
     ) -> "SensorNoiseParams":
         """
         Getter for random bias parameters
@@ -40,6 +53,8 @@ class SensorNoiseParams:
             biasParams,
             np.random.uniform(*sigma_v_range),
             np.random.uniform(*scale_factor_error_range),
+            np.random.uniform(*misalignment_range),
+            np.random.uniform(*misalignment_range),
         )
 
 
@@ -60,7 +75,12 @@ class Sensor:
 
         self.scale_factor_error = sensor_noise_params.scale_factor_error
 
-    def update(self, clean_signal: np.ndarray) -> np.ndarray:
+        self.misalignment1 = sensor_noise_params.misalignment1
+        self.misalignment2 = sensor_noise_params.misalignment2
+
+    def update(
+        self, clean_signal: np.ndarray, other_signal1: np.ndarray, other_signal2: np.ndarray
+    ) -> np.ndarray:
         """
         Update the measurements of the sensor by applying noise to the clean signal.
 
@@ -72,7 +92,13 @@ class Sensor:
         """
         self.bias.update()
         noise = self.white_noise * np.random.standard_normal()
-        return (1 + self.scale_factor_error) * clean_signal + self.bias.get_bias() + noise
+        return (
+            (1 + self.scale_factor_error) * clean_signal
+            + other_signal1 * self.misalignment1
+            + other_signal2 * self.misalignment2
+            + self.bias.get_bias()
+            + noise
+        )
 
     def get_bias(self) -> float:
         """
@@ -113,8 +139,8 @@ class TriAxisSensor:
         """
         return np.array(
             [
-                self.x.update(clean_signal[0]),
-                self.y.update(clean_signal[1]),
-                self.z.update(clean_signal[2]),
+                self.x.update(clean_signal[0], clean_signal[1], clean_signal[2]),
+                self.y.update(clean_signal[1], clean_signal[0], clean_signal[2]),
+                self.z.update(clean_signal[2], clean_signal[0], clean_signal[1]),
             ]
         )
