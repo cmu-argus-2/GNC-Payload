@@ -2,9 +2,16 @@
 Common earth utilities.
 """
 
+<<<<<<< HEAD:packages/utils/earth_utils.py
 from functools import cache
 
+=======
+import math
+
+import brahe
+>>>>>>> main:utils/earth_utils.py
 import numpy as np
+from brahe import Epoch
 
 
 # TODO: use brahe constants instead of hardcoding
@@ -224,6 +231,7 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     return mgrs_regions
 
 
+<<<<<<< HEAD:packages/utils/earth_utils.py
 @cache
 def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     """
@@ -262,3 +270,275 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     del mgrs_grid["34X"]
     del mgrs_grid["36X"]
     return mgrs_grid
+=======
+def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
+    """
+    Add Gaussian noise to a bearing measurement.
+    Parameters:
+        vec (np.ndarray): The original bearing vector.
+        sigma (float): The standard deviation of the noise.
+
+    Returns:
+        np.ndarray: The noisy bearing vector.
+    """
+
+    # Check if at least one of the first two components is nonzero and choose the
+    # arbitrary vector accordingly
+    n = vec.shape[0]
+    cond = (np.abs(vec[:, 0]) <= np.abs(vec[:, 2]))[:, None]  # shape (n,1) for broadcasting
+    arbitrary = np.where(cond, np.array([1, 0, 0]), np.array([0, 0, 1]))  # shape (n,3)
+
+    perp_arb = arbitrary - np.sum(arbitrary * vec, axis=1, keepdims=True) * vec
+    perp_arb = perp_arb / np.linalg.norm(perp_arb, axis=1, keepdims=True)
+    third_vec = np.cross(vec, perp_arb)
+
+    theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
+
+    noise_direction = np.cos(theta) * perp_arb + np.sin(theta) * third_vec
+
+    # Add the noise to the original vector and renormalize each vector to maintain unit length.
+    new_vec = vec + sigma * noise_direction
+    new_vec = new_vec / np.linalg.norm(new_vec, axis=1, keepdims=True)
+
+    return new_vec
+
+
+def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
+    """
+    Harris-Priester atmospheric density model.
+
+    Parameters:
+        x: Satellite state vector.
+        epoch: Epoch of the satellite state vector.
+
+    Returns:
+        Density [kg/m^3].
+    """
+
+    # Harris-Priester Constants
+    HP_UPPER_LIMIT = 1000.0  # Upper height limit [km]
+    HP_LOWER_LIMIT = 100.0  # Lower height limit [km]
+    HP_RA_LAG = 0.523599  # Right ascension lag [rad]
+    HP_N_PRM = 3  # Harris-Priester parameter
+    # 2(6) low(high) inclination
+    HP_N = 50  # Number of coefficients
+
+    # Height [km]
+    hp_h = [
+        100.0,
+        120.0,
+        130.0,
+        140.0,
+        150.0,
+        160.0,
+        170.0,
+        180.0,
+        190.0,
+        200.0,
+        210.0,
+        220.0,
+        230.0,
+        240.0,
+        250.0,
+        260.0,
+        270.0,
+        280.0,
+        290.0,
+        300.0,
+        320.0,
+        340.0,
+        360.0,
+        380.0,
+        400.0,
+        420.0,
+        440.0,
+        460.0,
+        480.0,
+        500.0,
+        520.0,
+        540.0,
+        560.0,
+        580.0,
+        600.0,
+        620.0,
+        640.0,
+        660.0,
+        680.0,
+        700.0,
+        720.0,
+        740.0,
+        760.0,
+        780.0,
+        800.0,
+        840.0,
+        880.0,
+        920.0,
+        960.0,
+        1000.0,
+    ]
+
+    # Minimum density [g/km^3]
+    hp_c_min = [
+        4.974e05,
+        2.490e04,
+        8.377e03,
+        3.899e03,
+        2.122e03,
+        1.263e03,
+        8.008e02,
+        5.283e02,
+        3.617e02,
+        2.557e02,
+        1.839e02,
+        1.341e02,
+        9.949e01,
+        7.488e01,
+        5.709e01,
+        4.403e01,
+        3.430e01,
+        2.697e01,
+        2.139e01,
+        1.708e01,
+        1.099e01,
+        7.214e00,
+        4.824e00,
+        3.274e00,
+        2.249e00,
+        1.558e00,
+        1.091e00,
+        7.701e-01,
+        5.474e-01,
+        3.916e-01,
+        2.819e-01,
+        2.042e-01,
+        1.488e-01,
+        1.092e-01,
+        8.070e-02,
+        6.012e-02,
+        4.519e-02,
+        3.430e-02,
+        2.632e-02,
+        2.043e-02,
+        1.607e-02,
+        1.281e-02,
+        1.036e-02,
+        8.496e-03,
+        7.069e-03,
+        4.680e-03,
+        3.200e-03,
+        2.210e-03,
+        1.560e-03,
+        1.150e-03,
+    ]
+
+    # Maximum density [g/km^3]
+    hp_c_max = [
+        4.974e05,
+        2.490e04,
+        8.710e03,
+        4.059e03,
+        2.215e03,
+        1.344e03,
+        8.758e02,
+        6.010e02,
+        4.297e02,
+        3.162e02,
+        2.396e02,
+        1.853e02,
+        1.455e02,
+        1.157e02,
+        9.308e01,
+        7.555e01,
+        6.182e01,
+        5.095e01,
+        4.226e01,
+        3.526e01,
+        2.511e01,
+        1.819e01,
+        1.337e01,
+        9.955e00,
+        7.492e00,
+        5.684e00,
+        4.355e00,
+        3.362e00,
+        2.612e00,
+        2.042e00,
+        1.605e00,
+        1.267e00,
+        1.005e00,
+        7.997e-01,
+        6.390e-01,
+        5.123e-01,
+        4.121e-01,
+        3.325e-01,
+        2.691e-01,
+        2.185e-01,
+        1.779e-01,
+        1.452e-01,
+        1.190e-01,
+        9.776e-02,
+        8.059e-02,
+        5.741e-02,
+        4.210e-02,
+        3.130e-02,
+        2.360e-02,
+        1.810e-02,
+    ]
+
+    # Satellite height
+    r_sun = brahe.ephemerides.sun_position(epc=epoch)
+
+    # Transforming eci -> ecef -> geod conversion
+    x = brahe.frames.sECItoECEF(epc=epoch, x=x[0:6])
+    geod = brahe.coordinates.sECEFtoGEOD(x[:3], use_degrees=True)
+    height = geod[2] / 1.0e3  # height in [km]
+
+    # Exit with zero density above height model limit
+    if height > HP_UPPER_LIMIT:
+        return 0.0
+
+    # Set height to lower limit if below model limit
+    if height < HP_LOWER_LIMIT:
+        height = HP_LOWER_LIMIT
+
+    # Sun right ascension, declination
+    ra_sun = math.atan(r_sun[1] / r_sun[0])
+    dec_sun = math.atan(r_sun[2] / np.sqrt(r_sun[0] ** 2 + r_sun[1] ** 2))
+
+    # Unit vector u towards the apex of the diurnal bulge
+    # in inertial geocentric coordinates
+    c_dec = math.cos(dec_sun)
+    u = np.array(
+        [
+            c_dec * math.cos(ra_sun + HP_RA_LAG),
+            c_dec * np.sin(ra_sun + HP_RA_LAG),
+            math.sin(dec_sun),
+        ]
+    )
+
+    # Cosine of half angle between satellite position vector and
+    # apex of diurnal bulge
+    c_psi2 = 0.5 + 0.5 * np.dot(x[:3], u) / np.linalg.norm(x[:3])
+
+    # Height index search and exponential density interpolation
+    ih = 0  # section index reset
+    for i in range(HP_N):  # loop over N_Coef height regimes
+        if height >= hp_h[i] and height < hp_h[i + 1]:
+            ih = i  # ih identifies height section
+            break
+
+    h_min = (hp_h[ih] - hp_h[ih + 1]) / math.log(hp_c_min[ih + 1] / hp_c_min[ih])
+    h_max = (hp_h[ih] - hp_h[ih + 1]) / math.log(hp_c_max[ih + 1] / hp_c_max[ih])
+
+    d_min = hp_c_min[ih] * math.exp((hp_h[ih] - height) / h_min)
+    d_max = hp_c_max[ih] * math.exp((hp_h[ih] - height) / h_max)
+
+    # Density computation
+    density = d_min + (d_max - d_min) * c_psi2**HP_N_PRM
+
+    # Convert from g/km^3 to kg/m^3
+    density *= 1.0e-12
+
+    # Finished
+    return density
+>>>>>>> main:utils/earth_utils.py
