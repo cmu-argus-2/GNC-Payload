@@ -76,7 +76,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 4  # Hz
-    config["mission"]["duration"] = 3 * 90 * 20  # s
+    config["mission"]["duration"] = 3 * 90 * 25  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -103,10 +103,18 @@ def run_simulation() -> None:
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = OrbitalDynamics(
-        config=config, data_manager=data_manager, use_drag=True, use_j2=True
+        config=config,
+        data_manager=data_manager,
+        use_drag=True,
+        use_j2=True,
+        use_unmodelled_a=False,
     )
     ekf_dynamics = OrbitalDynamics(
-        config=config, data_manager=data_manager, use_drag=False, use_j2=False
+        config=config,
+        data_manager=data_manager,
+        use_drag=False,
+        use_j2=False,
+        use_unmodelled_a=True,
     )
 
     # Initialize IMU and EKF
@@ -114,7 +122,7 @@ def run_simulation() -> None:
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 10000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
@@ -146,8 +154,6 @@ def run_simulation() -> None:
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
-        # gyro_meas = np.zeros((3))  # TEMPORARY
-
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
@@ -166,6 +172,7 @@ def run_simulation() -> None:
                 ekf.measurement(z, camera_model_manager, measurement_camera_names, num_iter)
             else:
                 ekf.no_measurement()
+                print("No measurements made in measurement step")
         else:
             ekf.no_measurement()
 

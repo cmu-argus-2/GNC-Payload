@@ -25,6 +25,7 @@ class OrbitalDynamics:
         self,
         config: dict,
         data_manager: ODSimulationDataManager,
+        use_unmodelled_a: bool,
         use_drag: bool,
         use_j2: bool,
     ) -> None:
@@ -33,11 +34,13 @@ class OrbitalDynamics:
 
         :param config: The configuration dictionary.
         :param data_manager: The ODSimulationDataManager instance.
+        :param use_unmodelled_a: Whether to use unmodelled accelerations in the dynamics.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
         :return: None
         """
         self.data_manager = data_manager
+        self.use_unmodelled_a = use_unmodelled_a
         self.use_drag = use_drag
         self.use_j2 = use_j2
         self.drag_const = (
@@ -175,24 +178,29 @@ class OrbitalDynamics:
         r_norm = np.linalg.norm(r)
         v_norm = np.linalg.norm(v)
 
-        a_drag = np.zeros(3)
-        a_J2 = np.zeros(3)
+        # Ground-truth accelerations
+        a_drag_gt = np.zeros(3)
+        a_J2_gt = np.zeros(3)
 
         # Compute drag
         if self.use_drag and v_norm != 0:
-            a_drag = drag_dynamics(
+            a_drag_gt = drag_dynamics(
                 x=x, drag_const=self.drag_const, latest_epoch=self.data_manager.latest_epoch
             )
 
         # Compute J2
         if self.use_j2 and r_norm != 0:
-            a_J2 = j2_dynamics(r)
+            a_J2_gt = j2_dynamics(r)
 
         # Compute unmodelled accelerations
-        unmodelled_a = x[6:9]
-        ua_dot = np.random.normal(0, 1e-5, 3)
+        if self.use_unmodelled_a:
+            unmodelled_a = x[6:9]
+            ua_dot = np.random.normal(0, 1e-5, 3)
+        else:
+            unmodelled_a = 0
+            ua_dot = np.zeros((3,))
 
-        updated_a = base_derivative[3:6] + a_J2 + a_drag + unmodelled_a
+        updated_a = base_derivative[3:6] + a_J2_gt + a_drag_gt + unmodelled_a
 
         return np.concatenate([base_derivative[0:3], updated_a, ua_dot])
 
@@ -209,25 +217,26 @@ class OrbitalDynamics:
         v = x[3:6]
         v_norm = np.linalg.norm(v)
 
-        da_drag_dv = np.zeros((3, 3))
-        da_j2_dr = np.zeros((3, 3))
+        da_drag_gt_dv = np.zeros((3, 3))
+        da_J2_gt_dr = np.zeros((3, 3))
 
         # Compute drag
         if self.use_drag and v_norm != 0:
-            da_drag_dv = drag_jacobian(
+            da_drag_gt_dv = drag_jacobian(
                 x=x, drag_const=self.drag_const, latest_epoch=self.data_manager.latest_epoch
             )
 
         # Compute J2 either using autodiff or manually
         if self.use_j2:
-            # da_j2_dr = j2_derivative(x[:3])
-            da_j2_dr = j2_jacobian_auto(x[0:3])
+            # da_J2_gt_dr = j2_derivative_manual(x[:3])
+            da_J2_gt_dr = j2_jacobian_auto(x[0:3])
 
-        da_dr = base_jacobian[3:6, 0:3] + da_j2_dr
-        da_dv = base_jacobian[3:6, 3:6] + da_drag_dv
+        da_dr = base_jacobian[3:6, 0:3] + da_J2_gt_dr
+        da_dv = base_jacobian[3:6, 3:6] + da_drag_gt_dv
 
         dv_dua = np.zeros((3, 3))
-        da_dua = np.eye(3)
+        # Compute unmodelled accelerations jacobian
+        da_dua = np.eye(3) if self.use_unmodelled_a else np.zeros((3, 3))
 
         dua_dr = np.zeros((3, 3))
         dua_dv = np.zeros((3, 3))
@@ -235,7 +244,8 @@ class OrbitalDynamics:
 
         # dest_drag = np.zeros((3,9))
         # dv_dest_drag = np.zeros((3,1))
-        # da_dest_drag = -0.5 * self.nominal_density * self.drag_coefficient * self.area / (self.mass * v_norm) * v
+
+        # da_dest_drag = self.drag_const * self.nominal_density * v / v_norm
         # dua_dest_drag = np.zeros((3,1))
         # dest_drag_dest_drag = np.eye((1))
 
