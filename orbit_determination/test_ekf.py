@@ -41,7 +41,8 @@ def imu_init(dt: float) -> IMU:
     # Initialize the IMU
     # bias params are min max range of bias and sigma_w
     # [units] and [(units/s)/sqrt(Hz)]
-    bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+    bias_params = BiasParams.get_random_params([1e-10, 1e-9], [1e-10, 1e-9])
+    # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
     sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
@@ -100,8 +101,8 @@ def run_simulation() -> None:
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
 
-    # Prep Q matrix for the EKF. Unmodelled attitude has larger uncertainty
-    Q = np.eye(12) * 1e-12
+    # Prep Q matrix for the EKF. Unmodelled acceleration has larger uncertainty
+    Q = np.eye(15) * 1e-12
     Q[6:9, 6:9] = np.eye(3) * 1e-5
 
     # Set up dynamics instance for ground truth and EKF
@@ -119,6 +120,7 @@ def run_simulation() -> None:
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
+    gyro_bias = imu.get_bias()[0] * 1e10
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
@@ -126,17 +128,20 @@ def run_simulation() -> None:
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(12) * 5,
+        P=np.eye(15) * 1,
         Q=Q,
         dt=dt,
         config=config,
         ekf_dynamics=ekf_dynamics,
+        w_b=gyro_bias
     )
 
+    # Store errors for plotting
     error = []
     vel_error = []
     ua_error = []
     cov_trace = []
+    gyro_bias_error = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -147,6 +152,10 @@ def run_simulation() -> None:
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
+
+        # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
+        gyro_meas, _ = imu.update(w, np.zeros((3)))
+        imu_gyro_bias = imu.get_bias()[0]
 
         next_state = ground_truth_dynamics.perturbed_f(
             x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
@@ -165,6 +174,7 @@ def run_simulation() -> None:
                 )
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
+            print(f"State position: {next_state[0:3]}")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -187,6 +197,7 @@ def run_simulation() -> None:
         vel_error.append(ekf.v_m - next_state[3:6])
         ua_error.append(ekf.ua)
         cov_trace.append(np.trace(ekf.P_m))
+        gyro_bias_error.append(ekf.w_b/1e10 - imu_gyro_bias)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -214,6 +225,14 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Unmodelled acc error [m/s^2]")
     plt.title("EKF Unmodelled Acceleration Error")
+
+    plt.figure()
+
+    plt.plot(gyro_bias_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Gyro bias error [rad/s]")
+    plt.title("EKF Gyro Bias Error")
 
     plt.figure()
 
