@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import OrbitalDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -40,20 +44,21 @@ def imu_init(dt: float) -> IMU:
     # Initialize the IMU
     # bias params are min max range of bias and sigma_w
     # [units] and [(units/s)/sqrt(Hz)]
-    bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+    bias_params = BiasParams.get_random_params([1e-10, 1e-9], [1e-10, 1e-9])
+    # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -99,8 +104,8 @@ def run_simulation() -> None:
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
 
-    # Prep Q matrix for the EKF. Unmodelled attitude has larger uncertainty
-    Q = np.eye(12) * 1e-12
+    # Prep Q matrix for the EKF. Unmodelled acceleration has larger uncertainty
+    Q = np.eye(15) * 1e-12
     Q[6:9, 6:9] = np.eye(3) * 1e-5
 
     # Set up dynamics instance for ground truth and EKF
@@ -121,25 +126,29 @@ def run_simulation() -> None:
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
+    gyro_bias = imu.get_bias()[0] * 1e10
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(12) * 5,
+        P=np.eye(15) * 1,
         Q=Q,
         dt=dt,
         config=config,
         data_manager=data_manager,
         ekf_dynamics=ekf_dynamics,
+        w_b=gyro_bias
     )
 
+    # Store errors for plotting
     error = []
     vel_error = []
     ua_error = []
     cov_trace = []
+    gyro_bias_error = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -151,12 +160,13 @@ def run_simulation() -> None:
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
+        # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
+        gyro_meas, _ = imu.update(w, np.zeros((3)))
+        imu_gyro_bias = imu.get_bias()[0]
+
         next_state = ground_truth_dynamics.perturbed_f(x=x[0:6], dt=dt)
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
+        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector((w - imu_gyro_bias) * dt)
 
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
-
-        # gyro_meas = np.zeros((3))  # TEMPORARY
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
         gyro_meas, _ = imu.update(w, np.zeros((3)))
@@ -189,6 +199,7 @@ def run_simulation() -> None:
         vel_error.append(ekf.v_m - next_state[3:6])
         ua_error.append(ekf.ua)
         cov_trace.append(np.trace(ekf.P_m))
+        gyro_bias_error.append(ekf.w_b/1e10 - imu_gyro_bias)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -216,6 +227,14 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Unmodelled acc error [m/s^2]")
     plt.title("EKF Unmodelled Acceleration Error")
+
+    plt.figure()
+
+    plt.plot(gyro_bias_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Gyro bias error [rad/s]")
+    plt.title("EKF Gyro Bias Error")
 
     plt.figure()
 
