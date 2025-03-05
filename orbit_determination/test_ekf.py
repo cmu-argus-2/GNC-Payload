@@ -11,6 +11,7 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+from dynamics.orbital_dynamics import OrbitalDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -24,6 +25,7 @@ from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
+from utils.earth_utils import transform_eci_to_lvlh
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
 
@@ -40,18 +42,18 @@ def imu_init(dt: float) -> IMU:
     # [units] and [(units/s)/sqrt(Hz)]
     bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_accel_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_accel_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-9)
-    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-9)
+    sensor_noise_params_gyro_x = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_gyro_y = SensorNoiseParams(bias_params, 5e-10, 5e-8)
+    sensor_noise_params_gyro_z = SensorNoiseParams(bias_params, 5e-10, 5e-8)
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -154,22 +156,29 @@ def run_simulation() -> None:
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
+        # gyro_meas = np.zeros((3))  # TEMPORARY
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
+
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         ekf.predict(u=gyro_meas)
 
-        if t % 150 == 0:
+        if t % 3 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
+            print(f"State position: {next_state[0:3]}")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
 
             if z[0].shape[0] > 0:
-                ekf.measurement(z, camera_model_manager, measurement_camera_names, num_iter)
+                ekf.measurement(
+                    z, data_manager, camera_model_manager, measurement_camera_names, num_iter
+                )
+                ekf_dynamics.no_previous_measurement = False
             else:
                 ekf.no_measurement()
                 print("No measurements made in measurement step")
@@ -221,5 +230,6 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
+    # load_brahe_data_files()
     load_brahe_data_files_if_needed()
     run_simulation()

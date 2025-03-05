@@ -254,7 +254,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
             bearing_unit_vectors_body, self.scale
         )
 
-        return bearing_unit_vectors_body_noisy, visible_landmarks_eci
+        return bearing_unit_vectors_body, visible_landmarks_eci
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
