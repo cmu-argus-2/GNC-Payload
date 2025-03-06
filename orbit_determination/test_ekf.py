@@ -11,7 +11,7 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-from dynamics.orbital_dynamics import OrbitalDynamics
+from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -75,8 +75,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 4  # Hz
-    config["mission"]["duration"] = 3 * 90 * 25  # s
+    config["solver"]["world_update_rate"] = 6 # Hz
+    config["mission"]["duration"] = 3 * 90 * 40  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -102,14 +102,14 @@ def run_simulation() -> None:
     Q[6:9, 6:9] = np.eye(3) * 1e-5
 
     # Set up dynamics instance for ground truth and EKF
-    ground_truth_dynamics = OrbitalDynamics(
+    ground_truth_dynamics = Dynamics(
         config=config,
         data_manager=data_manager,
         use_drag=True,
         use_j2=True,
         use_unmodelled_a=False,
     )
-    ekf_dynamics = OrbitalDynamics(
+    ekf_dynamics = Dynamics(
         config=config,
         data_manager=data_manager,
         use_drag=False,
@@ -126,7 +126,7 @@ def run_simulation() -> None:
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(12) * 10,
+        P=np.eye(12) * 5,
         Q=Q,
         dt=dt,
         config=config,
@@ -149,7 +149,7 @@ def run_simulation() -> None:
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
-        next_state = ground_truth_dynamics.full_f(x=x[0:9], dt=dt)
+        next_state = ground_truth_dynamics.perturbed_f(x=x[0:6], dt=dt)
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import quaternion
 
-from dynamics.orbital_dynamics import OrbitalDynamics
+from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
@@ -38,7 +38,7 @@ class EKF:
         config: dict,
         data_manager: ODSimulationDataManager,
         ua: np.ndarray,
-        ekf_dynamics: OrbitalDynamics,
+        ekf_dynamics: Dynamics,
     ) -> None:
         """
         Initialize the EKF
@@ -111,8 +111,8 @@ class EKF:
         w = u[0:3]  # angular velocity measurement from IMU
 
         x = np.concatenate([self.r_m, self.v_m, self.ua])
-        A_pos = self.ekf_dynamics.full_f_jac(x=x, dt=self.dt)
-        x_new = self.ekf_dynamics.full_f(x=x, dt=self.dt)
+        A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt)
+        x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
             quaternion.from_rotation_vector(self.dt * w)

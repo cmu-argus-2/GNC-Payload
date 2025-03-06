@@ -15,7 +15,7 @@ from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manu
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
 
-class OrbitalDynamics:
+class Dynamics:
     """
     This class contains the orbital dynamics functions. Basic orbital dynamics are
     implemented as static methods so that they can be used without instantiating the class.
@@ -53,6 +53,9 @@ class OrbitalDynamics:
         # If no measurement was made in the previous measurement step, set the unmodelled accelerations to zero
         self.no_previous_measurement = False
         self.nominal_density = 1e-12
+
+        if use_unmodelled_a:
+            self.ua_std_dev = 1e-5
 
     @staticmethod
     def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -148,7 +151,7 @@ class OrbitalDynamics:
         :param dt: The amount of time between each time step.
         :return: A numpy array of shape (6,) containing the next state (position and velocity).
         """
-        return OrbitalDynamics.RK4(x, OrbitalDynamics.state_derivative, dt)
+        return Dynamics.RK4(x, Dynamics.state_derivative, dt)
 
     @staticmethod
     def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
@@ -160,88 +163,100 @@ class OrbitalDynamics:
         :param dt: The amount of time between each time step.
         :return: A numpy array of shape (6, 6) containing the state transition Jacobian.
         """
-        return OrbitalDynamics.RK4_jac(
-            x, OrbitalDynamics.state_derivative, OrbitalDynamics.state_derivative_jac, dt
-        )
+        return Dynamics.RK4_jac(x, Dynamics.state_derivative, Dynamics.state_derivative_jac, dt)
 
-    def full_state_derivative(self, x: np.ndarray) -> np.ndarray:
+    def perturbed_state_derivative(self, x: np.ndarray) -> np.ndarray:
         """
         The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity,
         J2 perturbations and gravity.
 
-        :param x: A numpy array of shape (9,) containing the current state (position, velocity, unmodelled_accelerations).
-        :return: A numpy array of shape (9,) containing the full state derivative.
+        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity, (unmodelled_accelerations).
+        :return: A numpy array of shape (6,) or (9,) containing the full state derivative.
         """
-        base_derivative = OrbitalDynamics.state_derivative(x)
+        base_derivative = Dynamics.state_derivative(x)
         r = x[0:3]
         v = x[3:6]
         r_norm = np.linalg.norm(r)
         v_norm = np.linalg.norm(v)
 
-        # Ground-truth accelerations
-        a_drag_gt = np.zeros(3)
-        a_J2_gt = np.zeros(3)
+        updated_a = base_derivative[3:6]
 
         # Compute drag
-        if self.use_drag and v_norm != 0:
+        if self.use_drag and np.isclose(v_norm, 0):
             a_drag_gt = drag_dynamics(
                 x=x, drag_const=self.drag_const, latest_epoch=self.data_manager.latest_epoch
             )
 
+            updated_a += a_drag_gt
+
         # Compute J2
-        if self.use_j2 and r_norm != 0:
+        if self.use_j2 and np.isclose(r_norm, 0):
             a_J2_gt = j2_dynamics(r)
+
+            updated_a += a_J2_gt
 
         # Compute unmodelled accelerations
         if self.use_unmodelled_a:
             unmodelled_a = x[6:9]
-            ua_dot = np.random.normal(0, 1e-5, 3)
-        else:
-            unmodelled_a = 0
-            ua_dot = np.zeros((3,))
+            ua_dot = np.random.normal(0, self.ua_std_dev, 3)
 
-        updated_a = base_derivative[3:6] + a_J2_gt + a_drag_gt + unmodelled_a
+            updated_a += unmodelled_a
 
-        return np.concatenate([base_derivative[0:3], updated_a, ua_dot])
+            return np.concatenate([base_derivative[0:3], updated_a, ua_dot])
 
-    def full_state_derivative_jac(self, x: np.ndarray) -> np.ndarray:
+        return np.concatenate([base_derivative[0:3], updated_a])
+
+    def perturbed_state_derivative_jac(self, x: np.ndarray) -> np.ndarray:
         """
         The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity,
         J2 perturbations and gravity.
 
-        :param x: A numpy array of shape (9,) containing the current state (position, velocity, unmodelled_accelerations).
-        :return: A numpy array of shape (9, 9) containing the state derivative Jacobian.
+        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity, (unmodelled_accelerations).
+        :return: A numpy array of shape (6,6) or (9,9) containing the state derivative Jacobian.
         """
-        base_jacobian = OrbitalDynamics.state_derivative_jac(x)
+        base_jacobian = Dynamics.state_derivative_jac(x)
 
         v = x[3:6]
         v_norm = np.linalg.norm(v)
 
-        da_drag_gt_dv = np.zeros((3, 3))
-        da_J2_gt_dr = np.zeros((3, 3))
+        da_dr = base_jacobian[3:6, 0:3]
+        da_dv = base_jacobian[3:6, 3:6]
 
         # Compute drag
-        if self.use_drag and v_norm != 0:
+        if self.use_drag and np.isclose(v_norm, 0):
             da_drag_gt_dv = drag_jacobian(
                 x=x, drag_const=self.drag_const, latest_epoch=self.data_manager.latest_epoch
             )
+
+            da_dv += da_drag_gt_dv
 
         # Compute J2 either using autodiff or manually
         if self.use_j2:
             # da_J2_gt_dr = j2_derivative_manual(x[:3])
             da_J2_gt_dr = j2_jacobian_auto(x[0:3])
 
-        da_dr = base_jacobian[3:6, 0:3] + da_J2_gt_dr
-        da_dv = base_jacobian[3:6, 3:6] + da_drag_gt_dv
+            da_dr += da_J2_gt_dr
 
-        dv_dua = np.zeros((3, 3))
-        # Compute unmodelled accelerations jacobian
-        da_dua = np.eye(3) if self.use_unmodelled_a else np.zeros((3, 3))
+        # Compute unmodelled accelerations
+        if self.use_unmodelled_a:
+            dv_dua = np.zeros((3, 3))
+            da_dua = np.eye(3)
 
-        dua_dr = np.zeros((3, 3))
-        dua_dv = np.zeros((3, 3))
-        dua_dua = np.zeros((3, 3))
+            dua_dr = np.zeros((3, 3))
+            dua_dv = np.zeros((3, 3))
+            dua_dua = np.zeros((3, 3))
 
+            return np.block(
+                [
+                    [base_jacobian[0:3, 0:6], dv_dua],
+                    [da_dr, da_dv, da_dua],
+                    [dua_dr, dua_dv, dua_dua],
+                ]
+            )
+
+        return np.block([[base_jacobian[0:3, 0:6]], [da_dr, da_dv]])
+
+        # TODO: incorporate drag estimate into the jacobian
         # dest_drag = np.zeros((3,9))
         # dv_dest_drag = np.zeros((3,1))
 
@@ -249,17 +264,7 @@ class OrbitalDynamics:
         # dua_dest_drag = np.zeros((3,1))
         # dest_drag_dest_drag = np.eye((1))
 
-        # TODO: incorporate drag estimate into the jacobian
-
-        return np.block(
-            [
-                [base_jacobian[0:3, 0:6], dv_dua],
-                [da_dr, da_dv, da_dua],
-                [dua_dr, dua_dv, dua_dua],
-            ]
-        )
-
-    def full_f(self, x: np.ndarray, dt: float) -> np.ndarray:
+    def perturbed_f(self, x: np.ndarray, dt: float) -> np.ndarray:
         """
         The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics
         with second order effects.
@@ -269,10 +274,9 @@ class OrbitalDynamics:
 
         :return: A numpy array of shape (9,) containing the next state (position, velocity and unmodelled accelerations).
         """
-        dynamics = lambda state: self.full_state_derivative(state)
-        return OrbitalDynamics.RK4(x=x, func=dynamics, dt=dt)
+        return Dynamics.RK4(x=x, func=self.perturbed_state_derivative, dt=dt)
 
-    def full_f_jac(self, x: np.ndarray, dt: float) -> np.ndarray:
+    def perturbed_f_jac(self, x: np.ndarray, dt: float) -> np.ndarray:
         """
         The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics
         with second order effects.
@@ -283,6 +287,9 @@ class OrbitalDynamics:
 
         :return: A numpy array of shape (9, 9) containing the state transition Jacobian.
         """
-        dynamics = lambda state: self.full_state_derivative(state)
-        jacobian = lambda state: self.full_state_derivative_jac(state)
-        return OrbitalDynamics.RK4_jac(x=x, func=dynamics, func_jac=jacobian, dt=dt)
+        return Dynamics.RK4_jac(
+            x=x,
+            func=self.perturbed_state_derivative,
+            func_jac=self.perturbed_state_derivative_jac,
+            dt=dt,
+        )
