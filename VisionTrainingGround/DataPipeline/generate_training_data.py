@@ -17,6 +17,10 @@ from utils.config_utils import load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 
 
+MGRS_REGIONS_OUTPUT_FILE_SUFFIX = "_mgrs_regions.npy"
+LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npy"
+
+
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments for generating training data using the EarthImageSimulator.
@@ -168,8 +172,8 @@ def main() -> None:
                 os.path.join(region_dir, f"{file_name}.png"),
                 cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
             )
-            np.save(os.path.join(region_dir, f"{file_name}_mgrs_regions.npy"), mgrs_regions)
-            np.save(os.path.join(region_dir, f"{file_name}_lat_lon.npy"), lat_lon)
+            np.save(os.path.join(region_dir, f"{file_name}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"), mgrs_regions)
+            np.save(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
 
 
 if __name__ == "__main__":
