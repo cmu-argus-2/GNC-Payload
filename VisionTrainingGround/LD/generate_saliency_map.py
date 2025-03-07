@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_id: str) -> None:
+def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_id: str) -> GeoTIFFData:
     """
     Generate a saliency map for a MGRS region from a directory of PNGs and .npy files.
 
@@ -60,6 +60,7 @@ def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_i
     :param output_file: The file to save the saliency map to.
     :param gsd: The ground sample distance to use for the saliency map.
     :param region_id: The MGRS region to generate the saliency map for.
+    :return: The saliency map as a GeoTIFFData object.
     """
     file_names = os.listdir(input_dir)
     image_file_names = {name[:-4] for name in file_names if name.endswith(".png")}
@@ -121,8 +122,7 @@ def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_i
 
     nonzero = region_saliency_map_counts > 0
     region_saliency_map.image_data[nonzero, :] /= region_saliency_map_counts[nonzero]
-
-    region_saliency_map.save()
+    return region_saliency_map
 
 
 def main() -> None:
@@ -142,7 +142,8 @@ def main() -> None:
         if args.region_override is not None
         else os.path.basename(args.input_dir)
     )
-    generate_saliency_map(args.input_dir, output_file, args.gsd, region)
+    saliency_map = generate_saliency_map(args.input_dir, output_file, args.gsd, region)
+    saliency_map.save()
 
 
 if __name__ == "__main__":
