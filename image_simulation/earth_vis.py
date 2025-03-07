@@ -122,6 +122,30 @@ class GeoTIFFData:
             f=max_lat * scale_y,
         )
 
+    def get_pixel_coordinates(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Get the pixel coordinates corresponding to the given latitudes and longitudes.
+        A mask is also returned to indicate which output pixel coordinates contain valid data.
+
+        :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
+        :return: A Tuple containing:
+                 - A numpy array of shape lat_lon.shape[:-1] containing the horizontal pixel coordinates, u.
+                 - A numpy array of shape lat_lon.shape[:-1] containing the vertical pixel coordinates, v.
+                 - A numpy array of shape lat_lon.shape[:-1] indicating which pixel coordinates contain valid data.
+        """
+        assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
+
+        shape_prefix = lat_lon.shape[:-1]
+        lat_flat, lon_flat = lat_lon.reshape(-1, 2).T
+
+        us, vs = self.transform * (lon_flat, lat_flat)
+        us = np.floor(us).astype(int).reshape(shape_prefix)
+        vs = np.floor(vs).astype(int).reshape(shape_prefix)
+
+        height, width, _ = self.image_data.shape
+        valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
+        return us, vs, valid_mask
+
     def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
@@ -134,23 +158,12 @@ class GeoTIFFData:
                  - A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
                  - A numpy array of shape lat_lon.shape[:-1] indicating which output pixels contain valid data.
         """
-        assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
+        us, vs, valid_mask = self.get_pixel_coordinates(lat_lon)
 
-        shape_prefix = lat_lon.shape[:-1]
-        lat_flat, lon_flat = lat_lon.reshape(-1, 2).T
-
-        us, vs = self.transform * (lon_flat, lat_flat)
-        us = np.floor(us).astype(int)
-        vs = np.floor(vs).astype(int)
-
-        height, width, num_channels = self.image_data.shape
-        valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
-
-        num_pixels = np.prod(shape_prefix)
-        image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
+        image_flat = np.zeros(lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype)
         image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
-        return image_flat.reshape(*shape_prefix, num_channels), valid_mask.reshape(shape_prefix)
+        return image_flat, valid_mask
 
 
 class GeoTIFFCache:
