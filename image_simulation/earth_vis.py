@@ -11,6 +11,7 @@ from typing import Tuple, ClassVar
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+from rasterio.crs import CRS
 from affine import Affine
 
 from sensors.camera_model import CameraModel
@@ -39,6 +40,8 @@ class GeoTIFFData:
     """
 
     OCEAN_DATA_DIR: ClassVar[str] = os.path.join(__file__, "../ocean_data/")
+    SUPPORTED_DTYPES: ClassVar[Tuple[type, ...]] = (np.uint8, np.float32)
+    EPSG_4326_CRS: ClassVar[CRS] = CRS.from_epsg(4326)
 
     image_path: str
     image_data: np.ndarray
@@ -54,10 +57,20 @@ class GeoTIFFData:
 
         Returns:
             GeoTIFFData: The GeoTIFFData contained in the file.
+        Raises:
+            ValueError: If the GeoTIFF file contains a coordinate reference system other than GeoTIFFData.EPSG_4326_CRS,
+                        or if the data type of the image is not in GeoTIFFData.SUPPORTED_DTYPES.
         """
         with rasterio.open(file_path) as src:
+            if src.crs != GeoTIFFData.EPSG_4326_CRS:
+                raise ValueError(f"GeoTIFF file located at {file_path} contains "
+                                 f"an unsupported coordinate reference system: {src.crs}")
             image_data = src.read()
             transform = src.transform
+
+        if image_data.dtype not in GeoTIFFData.SUPPORTED_DTYPES:
+            raise ValueError(f"Unsupported data type {image_data.dtype}. Supported data types are: "
+                             f"{', '.join(str(dtype) for dtype in GeoTIFFData.SUPPORTED_DTYPES)}.")
 
         # convert from (channels, height, width) to (height, width, channels)
         image_data = np.moveaxis(image_data, 0, -1)
