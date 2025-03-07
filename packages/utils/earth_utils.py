@@ -2,14 +2,11 @@
 Common earth utilities.
 """
 
-<<<<<<< HEAD:packages/utils/earth_utils.py
 from functools import cache
 
-=======
 import math
 
 import brahe
->>>>>>> main:utils/earth_utils.py
 import numpy as np
 from brahe import Epoch
 
