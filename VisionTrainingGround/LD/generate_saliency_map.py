@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
         help="The ground sample distance to use for the saliency map.",
     )
     parser.add_argument(
-        "--region-override",
+        "--region",
         type=str,
         help="The MGRS region to generate the saliency map for."
         "If not provided, the region will be inferred from the input directory name.",
@@ -131,17 +131,13 @@ def main() -> None:
     """
     args = parse_args()
 
+    region = args.region if args.region is not None else os.path.basename(args.input_dir)
     output_file = os.path.join(args.input_dir, OUTPUT_FILE_NAME)
     if os.path.exists(output_file):
         if not args.overwrite:
             raise FileExistsError(f"Output file {output_file} already exists.")
         os.remove(output_file)
 
-    region = (
-        args.region_override
-        if args.region_override is not None
-        else os.path.basename(args.input_dir)
-    )
     saliency_map = generate_saliency_map(args.input_dir, output_file, args.gsd, region)
     saliency_map.save()
 
