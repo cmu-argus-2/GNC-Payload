@@ -52,7 +52,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_id: str) -> GeoTIFFData:
+def generate_saliency_map(
+    input_dir: str, output_file: str, gsd: float, region_id: str
+) -> GeoTIFFData:
     """
     Generate a saliency map for a MGRS region from a directory of PNGs and .npy files.
 
@@ -72,11 +74,15 @@ def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_i
     common_file_names = list(image_file_names & lat_lon_file_names)
 
     if len(image_file_names) != len(common_file_names):
-        print(f"Warning: Some PNG files do not have corresponding lat/lon files: "
-              f"{list(image_file_names - lat_lon_file_names)}")
+        print(
+            f"Warning: Some PNG files do not have corresponding lat/lon files: "
+            f"{list(image_file_names - lat_lon_file_names)}"
+        )
     if len(lat_lon_file_names) != len(common_file_names):
-        print(f"Warning: Some lat/lon files do not have corresponding PNG files: "
-              f"{list(lat_lon_file_names - image_file_names)}")
+        print(
+            f"Warning: Some lat/lon files do not have corresponding PNG files: "
+            f"{list(lat_lon_file_names - image_file_names)}"
+        )
     if len(common_file_names) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
@@ -117,7 +123,11 @@ def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_i
         us, vs, valid_mask = region_saliency_map.get_pixel_coordinates(lat_lon)
 
         # cannot use += because it won't work with repeated indices
-        np.add.at(region_saliency_map.image_data, (vs[valid_mask], us[valid_mask]), img_saliency_map[valid_mask])
+        np.add.at(
+            region_saliency_map.image_data,
+            (vs[valid_mask], us[valid_mask]),
+            img_saliency_map[valid_mask],
+        )
         np.add.at(region_saliency_map_counts, (vs[valid_mask], us[valid_mask]), 1)
 
     nonzero = region_saliency_map_counts > 0
