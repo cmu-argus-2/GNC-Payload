@@ -77,6 +77,36 @@ class GeoTIFFData:
         inverse_transform = ~transform
         return GeoTIFFData(file_path, image_data, inverse_transform)
 
+    def save(self) -> None:
+        """
+        Save the contents of this GeoTIFFData object to the underlying file specified by self.image_path.
+        Note that this will overwrite any existing file at that location.
+
+        Note that this assumes that self.transform maps to pixel coordinates from the EPSG:4326 coordinate reference
+        system, which corresponds to (longitude, latitude) coordinates in degrees using the WGS 84 ellipsoid.
+        """
+        assert self.dtype in GeoTIFFData.SUPPORTED_DTYPES, (
+            f"Unsupported data type {self.dtype}. Supported data types are: "
+            f"{', '.join(str(dtype) for dtype in GeoTIFFData.SUPPORTED_DTYPES)}."
+        )
+        height, width, num_channels = self.image_data.shape
+
+        # convert from (height, width, channels) to (channels, height, width)
+        image_data = np.moveaxis(self.image_data, -1, 0)
+        inverse_transform = ~self.transform
+
+        metadata = {
+            "driver": "GTiff",
+            "height": height,
+            "width": width,
+            "count": num_channels,
+            "dtype": self.dtype,
+            "crs": GeoTIFFData.EPSG_4326_CRS,
+            "transform": inverse_transform,
+        }
+        with rasterio.open(self.image_path, "w", **metadata) as dst:
+            dst.write(image_data)
+
     @staticmethod
     def load_random_ocean_data() -> "GeoTIFFData":
         """
