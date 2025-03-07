@@ -8,6 +8,7 @@ import os
 
 import cv2
 import numpy as np
+from scipy.ndimage import uniform_filter
 from affine import Affine
 from brahe.constants import R_EARTH
 
@@ -133,6 +134,50 @@ def generate_saliency_map(
     nonzero = region_saliency_map_counts > 0
     region_saliency_map.image_data[nonzero, :] /= region_saliency_map_counts[nonzero]
     return region_saliency_map
+
+
+def find_best_bounding_boxes(
+    saliency_map: GeoTIFFData, window_size: int, num_boxes: int
+) -> np.ndarray:
+    """
+    Find the top saliency bounding boxes of the specified size within a saliency map.
+
+    :param saliency_map: The saliency map to generate bounding boxes for.
+    :param window_size: The size of the bounding boxes to find in the saliency map. Must be odd.
+    :param num_boxes: The number of top saliency boxes to identify.
+    :return: A numpy array of shape (num_boxes, 6) containing (centroid_lon, centroid_lat, top_left_lon, top_left_lat,
+             bottom_right_lon, bottom_right_lat) for each of the top saliency bounding boxes.
+    """
+    if window_size % 2 == 0:
+        raise ValueError("Window size must be odd.")
+    half_window_size = window_size // 2
+
+    bounding_box_mean_saliencies = uniform_filter(
+        saliency_map.image_data[..., 0], size=window_size, mode="constant", cval=0
+    )
+
+    # ensure resulting bounding boxes are strictly within the GeoTIFF bounds
+    bounding_box_mean_saliencies[:half_window_size, :] = 0
+    bounding_box_mean_saliencies[-half_window_size:, :] = 0
+    bounding_box_mean_saliencies[:, :half_window_size] = 0
+    bounding_box_mean_saliencies[:, -half_window_size:] = 0
+
+    top_indices = np.argpartition(bounding_box_mean_saliencies, -num_boxes, axis=None)[-num_boxes:]
+    centroid_vs, centroid_us = np.unravel_index(top_indices, bounding_box_mean_saliencies.shape)
+    top_left_us = centroid_us - half_window_size
+    top_left_vs = centroid_vs - half_window_size
+    bottom_right_us = centroid_us + half_window_size
+    bottom_right_vs = centroid_vs + half_window_size
+
+    inverse_transform = ~saliency_map.transform
+    centroid_lon, centroid_lat = inverse_transform * (centroid_us, centroid_vs)
+    top_left_lon, top_left_lat = inverse_transform * (top_left_us, top_left_vs)
+    bottom_right_lon, bottom_right_lat = inverse_transform * (bottom_right_us, bottom_right_vs)
+
+    csv_data = np.column_stack(
+        (centroid_lon, centroid_lat, top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat)
+    )
+    return csv_data
 
 
 def main() -> None:
