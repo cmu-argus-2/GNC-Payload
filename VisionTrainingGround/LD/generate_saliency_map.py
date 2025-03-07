@@ -115,10 +115,8 @@ def generate_saliency_map(input_dir: str, output_file: str, gsd: float, region_i
 
         us, vs, valid_mask = region_saliency_map.get_pixel_coordinates(lat_lon)
 
-        region_saliency_map.image_data[vs[valid_mask], us[valid_mask], :] += img_saliency_map[
-            valid_mask
-        ]
         # cannot use += because it won't work with repeated indices
+        np.add.at(region_saliency_map.image_data, (vs[valid_mask], us[valid_mask]), img_saliency_map[valid_mask])
         np.add.at(region_saliency_map_counts, (vs[valid_mask], us[valid_mask]), 1)
 
     nonzero = region_saliency_map_counts > 0
