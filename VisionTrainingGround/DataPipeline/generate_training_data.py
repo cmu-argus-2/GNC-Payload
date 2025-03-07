@@ -16,7 +16,6 @@ from sensors.camera_model import CameraModelManager
 from utils.config_utils import load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 
-
 MGRS_REGIONS_OUTPUT_FILE_SUFFIX = "_mgrs_regions.npy"
 LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npy"
 
@@ -172,7 +171,10 @@ def main() -> None:
                 os.path.join(region_dir, f"{file_name}.png"),
                 cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
             )
-            np.save(os.path.join(region_dir, f"{file_name}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"), mgrs_regions)
+            np.save(
+                os.path.join(region_dir, f"{file_name}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"),
+                mgrs_regions,
+            )
             np.save(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
 
 
