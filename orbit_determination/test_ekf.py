@@ -22,7 +22,7 @@ from sensors.bias import BiasParams
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
-from utils.brahe_utils import load_brahe_data_files
+from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
@@ -171,5 +171,5 @@ def run_simulation() -> None:
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
-    load_brahe_data_files()
+    load_brahe_data_files_if_needed()
     run_simulation()
