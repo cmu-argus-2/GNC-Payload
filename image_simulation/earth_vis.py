@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
-from typing import Tuple
+from typing import Tuple, ClassVar
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +17,12 @@ from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # pylint: disable=import-error
-from utils.earth_utils import calculate_mgrs_zones, ecef_to_lat_lon, intersect_ellipsoid
+from utils.earth_utils import (
+    calculate_mgrs_zones,
+    ecef_to_lat_lon,
+    intersect_ellipsoid,
+    get_MGRS_grid,
+)
 from vision_inference.frame import Frame
 
 
@@ -32,6 +37,8 @@ class GeoTIFFData:
         transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (longitudes, latitudes)
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
+
+    OCEAN_DATA_DIR: ClassVar[str] = os.path.join(__file__, "../ocean_data/")
 
     image_path: str
     image_data: np.ndarray
@@ -57,6 +64,18 @@ class GeoTIFFData:
         inverse_transform = ~transform
         return GeoTIFFData(file_path, image_data, inverse_transform)
 
+    @staticmethod
+    def load_random_ocean_data() -> "GeoTIFFData":
+        """
+        Get the GeoTIFFData for a sample ocean data file.
+
+        Returns:
+            GeoTIFFData: The GeoTIFFData for the ocean data.
+        """
+        ocean_data_path = np.random.choice(os.listdir(GeoTIFFData.OCEAN_DATA_DIR))
+        ocean_data = GeoTIFFData.load(ocean_data_path)
+        return ocean_data
+
     @property
     def num_channels(self) -> int:
         """
@@ -76,6 +95,32 @@ class GeoTIFFData:
             The data type of the GeoTIFF data.
         """
         return self.image_data.dtype
+
+    def remap_to_mgrs_region(self, region_id: str) -> None:
+        """
+        Remap this GeoTIFFData to represent the specified MGRS region.
+        Note that this overwrites the current transform, which is loaded from the underlying GeoTIFF file by default.
+
+        :param region_id: The MGRS region ID to remap this GeoTIFFData to.
+        """
+        height, width, _ = self.image_data.shape
+        min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+        scale_x = width / (max_lon - min_lon)
+        scale_y = height / (max_lat - min_lat)
+
+        # maps (lon, lat) to (u, v) (i.e. width, height)
+        self.transform = Affine(
+            # don't flip the x-axis since increasing u corresponds to increasing longitude
+            a=scale_x,
+            b=0,
+            # choose offset such that min_lon maps to u=0
+            c=-min_lon * scale_x,
+            d=0,
+            # flip the y-axis since increasing v corresponds to decreasing latitude
+            e=-scale_y,
+            # choose offset such that max_lat maps to v=0
+            f=max_lat * scale_y,
+        )
 
     def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -118,12 +163,18 @@ class GeoTIFFCache:
 
     FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
 
-    def __init__(self, geotiff_folder: str | None = None, max_cache_size: int | None = 58):
+    def __init__(
+        self,
+        geotiff_folder: str | None = None,
+        use_ocean_imagery: bool = True,
+        max_cache_size: int | None = 58,
+    ):
         """
         Initialize the GeoTIFF cache.
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
+            use_ocean_imagery: Whether to return GeoTiIFFData objects containing ocean data for regions without data.
             max_cache_size: Maximum number of regions to maintain in the cache.
                             Set to 0 to disable caching. Set to None for unlimited size.
                             The default value was chosen via compute_max_visible_regions in test_earth_vis.py.
@@ -133,7 +184,8 @@ class GeoTIFFCache:
             if geotiff_folder is not None
             else GeoTIFFCache.get_default_geotiff_folder()
         )
-        GeoTIFFCache.validate_region_folders_exist(self.geotiff_folder)
+        GeoTIFFCache.validate_salient_region_data_exists(self.geotiff_folder)
+        self.use_ocean_imagery = use_ocean_imagery
 
         # Dynamically wrap the member function with an LRU cache
         # This also ensures that each instance has its own cache and prevents the need to call hash(self) inside the
@@ -155,28 +207,31 @@ class GeoTIFFCache:
         return GeoTIFFCache.FALLBACK_GEOTIFF_FOLDER
 
     @staticmethod
-    def validate_region_folders_exist(geotiff_folder: str) -> None:
+    def validate_salient_region_data_exists(geotiff_folder: str) -> None:
         """
-        Check if all salient region folders exist in the specified GeoTIFF folder.
+        Check if all salient region folders exist in the specified GeoTIFF folder and are not empty.
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
 
         Raises:
-            FileNotFoundError: If one or more region folders are not found.
+            FileNotFoundError: If one or more region folders are not found or are empty.
         """
         salient_region_ids = load_config()["vision"]["salient_mgrs_region_ids"]
 
-        all_region_folders_exist = True
+        all_regions_have_data = True
         for region in salient_region_ids:
             region_folder = os.path.join(geotiff_folder, region)
             if not os.path.exists(region_folder):
                 print(f"WARNING: Region folder '{region_folder}' not found.")
-                all_region_folders_exist = False
-        if all_region_folders_exist:
-            print("All salient region folders found!")
+                all_regions_have_data = False
+            if len(os.listdir(region_folder)) == 0:
+                print(f"WARNING: Region folder '{region_folder}' is empty.")
+                all_regions_have_data = False
+        if all_regions_have_data:
+            print("All salient region folders found and contain data.")
         else:
-            raise FileNotFoundError("One or more region folders not found.")
+            raise FileNotFoundError("One or more region folders not found or empty.")
 
     def load_geotiff_data(self, region: str) -> GeoTIFFData | None:
         """
@@ -189,12 +244,22 @@ class GeoTIFFCache:
         :param region: The MGRS region to load data for.
         :return: A GeoTIFFData object, or None if there is no data for the specified region.
         """
+        # TODO: the lru_cache for load_geotiff_data may contain duplicate image data data for different ocean regions
+        #       (although they'll have different transforms). We probably want to avoid this, possibly by using a
+        #       custom cache implementation.
+        def fallback_loader() -> GeoTIFFData | None:
+            if not self.use_ocean_imagery:
+                return None
+            ocean_data = GeoTIFFData.load_random_ocean_data()
+            ocean_data.remap_to_mgrs_region(region)
+            return ocean_data
+
         region_folder = os.path.join(self.geotiff_folder, region)
         if not os.path.exists(region_folder):
-            return None
+            return fallback_loader()
         region_files = os.listdir(region_folder)
         if len(region_files) == 0:
-            return None
+            return fallback_loader()
 
         selected_file = np.random.choice(region_files)
         file_path = os.path.join(region_folder, selected_file)
@@ -273,8 +338,6 @@ class EarthImageSimulator:
 
             image[region_mask] = region_image
             valid_mask[region_mask] |= region_valid_mask
-
-        # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
