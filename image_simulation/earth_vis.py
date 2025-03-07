@@ -6,13 +6,13 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
-from typing import Tuple, ClassVar
+from typing import ClassVar, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
-from rasterio.crs import CRS
 from affine import Affine
+from rasterio.crs import CRS
 
 from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -21,8 +21,8 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import (
     calculate_mgrs_zones,
     ecef_to_lat_lon,
-    intersect_ellipsoid,
     get_MGRS_grid,
+    intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
 
@@ -63,14 +63,18 @@ class GeoTIFFData:
         """
         with rasterio.open(file_path) as src:
             if src.crs != GeoTIFFData.EPSG_4326_CRS:
-                raise ValueError(f"GeoTIFF file located at {file_path} contains "
-                                 f"an unsupported coordinate reference system: {src.crs}")
+                raise ValueError(
+                    f"GeoTIFF file located at {file_path} contains "
+                    f"an unsupported coordinate reference system: {src.crs}"
+                )
             image_data = src.read()
             transform = src.transform
 
         if image_data.dtype not in GeoTIFFData.SUPPORTED_DTYPES:
-            raise ValueError(f"Unsupported data type {image_data.dtype}. Supported data types are: "
-                             f"{', '.join(str(dtype) for dtype in GeoTIFFData.SUPPORTED_DTYPES)}.")
+            raise ValueError(
+                f"Unsupported data type {image_data.dtype}. Supported data types are: "
+                f"{', '.join(str(dtype) for dtype in GeoTIFFData.SUPPORTED_DTYPES)}."
+            )
 
         # convert from (channels, height, width) to (height, width, channels)
         image_data = np.moveaxis(image_data, 0, -1)
@@ -165,7 +169,9 @@ class GeoTIFFData:
             f=max_lat * scale_y,
         )
 
-    def get_pixel_coordinates(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_pixel_coordinates(
+        self, lat_lon: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Get the pixel coordinates corresponding to the given latitudes and longitudes.
         A mask is also returned to indicate which output pixel coordinates contain valid data.
@@ -203,7 +209,9 @@ class GeoTIFFData:
         """
         us, vs, valid_mask = self.get_pixel_coordinates(lat_lon)
 
-        image_flat = np.zeros(lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype)
+        image_flat = np.zeros(
+            lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype
+        )
         image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
         return image_flat, valid_mask
@@ -300,6 +308,7 @@ class GeoTIFFCache:
         :param region: The MGRS region to load data for.
         :return: A GeoTIFFData object, or None if there is no data for the specified region.
         """
+
         # TODO: the lru_cache for load_geotiff_data may contain duplicate image data data for different ocean regions
         #       (although they'll have different transforms). We probably want to avoid this, possibly by using a
         #       custom cache implementation.
