@@ -11,7 +11,7 @@ import quaternion
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
-from utils.math_utils import R, left_q, rot_2_q, Drp2q, G  # right_q
+from utils.math_utils import R, left_q, rot_2_q
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -39,6 +39,7 @@ class EKF:
         data_manager: ODSimulationDataManager,
         ua: np.ndarray,
         ekf_dynamics: Dynamics,
+        ang_vel: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -56,6 +57,7 @@ class EKF:
         :param data_manager: The ODSimulationDataManager object containing the simulation data.
         :param ua: The unmodeled acceleration with shape (3,)
         :param ekf_dynamics: The OrbitalDynamics object used to calculate the dynamics of the system.
+        :param ang_vel: The angular velocity of the system with shape (3,)
 
         :return: None
 
@@ -72,6 +74,7 @@ class EKF:
 
         # self.a_b = a_b
         self.w_b = w_b
+        self.ang_vel = ang_vel
 
         self.ua = ua
 
@@ -110,38 +113,56 @@ class EKF:
 
         # TODO: Use IMU measurements and update quaternion estimate
 
-        w = u[0:3]  # angular velocity measurement from IMU
-
         x = np.concatenate([self.r_m, self.v_m, self.ua])
         A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt)
         x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(self.dt * (w - self.w_b/1e10))
+            quaternion.from_rotation_vector(self.dt * self.ang_vel)
         )
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
         self.ua = x_new[6:9]
 
+        # self.w_b = self.w_b
+        # self.ang_vel = self.ang_vel
+
         dqdq = quaternion.as_rotation_matrix(
-            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b/1e10))
+            quaternion.from_rotation_vector(self.dt * self.ang_vel)
         )
-        dqdw = (
-            self.dt
-            * G(self.q_p).T
-            @ left_q(self.q_m)
-            @ Drp2q(self.dt * (w - self.w_b/1e10))
-        )
-
-        # A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
-
-        A = np.block([  [A_pos, np.zeros((9, 6))],
-                        [np.zeros((3, 9)), dqdq, dqdw],
-                        [np.zeros((3, 12)), np.eye(3)]
+        dq_dang_vel = 0.5 * self.dt * np.eye(3)
+        
+        A = np.block([  [A_pos, np.zeros((9, 9))],
+                        [np.zeros((3, 9)), dqdq, np.zeros((3, 3)), dq_dang_vel],
+                        [np.zeros((3, 12)), np.eye(3), np.zeros((3, 3))],
+                        [np.zeros((3, 15)), np.eye(3)]
                     ])
 
         self.P_p = A @ self.P_m @ A.T + self.Q
+
+        # Run IMU update
+        self.R = np.diag([1e-5] * 3)
+        H = np.concatenate([np.zeros((3,12)),np.eye(3), np.eye(3)],axis=1)
+        S = H @ self.P_p @ H.T + self.R
+        K = self.P_p @ H.T @ np.linalg.inv(S)
+        z = u[0:3] - (self.ang_vel + self.w_b)
+        delta = K @ z
+        self.w_b = self.w_b + delta[12:15]
+        self.ang_vel = self.ang_vel + delta[15:18]
+
+        # Quaternion update
+        qp_tmp = quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p))
+        self.q_p = quaternion.as_float_array(
+                quaternion.from_rotation_vector(np.array(qp_tmp))
+                * quaternion.from_rotation_vector(delta[9:12])
+            )
+        
+        self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
+                np.eye(self.P_m.shape[0]) - K @ H
+            ).T + K @ self.R @ K.T
+
+
 
     def no_measurement(self) -> None:
         """
@@ -199,6 +220,7 @@ class EKF:
                     self.ua,
                     quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
                     self.w_b,
+                    self.ang_vel,
                 ]
             )
         )
@@ -227,13 +249,14 @@ class EKF:
                 * quaternion.from_rotation_vector(delta[9:12])
             )
             self.w_b = np.array(x_p[12:15]) + delta[12:15]
+            self.ang_vel = np.array(x_p[15:18]) + delta[15:18]
 
             # Joseph form covariance update
             self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
                 np.eye(self.P_m.shape[0]) - K @ H
             ).T + K @ self.R @ K.T
 
-            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m, self.w_b]))
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m, self.w_b, self.ang_vel]))
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
