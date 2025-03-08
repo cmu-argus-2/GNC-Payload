@@ -116,7 +116,7 @@ class EKF:
         x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(self.dt * (w - self.w_b/1e10))
+            quaternion.from_rotation_vector(self.dt * (w - self.w_b))
         )
 
         self.r_p = x_new[0:3]
@@ -124,13 +124,13 @@ class EKF:
         self.ua = x_new[6:9]
 
         dqdq = quaternion.as_rotation_matrix(
-            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b/1e10))
+            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b))
         )
         dqdw = (
-            self.dt
+            -1 * self.dt
             * G(self.q_p).T
             @ left_q(self.q_m)
-            @ Drp2q(self.dt * (w - self.w_b/1e10))
+            @ Drp2q(self.dt * (w - self.w_b))
         )
 
         # A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))

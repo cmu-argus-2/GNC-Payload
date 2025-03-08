@@ -54,9 +54,9 @@ def imu_init(dt: float) -> IMU:
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
-    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
-    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.01], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.001], [0, 0.001])
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.001], [0, 0.001])
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.001], [0, 0.001])
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -80,8 +80,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 4 # Hz
-    config["mission"]["duration"] = 3 * 90 * 20  # s
+    config["solver"]["world_update_rate"] = 8 # Hz
+    config["mission"]["duration"] = 3 * 90 * 10  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -121,11 +121,11 @@ def run_simulation() -> None:
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
-    gyro_bias = imu.get_bias()[0] * 1e10
+    gyro_bias = imu.get_bias()[0]
     ekf = EKF(
         # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 500, 3),
+        r=initial_state[0:3] + np.random.normal(0, 1000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
@@ -134,7 +134,7 @@ def run_simulation() -> None:
         dt=dt,
         config=config,
         ekf_dynamics=ekf_dynamics,
-        w_b=gyro_bias
+        w_b=gyro_bias + np.random.normal(0, 1e-4, 3),
     )
 
     # Store errors for plotting
@@ -151,8 +151,8 @@ def run_simulation() -> None:
         q = data_manager.latest_attitude
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
-        x_y_wobble = np.random.normal(0, 5e-2, 2)
-        w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
+        # x_y_wobble = np.random.normal(0, 5e-2, 2)
+        w = rot # + np.concatenate([x_y_wobble, np.zeros((1))])
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
         gyro_meas, _ = imu.update(w, np.zeros((3)))
@@ -197,7 +197,7 @@ def run_simulation() -> None:
         vel_error.append(ekf.v_m - next_state[3:6])
         ua_error.append(ekf.ua)
         cov_trace.append(np.trace(ekf.P_m))
-        gyro_bias_error.append(ekf.w_b/1e10 - imu_gyro_bias)
+        gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
