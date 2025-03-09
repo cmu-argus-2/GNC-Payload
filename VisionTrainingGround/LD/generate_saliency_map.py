@@ -18,6 +18,7 @@ from utils.earth_utils import get_MGRS_grid
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
+BOUNDING_BOXES_FILE_NAME = "bounding_boxes.csv"
 
 
 def parse_args() -> argparse.Namespace:
@@ -220,7 +221,7 @@ def main() -> None:
     window_size = 2 * int(np.rint((window_size - 1) / 2)) + 1
     csv_data = find_best_bounding_boxes(saliency_map, window_size, args.num_boxes)
     np.savetxt(
-        os.path.join(args.input_dir, "bounding_boxes.csv"),
+        os.path.join(args.input_dir, BOUNDING_BOXES_FILE_NAME),
         csv_data,
         delimiter=",",
         header="Centroid Longitude,Centroid Latitude,Top-Left Longitude,"
