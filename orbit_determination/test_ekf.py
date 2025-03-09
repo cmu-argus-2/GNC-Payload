@@ -115,11 +115,11 @@ def run_simulation() -> None:
     # Q[12:15, 12:15] = np.eye(3) * 1e-12
 
     P = np.eye(15)
-    P[0:3, 0:3] *= 1
-    P[3:6, 3:6] *= 1
+    P[0:3, 0:3] *= 5
+    P[3:6, 3:6] *= 5
     P[6:9, 6:9] *= 1e-2
-    P[9:12, 9:12] *= 1e-3
-    P[12:15, 12:15] *= 1e-3
+    P[9:12, 9:12] *= 1e-5
+    P[12:15, 12:15] *= 1e-5
 
 
     # Set up dynamics instance for ground truth and EKF
