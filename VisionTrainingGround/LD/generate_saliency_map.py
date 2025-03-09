@@ -17,7 +17,7 @@ from image_simulation.earth_vis import GeoTIFFData
 from utils.earth_utils import get_MGRS_grid
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 
-OUTPUT_FILE_NAME = "saliency_map.tif"
+SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
 
 
 def parse_args() -> argparse.Namespace:
@@ -206,7 +206,7 @@ def main() -> None:
     args = parse_args()
 
     region = args.region if args.region is not None else os.path.basename(args.input_dir)
-    output_file = os.path.join(args.input_dir, OUTPUT_FILE_NAME)
+    output_file = os.path.join(args.input_dir, SALIENCY_MAP_FILE_NAME)
     if os.path.exists(output_file):
         if not args.overwrite:
             raise FileExistsError(f"Output file {output_file} already exists.")
