@@ -175,8 +175,14 @@ def find_best_bounding_boxes(
     bounding_box_mean_saliencies[:, :half_window_size] = 0
     bounding_box_mean_saliencies[:, -half_window_size:] = 0
 
+    # use argpartition to avoid sorting the entire array
     top_indices = np.argpartition(bounding_box_mean_saliencies, -num_boxes, axis=None)[-num_boxes:]
     centroid_vs, centroid_us = np.unravel_index(top_indices, bounding_box_mean_saliencies.shape)
+    # still need to sort the best bounding boxes so that the class IDs are in descending order of saliency
+    sort_order = np.argsort(bounding_box_mean_saliencies[centroid_vs, centroid_us])[::-1]
+    centroid_vs = centroid_vs[sort_order]
+    centroid_us = centroid_us[sort_order]
+
     top_left_us = centroid_us - half_window_size
     top_left_vs = centroid_vs - half_window_size
     bottom_right_us = centroid_us + half_window_size
