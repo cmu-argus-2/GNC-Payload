@@ -42,21 +42,21 @@ def imu_init(dt: float) -> IMU:
     # Initialize the IMU
     # bias params are min max range of bias and sigma_w
     # [units] and [(units/s)/sqrt(Hz)]
-    bias_params = BiasParams.get_random_params([1e-4, 1e-3], [1e-8, 1e-7])
+    bias_params = BiasParams.get_random_params([1e-3, 1e-2], [1e-7, 1e-6])
     # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
-    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
-    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
+    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.0], [0, 0.0])
+    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.0], [0, 0.0])
+    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.0], [0, 0.0])
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [1e-8, 1e-7], [0, 0.001], [0, 0.001])
-    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [1e-8, 1e-7], [0, 0.001], [0, 0.001])
-    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [1e-8, 1e-7], [0, 0.001], [0, 0.001])
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01])
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -96,15 +96,31 @@ def run_simulation() -> None:
 
     data_manager.push_next_state(initial_state, init_rot)
 
+     # Apply error to init_rot
+    init_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
+    # Ensure orthonormality
+    noisy_rot = init_rot @ np.linalg.inv(np.linalg.cholesky(init_rot.T @ init_rot))
+
     # Set the number of update iterations for the IEKF
     num_iter = 5
 
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
 
-    # Prep Q matrix for the EKF. Unmodelled acceleration has larger uncertainty
+    # Prep Q matrix for the EKF.
     Q = np.eye(15) * 1e-12
+    # Unmodelled acceleration has larger uncertainty
     Q[6:9, 6:9] = np.eye(3) * 1e-5
+    # Bias uncertainty also larger
+    # Q[12:15, 12:15] = np.eye(3) * 1e-12
+
+    P = np.eye(15)
+    P[0:3, 0:3] *= 10
+    P[3:6, 3:6] *= 10
+    P[6:9, 6:9] *= 1
+    P[9:12, 9:12] *= 1e-3
+    P[12:15, 12:15] *= 1e-3
+
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -128,8 +144,8 @@ def run_simulation() -> None:
         r=initial_state[0:3] + np.random.normal(0, 1000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
-        q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(15) * 10,
+        q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
+        P=P,
         Q=Q,
         dt=dt,
         config=config,
@@ -144,6 +160,8 @@ def run_simulation() -> None:
     cov_trace = []
     gyro_bias_error = []
     actual_bias = []
+    sigma_high = []
+    sigma_low = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -200,11 +218,16 @@ def run_simulation() -> None:
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)
+        sigma_high.append(np.array([3 * np.sqrt(ekf.P_m[0, 0]), 3 * np.sqrt(ekf.P_m[1, 1]), 3 * np.sqrt(ekf.P_m[2, 2])]))
+        sigma_low.append(np.array([-3 * np.sqrt(ekf.P_m[0, 0]), -3 * np.sqrt(ekf.P_m[1, 1]), -3 * np.sqrt(ekf.P_m[2, 2])]))
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)
+
+    #Print final covariance matrix
+    print(ekf.P_m)
 
     plt.plot(error)
     plt.legend(["x", "y", "z"])
