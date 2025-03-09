@@ -42,7 +42,7 @@ def imu_init(dt: float) -> IMU:
     # Initialize the IMU
     # bias params are min max range of bias and sigma_w
     # [units] and [(units/s)/sqrt(Hz)]
-    bias_params = BiasParams.get_random_params([1e-6, 1e-5], [1e-6, 1e-5])
+    bias_params = BiasParams.get_random_params([1e-4, 1e-3], [1e-8, 1e-7])
     # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.002], [0, 0.002])
@@ -54,9 +54,9 @@ def imu_init(dt: float) -> IMU:
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0001], [0, 0.001], [0, 0.001])
-    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0001], [0, 0.001], [0, 0.001])
-    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0001], [0, 0.001], [0, 0.001])
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [1e-8, 1e-7], [0, 0.001], [0, 0.001])
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [1e-8, 1e-7], [0, 0.001], [0, 0.001])
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [1e-8, 1e-7], [0, 0.001], [0, 0.001])
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -80,7 +80,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 8 # Hz
+    config["solver"]["world_update_rate"] = 5 # Hz
     config["mission"]["duration"] = 3 * 90 * 10  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -129,7 +129,7 @@ def run_simulation() -> None:
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(init_rot)),
-        P=np.eye(15) * 1,
+        P=np.eye(15) * 10,
         Q=Q,
         dt=dt,
         config=config,
@@ -143,6 +143,7 @@ def run_simulation() -> None:
     ua_error = []
     cov_trace = []
     gyro_bias_error = []
+    actual_bias = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -198,6 +199,7 @@ def run_simulation() -> None:
         ua_error.append(ekf.ua)
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
+        actual_bias.append(imu_gyro_bias)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -240,6 +242,14 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Covariance trace")
     plt.title("EKF Covariance Trace")
+
+    plt.figure()
+
+    plt.plot(actual_bias)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Actual gyro bias [rad/s]")
+    plt.title("Actual Gyro Bias")
 
     plt.show()
     # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
