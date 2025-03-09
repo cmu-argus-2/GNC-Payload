@@ -74,15 +74,6 @@ class EKF:
 
         self.ua = ua
 
-        # Scale the velocity Covariance
-        P[3:6, 3:6] *= 1e-3
-        # Scale the unmodelled acceleration Covariance
-        P[6:9, 6:9] *= 1e-5
-        # Scale the attitude Covariance
-        P[9:12, 9:12] *= 1e-9
-        # Scale the Gyro Bias Covariance
-        P[12:15, 12:15] = np.eye(3) * 1e-5
-
         self.P_m = P
         self.P_p = P
 
