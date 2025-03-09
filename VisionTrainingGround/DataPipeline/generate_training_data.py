@@ -166,16 +166,16 @@ def main() -> None:
                 ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
             )
 
-            file_name = f"{i:05d}"
+            file_prefix = f"{i:05d}"
             cv2.imwrite(
-                os.path.join(region_dir, f"{file_name}.png"),
+                os.path.join(region_dir, f"{file_prefix}.png"),
                 cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
             )
             np.save(
-                os.path.join(region_dir, f"{file_name}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"),
+                os.path.join(region_dir, f"{file_prefix}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"),
                 mgrs_regions,
             )
-            np.save(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
+            np.save(os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
 
 
 if __name__ == "__main__":
