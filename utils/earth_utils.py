@@ -258,6 +258,7 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
         lat_bands[mask] = name
+        assert ~np.any(seen_mask & mask)
         seen_mask |= mask
     assert np.all(seen_mask)
 
