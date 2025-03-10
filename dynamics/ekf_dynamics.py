@@ -30,7 +30,7 @@ class EKFDynamics(Dynamics):
         use_j2: bool,
     ) -> None:
         """
-        Initialize the OrbitalDynamics class.
+        Initialize the EKFDynamics class.
 
         :param config: The configuration dictionary.
         :param use_unmodelled_a: Whether to use unmodelled accelerations in the dynamics.
@@ -46,12 +46,12 @@ class EKFDynamics(Dynamics):
 
     def perturbed_state_derivative(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
-        The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity,
-        J2 perturbations and gravity.
+        The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity
+        and the configured perturbations.
 
         :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
         (unmodelled_accelerations).
-        :param epoch: The current time epoch.
+        :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
 
         :return: A numpy array of shape (6,) or (9,) containing the full state derivative.
         """
@@ -72,12 +72,12 @@ class EKFDynamics(Dynamics):
 
     def perturbed_state_derivative_jac(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
-        The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity,
-        J2 perturbations and gravity.
+        The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity
+        and the configured perturbations.
 
         :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
         (unmodelled_accelerations).
-        :param epoch: The current time epoch.
+        :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
 
         :return: A numpy array of shape (6,6) or (9,9) containing the state derivative Jacobian.
         """

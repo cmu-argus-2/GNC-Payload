@@ -22,7 +22,7 @@ from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manu
 
 class Dynamics:
     """
-    This class contains the orbital dynamics functions. Basic orbital dynamics are
+    This class contains the orbital dynamics functions and second order perturbations. Basic orbital dynamics are
     implemented as static methods so that they can be used without instantiating the class.
     """
 
@@ -33,7 +33,7 @@ class Dynamics:
         use_j2: bool,
     ) -> None:
         """
-        Initialize the OrbitalDynamics class.
+        Initialize the Dynamics class.
 
         :param config: The configuration dictionary.
         :param use_drag: Whether to use drag in the dynamics.
@@ -56,7 +56,7 @@ class Dynamics:
     def state_derivative(x: np.ndarray) -> np.ndarray:
         """
         The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity.
-        J2 perturbations are not included.
+        No perturbations are included.
 
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :return: A numpy array of shape (6,) containing the state derivative.
@@ -72,7 +72,7 @@ class Dynamics:
     def state_derivative_jac(x: np.ndarray) -> np.ndarray:
         """
         The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity.
-        J2 perturbations are not included.
+        No perturbations are included.
 
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :return: A numpy array of shape (6, 6) containing the state derivative Jacobian.
@@ -140,7 +140,7 @@ class Dynamics:
     def f(x: np.ndarray, dt: float) -> np.ndarray:
         """
         The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics under gravity.
-        J2 perturbations are not included.
+        No perturbations are included.
 
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :param dt: The amount of time between each time step.
@@ -152,7 +152,7 @@ class Dynamics:
     def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
         """
         The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics under gravity.
-        J2 perturbations are not included.
+        No perturbations are included.
 
         :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :param dt: The amount of time between each time step.
@@ -162,14 +162,13 @@ class Dynamics:
 
     def perturbed_state_derivative(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
-        The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity,
-        J2 perturbations and gravity.
+        The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity
+        and the configured perturbations.
 
-        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
-        (unmodelled_accelerations).
-        :param epoch: The current time epoch.
+        :param x: A numpy array of shape (6,) containing the current state (position, velocity).
+        :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
 
-        :return: A numpy array of shape (6,) or (9,) containing the full state derivative.
+        :return: A numpy array of shape (6,) containing the full state derivative.
         """
         base_derivative = Dynamics.state_derivative(x)
         r = x[0:3]
@@ -181,6 +180,8 @@ class Dynamics:
 
         # Compute drag
         if self.use_drag and np.isclose(v_norm, 0):
+            if epoch is None:
+                raise ValueError("Epoch is required to compute drag")
             a_drag_gt = drag_dynamics(x=x, drag_const=self.drag_const, latest_epoch=epoch)
 
             updated_a += a_drag_gt
@@ -195,14 +196,13 @@ class Dynamics:
 
     def perturbed_state_derivative_jac(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
-        The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity,
-        J2 perturbations and gravity.
+        The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity
+        and the configured perturbations.
 
-        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
-        (unmodelled_accelerations).
-        :param epoch: The current time epoch.
+        :param x: A numpy array of shape (6,) containing the current state (position, velocity).
+        :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
 
-        :return: A numpy array of shape (6,6) or (9,9) containing the state derivative Jacobian.
+        :return: A numpy array of shape (6,6) containing the state derivative Jacobian.
         """
         base_jacobian = Dynamics.state_derivative_jac(x)
 
@@ -214,6 +214,8 @@ class Dynamics:
 
         # Compute drag
         if self.use_drag and np.isclose(v_norm, 0):
+            if epoch is None:
+                raise ValueError("Epoch is required to compute drag jacobian")
             da_drag_gt_dv = drag_jacobian(x=x, drag_const=self.drag_const, latest_epoch=epoch)
 
             da_dv += da_drag_gt_dv
@@ -229,16 +231,14 @@ class Dynamics:
 
     def perturbed_f(self, x: np.ndarray, dt: float, epoch: Epoch = None) -> np.ndarray:
         """
-        The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics
-        with second order effects.
-        J2 perturbations and drag can be included.
-        :param x: A numpy array of shape (9,) containing the current state (position, velocity and
-        unmodelled accelerations).
-        :param dt: The amount of time between each time step.
-        :param epoch: The current time epoch.
+        The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics under gravity
+        and the configured perturbations.
 
-        :return: A numpy array of shape (9,) containing the next state (position, velocity and
-        unmodelled accelerations).
+        :param x: A numpy array of shape (6,) containing the current state (position, velocity).
+        :param dt: The amount of time between each time step.
+        :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
+
+        :return: A numpy array of shape (6,) containing the next state (position, velocity).
         """
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
@@ -249,15 +249,14 @@ class Dynamics:
 
     def perturbed_f_jac(self, x: np.ndarray, dt: float, epoch: Epoch = None) -> np.ndarray:
         """
-        The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics
-        with second order effects.
-        J2 perturbations and drag can be included.
+        The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics under gravity
+        and the configured perturbations.
 
-        :param x: A numpy array of shape (9,) containing the current state (position and velocity).
+        :param x: A numpy array of shape (6,) containing the current state (position and velocity).
         :param dt: The amount of time between each time step.
-        :param epoch: The current time epoch.
+        :param epoch: The current time epoch.Can be None if the configured perturbations do not require it.
 
-        :return: A numpy array of shape (9, 9) containing the state transition Jacobian.
+        :return: A numpy array of shape (6, 6) containing the state transition Jacobian.
         """
 
         func = (

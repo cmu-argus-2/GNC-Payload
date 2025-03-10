@@ -54,7 +54,7 @@ class EKF:
         :param dt: The amount of time between each time step.
         :param config: The configuration dictionary.
         :param ua: The unmodeled acceleration with shape (3,)
-        :param ekf_dynamics: The OrbitalDynamics object used to calculate the dynamics of the system.
+        :param ekf_dynamics: The Dynamics object used to calculate the dynamics of the system.
 
         :return: None
 
@@ -152,8 +152,7 @@ class EKF:
         landmark positions in ECI coordinates, both with shape (N, 3)
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: The names of the cameras that took the measurements.
-        :param epoch: The epoch at which the measurement is made.
-        Epoch must be provided for ecef-eci transformation!
+        :param epoch: The epoch at which the measurement is made. Epoch must be provided for ecef-eci transformation!
         :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
@@ -237,7 +236,7 @@ class EKF:
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (9,)
-        :param epoch: The epoch at which the measurement is made.
+        :param epoch: The epoch at which the measurement is made. Epoch must be provided for ecef-eci transformation!
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
@@ -264,7 +263,7 @@ class EKF:
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of [position, velocity, rotation_vector] with shape (9,)
-        :param Epoch: The epoch at which the measurement is made.
+        :param epoch: The epoch at which the measurement is made. Epoch must be provided for ecef-eci transformation!
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
         """
