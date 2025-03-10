@@ -11,9 +11,9 @@ from typing import List
 
 import cv2
 import numpy as np
-from scipy.ndimage import uniform_filter
 from affine import Affine
 from brahe.constants import R_EARTH
+from scipy.ndimage import uniform_filter
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.earth_utils import get_MGRS_grid, lat_lon_to_ecef
