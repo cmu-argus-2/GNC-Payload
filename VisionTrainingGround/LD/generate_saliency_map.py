@@ -6,6 +6,7 @@ The saliency map is then used to identify the top saliency bounding boxes, which
 
 import argparse
 import os
+from typing import List
 
 import cv2
 import numpy as np
@@ -67,6 +68,36 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_common_file_name_prefixes(input_dir: str) -> List[str]:
+    """
+    Get the common file name prefixes for PNG and .npy lat/lon files in the input directory.
+    A warning is printed if there are PNG files without corresponding lat/lon files, or vice versa.
+
+    :param input_dir: The directory containing the PNGs and .npy files.
+    :return: A list of common file name prefixes.
+    """
+    file_names = os.listdir(input_dir)
+    image_file_prefixes = {name[:-4] for name in file_names if name.endswith(".png")}
+    lat_lon_file_prefixes = {
+        name[: -len(LAT_LON_OUTPUT_FILE_SUFFIX)]
+        for name in file_names
+        if name.endswith(LAT_LON_OUTPUT_FILE_SUFFIX)
+    }
+    common_file_prefixes = list(image_file_prefixes & lat_lon_file_prefixes)
+
+    if len(image_file_prefixes) != len(common_file_prefixes):
+        print(
+            f"Warning: Some PNG files do not have corresponding lat/lon files: "
+            f"{list(image_file_prefixes - lat_lon_file_prefixes)}"
+        )
+    if len(lat_lon_file_prefixes) != len(common_file_prefixes):
+        print(
+            f"Warning: Some lat/lon files do not have corresponding PNG files: "
+            f"{list(lat_lon_file_prefixes - image_file_prefixes)}"
+        )
+    return common_file_prefixes
+
+
 def generate_saliency_map(
     input_dir: str, output_file: str, gsd: float, region_id: str
 ) -> GeoTIFFData:
@@ -79,26 +110,8 @@ def generate_saliency_map(
     :param region_id: The MGRS region to generate the saliency map for.
     :return: The saliency map as a GeoTIFFData object.
     """
-    file_names = os.listdir(input_dir)
-    image_file_names = {name[:-4] for name in file_names if name.endswith(".png")}
-    lat_lon_file_names = {
-        name[: -len(LAT_LON_OUTPUT_FILE_SUFFIX)]
-        for name in file_names
-        if name.endswith(LAT_LON_OUTPUT_FILE_SUFFIX)
-    }
-    common_file_names = list(image_file_names & lat_lon_file_names)
-
-    if len(image_file_names) != len(common_file_names):
-        print(
-            f"Warning: Some PNG files do not have corresponding lat/lon files: "
-            f"{list(image_file_names - lat_lon_file_names)}"
-        )
-    if len(lat_lon_file_names) != len(common_file_names):
-        print(
-            f"Warning: Some lat/lon files do not have corresponding PNG files: "
-            f"{list(lat_lon_file_names - image_file_names)}"
-        )
-    if len(common_file_names) == 0:
+    file_prefixes = get_common_file_name_prefixes(input_dir)
+    if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
@@ -117,8 +130,8 @@ def generate_saliency_map(
     region_saliency_map_counts = np.zeros((height, width), dtype=int)
     saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
-    for file_name in common_file_names:
-        file_path = os.path.join(input_dir, file_name + ".png")
+    for file_prefix in file_prefixes:
+        file_path = os.path.join(input_dir, file_prefix + ".png")
         image = cv2.imread(file_path)
         success, img_saliency_map = saliency_computer.computeSaliency(image)
 
@@ -130,7 +143,7 @@ def generate_saliency_map(
             img_saliency_map.dtype == region_saliency_map.dtype
         ), f"Expected saliency map to have dtype {region_saliency_map.dtype}, but got {img_saliency_map.dtype}."
 
-        lat_lon = np.load(os.path.join(input_dir, file_name + LAT_LON_OUTPUT_FILE_SUFFIX))
+        lat_lon = np.load(os.path.join(input_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
         assert (
             lat_lon.shape[:2] == image.shape[:2]
         ), f"Lat/lon shape {lat_lon.shape[:2]} does not match image shape {image.shape[:2]}."
