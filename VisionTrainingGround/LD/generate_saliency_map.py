@@ -264,8 +264,9 @@ def generate_yolo_labels(input_dir: str) -> None:
         x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[:, 0])
         y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[:, 1])
         z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[:, 2])
-        # column_stack should be faster than row_stack because it means that the norm operates across contiguous memory
-        distances = np.linalg.norm(np.column_stack((x_distances, y_distances, z_distances)), axis=1)
+        # surprisingly row_stack is actually faster than column_stack here, probably because of the overhead in
+        # creating the stacked array (https://chatgpt.com/share/67ce49e5-e1c8-800c-b931-b3862d7d299f)
+        distances = np.linalg.norm(np.row_stack((x_distances, y_distances, z_distances)), axis=0)
         assert distances.shape == (4 * num_boxes, height * width)
 
         closest_pixel_indices = np.argmin(distances, axis=1)
