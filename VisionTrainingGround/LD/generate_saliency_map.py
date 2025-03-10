@@ -169,6 +169,8 @@ def find_best_bounding_boxes(
     """
     Find the top saliency bounding boxes of the specified size within a saliency map.
 
+    The returned bounding boxes are ordered from highest to lowest saliency, which also corresponds to the class IDs.
+
     :param saliency_map: The saliency map to generate bounding boxes for.
     :param window_size: The size of the bounding boxes to find in the saliency map. Must be odd.
     :param num_boxes: The number of top saliency boxes to identify.
