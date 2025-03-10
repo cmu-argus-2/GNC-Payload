@@ -4,14 +4,15 @@ J2 perturbations are not included.
 """
 
 # pylint: disable=import-error
+from functools import partial
 from typing import Callable
 
 import numpy as np
+from brahe import Epoch
 from brahe.constants import GM_EARTH
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
 from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manual
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
@@ -28,7 +29,6 @@ class Dynamics:
     def __init__(
         self,
         config: dict,
-        data_manager: ODSimulationDataManager,
         use_unmodelled_a: bool,
         use_drag: bool,
         use_j2: bool,
@@ -37,13 +37,11 @@ class Dynamics:
         Initialize the OrbitalDynamics class.
 
         :param config: The configuration dictionary.
-        :param data_manager: The ODSimulationDataManager instance.
         :param use_unmodelled_a: Whether to use unmodelled accelerations in the dynamics.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
         :return: None
         """
-        self.data_manager = data_manager
         self.use_unmodelled_a = use_unmodelled_a
         self.use_drag = use_drag
         self.use_j2 = use_j2
@@ -169,13 +167,15 @@ class Dynamics:
         """
         return Dynamics.RK4_jac(x, Dynamics.state_derivative, Dynamics.state_derivative_jac, dt)
 
-    def perturbed_state_derivative(self, x: np.ndarray) -> np.ndarray:
+    def perturbed_state_derivative(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
         The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity,
         J2 perturbations and gravity.
 
         :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
         (unmodelled_accelerations).
+        :param epoch: The current time epoch.
+
         :return: A numpy array of shape (6,) or (9,) containing the full state derivative.
         """
         base_derivative = Dynamics.state_derivative(x)
@@ -188,9 +188,7 @@ class Dynamics:
 
         # Compute drag
         if self.use_drag and np.isclose(v_norm, 0):
-            a_drag_gt = drag_dynamics(
-                x=x, drag_const=self.drag_const, latest_epoch=self.data_manager.latest_epoch
-            )
+            a_drag_gt = drag_dynamics(x=x, drag_const=self.drag_const, latest_epoch=epoch)
 
             updated_a += a_drag_gt
 
@@ -211,13 +209,15 @@ class Dynamics:
 
         return np.concatenate([base_derivative[0:3], updated_a])
 
-    def perturbed_state_derivative_jac(self, x: np.ndarray) -> np.ndarray:
+    def perturbed_state_derivative_jac(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
         The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity,
         J2 perturbations and gravity.
 
         :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
         (unmodelled_accelerations).
+        :param epoch: The current time epoch.
+
         :return: A numpy array of shape (6,6) or (9,9) containing the state derivative Jacobian.
         """
         base_jacobian = Dynamics.state_derivative_jac(x)
@@ -230,9 +230,7 @@ class Dynamics:
 
         # Compute drag
         if self.use_drag and np.isclose(v_norm, 0):
-            da_drag_gt_dv = drag_jacobian(
-                x=x, drag_const=self.drag_const, latest_epoch=self.data_manager.latest_epoch
-            )
+            da_drag_gt_dv = drag_jacobian(x=x, drag_const=self.drag_const, latest_epoch=epoch)
 
             da_dv += da_drag_gt_dv
 
@@ -270,7 +268,7 @@ class Dynamics:
         # dua_dest_drag = np.zeros((3,1))
         # dest_drag_dest_drag = np.eye((1))
 
-    def perturbed_f(self, x: np.ndarray, dt: float) -> np.ndarray:
+    def perturbed_f(self, x: np.ndarray, dt: float, epoch: Epoch = None) -> np.ndarray:
         """
         The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics
         with second order effects.
@@ -278,13 +276,19 @@ class Dynamics:
         :param x: A numpy array of shape (9,) containing the current state (position, velocity and
         unmodelled accelerations).
         :param dt: The amount of time between each time step.
+        :param epoch: The current time epoch.
 
         :return: A numpy array of shape (9,) containing the next state (position, velocity and
         unmodelled accelerations).
         """
-        return Dynamics.RK4(x=x, func=self.perturbed_state_derivative, dt=dt)
+        func = (
+            partial(self.perturbed_state_derivative, epoch=epoch)
+            if self.use_drag
+            else self.perturbed_state_derivative
+        )
+        return Dynamics.RK4(x=x, func=func, dt=dt)
 
-    def perturbed_f_jac(self, x: np.ndarray, dt: float) -> np.ndarray:
+    def perturbed_f_jac(self, x: np.ndarray, dt: float, epoch: Epoch = None) -> np.ndarray:
         """
         The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics
         with second order effects.
@@ -292,12 +296,24 @@ class Dynamics:
 
         :param x: A numpy array of shape (9,) containing the current state (position and velocity).
         :param dt: The amount of time between each time step.
+        :param epoch: The current time epoch.
 
         :return: A numpy array of shape (9, 9) containing the state transition Jacobian.
         """
+
+        func = (
+            partial(self.perturbed_state_derivative, epoch=epoch)
+            if self.use_drag
+            else self.perturbed_state_derivative
+        )
+        func_jac = (
+            partial(self.perturbed_state_derivative_jac, epoch=epoch)
+            if self.use_drag
+            else self.perturbed_state_derivative_jac
+        )
         return Dynamics.RK4_jac(
             x=x,
-            func=self.perturbed_state_derivative,
-            func_jac=self.perturbed_state_derivative_jac,
+            func=func,
+            func_jac=func_jac,
             dt=dt,
         )

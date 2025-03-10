@@ -7,9 +7,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import quaternion
+from brahe import Epoch
 
 from dynamics.orbital_dynamics import Dynamics
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from utils.math_utils import R, left_q, rot_2_q  # right_q
 
@@ -37,7 +37,6 @@ class EKF:
         Q: np.ndarray,
         dt: float,
         config: dict,
-        data_manager: ODSimulationDataManager,
         ua: np.ndarray,
         ekf_dynamics: Dynamics,
     ) -> None:
@@ -54,7 +53,6 @@ class EKF:
         :param Q: Process noise covariance with shape (16, 16)
         :param dt: The amount of time between each time step.
         :param config: The configuration dictionary.
-        :param data_manager: The ODSimulationDataManager object containing the simulation data.
         :param ua: The unmodeled acceleration with shape (3,)
         :param ekf_dynamics: The OrbitalDynamics object used to calculate the dynamics of the system.
 
@@ -93,16 +91,16 @@ class EKF:
         self.cond_threshold = 1e15
         self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
         self.config = config
-        self.data_manager = data_manager
         self.ekf_dynamics = ekf_dynamics
 
-    def predict(self, u: np.ndarray) -> None:
+    def predict(self, u: np.ndarray, epoch: Epoch = None) -> None:
         """
         Predict the next prior state. This corresponds to the prior update step in the EKF algorithm.
         Using Zac Manchester's formulation as defined in his inertial filter examples notebook
         https://github.com/RoboticExplorationLab/inertial-filter-examples
 
         :param u: IMU measurements consisting of angular velocity and linear acceleration with shape (6,)
+        :param epoch: The epoch at which the prediction is made. If None is passed, no epoch is used.
 
         :return: None
         """
@@ -112,8 +110,8 @@ class EKF:
         w = u[0:3]  # angular velocity measurement from IMU
 
         x = np.concatenate([self.r_m, self.v_m, self.ua])
-        A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt)
-        x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt)
+        A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt, epoch=epoch)
+        x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
             quaternion.from_rotation_vector(self.dt * w)
@@ -143,6 +141,7 @@ class EKF:
         z: Tuple[np.ndarray, np.ndarray],
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
+        epoch: Epoch,
         num_iter: int = 1,
     ) -> None:
         """
@@ -153,6 +152,8 @@ class EKF:
         landmark positions in ECI coordinates, both with shape (N, 3)
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: The names of the cameras that took the measurements.
+        :param epoch: The epoch at which the measurement is made.
+        Epoch must be provided for ecef-eci transformation!
         :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
@@ -190,8 +191,8 @@ class EKF:
         # Iterated Update
         for i in range(num_iter):
 
-            h = self.h_est(z1, camera_model_manager, measurement_camera_names, x_p)
-            H = self.h_jac(z1, camera_model_manager, measurement_camera_names, x_p)
+            h = self.h_est(z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch)
+            H = self.h_jac(z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch)
             S = H @ self.P_p @ H.T + self.R
 
             # Check for ill-conditioned matrix and add regularization if necessary
@@ -227,6 +228,7 @@ class EKF:
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
         x_p: jnp.ndarray,
+        epoch: Epoch,
     ) -> jnp.ndarray:
         """
         Calculate the Jacobian of the measurement model with respect to the state.
@@ -235,11 +237,12 @@ class EKF:
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (9,)
+        :param epoch: The epoch at which the measurement is made.
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
         jac = jax.jacobian(self.h_est, argnums=3)(
-            z, camera_model_manager, measurement_camera_names, x_p
+            z, camera_model_manager, measurement_camera_names, x_p, epoch=epoch
         )
 
         return jac
@@ -250,6 +253,7 @@ class EKF:
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
         x_p: jnp.ndarray,
+        epoch: Epoch,
     ) -> jnp.ndarray:
         """
         Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide
@@ -260,6 +264,7 @@ class EKF:
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of [position, velocity, rotation_vector] with shape (9,)
+        :param Epoch: The epoch at which the measurement is made.
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
         """
@@ -268,7 +273,7 @@ class EKF:
         # Define rotation matrices
         # transform rotation_vector to rotation matrix via quaternion
         eci_R_body = R(rot_2_q(x_p[9:12]))
-        ecef_R_eci = brahe.frames.rECItoECEF(self.data_manager.latest_epoch)
+        ecef_R_eci = brahe.frames.rECItoECEF(epc=epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 
         # Transform landmarks and position from ECI to ECEF

@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
@@ -77,8 +81,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 6  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s
+    config["solver"]["world_update_rate"] = 4  # Hz
+    config["mission"]["duration"] = 3 * 90 * 5  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -106,14 +110,12 @@ def run_simulation() -> None:
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
         config=config,
-        data_manager=data_manager,
         use_drag=True,
         use_j2=True,
         use_unmodelled_a=False,
     )
     ekf_dynamics = Dynamics(
         config=config,
-        data_manager=data_manager,
         use_drag=False,
         use_j2=False,
         use_unmodelled_a=True,
@@ -132,7 +134,6 @@ def run_simulation() -> None:
         Q=Q,
         dt=dt,
         config=config,
-        data_manager=data_manager,
         ekf_dynamics=ekf_dynamics,
     )
 
@@ -151,13 +152,15 @@ def run_simulation() -> None:
         x_y_wobble = np.random.normal(0, 5e-2, 2)
         w = rot + np.concatenate([x_y_wobble, np.zeros((1))])
 
-        next_state = ground_truth_dynamics.perturbed_f(x=x[0:6], dt=dt)
+        next_state = ground_truth_dynamics.perturbed_f(
+            x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
+        )
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
         gyro_meas, _ = imu.update(w, np.zeros((3)))
-        ekf.predict(u=gyro_meas)
+        ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
         if t % 150 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
@@ -171,7 +174,13 @@ def run_simulation() -> None:
             measurement_camera_names, *z = data_manager.latest_measurements
 
             if z[0].shape[0] > 0:
-                ekf.measurement(z, camera_model_manager, measurement_camera_names, num_iter)
+                ekf.measurement(
+                    z=z,
+                    camera_model_manager=camera_model_manager,
+                    measurement_camera_names=measurement_camera_names,
+                    epoch=data_manager.latest_epoch,
+                    num_iter=num_iter,
+                )
             else:
                 ekf.no_measurement()
                 print("No measurements made in measurement step")
