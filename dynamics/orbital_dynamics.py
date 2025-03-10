@@ -29,7 +29,6 @@ class Dynamics:
     def __init__(
         self,
         config: dict,
-        use_unmodelled_a: bool,
         use_drag: bool,
         use_j2: bool,
     ) -> None:
@@ -37,12 +36,10 @@ class Dynamics:
         Initialize the OrbitalDynamics class.
 
         :param config: The configuration dictionary.
-        :param use_unmodelled_a: Whether to use unmodelled accelerations in the dynamics.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
         :return: None
         """
-        self.use_unmodelled_a = use_unmodelled_a
         self.use_drag = use_drag
         self.use_j2 = use_j2
         self.drag_const = (
@@ -53,11 +50,7 @@ class Dynamics:
         )
 
         # If no measurement was made in the previous measurement step, set the unmodelled accelerations to zero
-        self.no_previous_measurement = False
         self.nominal_density = 1e-12
-
-        if use_unmodelled_a:
-            self.ua_std_dev = 1e-5
 
     @staticmethod
     def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -198,15 +191,6 @@ class Dynamics:
 
             updated_a += a_J2_gt
 
-        # Compute unmodelled accelerations
-        if self.use_unmodelled_a:
-            unmodelled_a = x[6:9]
-            ua_dot = np.random.normal(0, self.ua_std_dev, 3)
-
-            updated_a += unmodelled_a
-
-            return np.concatenate([base_derivative[0:3], updated_a, ua_dot])
-
         return np.concatenate([base_derivative[0:3], updated_a])
 
     def perturbed_state_derivative_jac(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
@@ -241,32 +225,7 @@ class Dynamics:
 
             da_dr += da_J2_gt_dr
 
-        # Compute unmodelled accelerations
-        if self.use_unmodelled_a:
-            dv_dua = np.zeros((3, 3))
-            da_dua = np.eye(3)
-
-            dua_dr = np.zeros((3, 3))
-            dua_dv = np.zeros((3, 3))
-            dua_dua = np.zeros((3, 3))
-
-            return np.block(
-                [
-                    [base_jacobian[0:3, 0:6], dv_dua],
-                    [da_dr, da_dv, da_dua],
-                    [dua_dr, dua_dv, dua_dua],
-                ]
-            )
-
         return np.block([[base_jacobian[0:3, 0:6]], [da_dr, da_dv]])
-
-        # TODO: incorporate drag estimate into the jacobian
-        # dest_drag = np.zeros((3,9))
-        # dv_dest_drag = np.zeros((3,1))
-
-        # da_dest_drag = self.drag_const * self.nominal_density * v / v_norm
-        # dua_dest_drag = np.zeros((3,1))
-        # dest_drag_dest_drag = np.eye((1))
 
     def perturbed_f(self, x: np.ndarray, dt: float, epoch: Epoch = None) -> np.ndarray:
         """
