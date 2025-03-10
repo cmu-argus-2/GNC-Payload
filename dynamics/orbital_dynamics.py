@@ -8,11 +8,15 @@ from typing import Callable
 
 import numpy as np
 from brahe.constants import GM_EARTH
-from brahe.epoch import Epoch
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
 from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manual
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+
+# pylint: disable=invalid-name
+# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-positional-arguments
 
 
 class Dynamics:
@@ -170,7 +174,8 @@ class Dynamics:
         The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity,
         J2 perturbations and gravity.
 
-        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity, (unmodelled_accelerations).
+        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
+        (unmodelled_accelerations).
         :return: A numpy array of shape (6,) or (9,) containing the full state derivative.
         """
         base_derivative = Dynamics.state_derivative(x)
@@ -211,7 +216,8 @@ class Dynamics:
         The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity,
         J2 perturbations and gravity.
 
-        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity, (unmodelled_accelerations).
+        :param x: A numpy array of shape (6,) or (9,) containing the current state position, velocity,
+        (unmodelled_accelerations).
         :return: A numpy array of shape (6,6) or (9,9) containing the state derivative Jacobian.
         """
         base_jacobian = Dynamics.state_derivative_jac(x)
@@ -269,10 +275,12 @@ class Dynamics:
         The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics
         with second order effects.
         J2 perturbations and drag can be included.
-        :param x: A numpy array of shape (9,) containing the current state (position, velocity and unmodelled accelerations).
+        :param x: A numpy array of shape (9,) containing the current state (position, velocity and
+        unmodelled accelerations).
         :param dt: The amount of time between each time step.
 
-        :return: A numpy array of shape (9,) containing the next state (position, velocity and unmodelled accelerations).
+        :return: A numpy array of shape (9,) containing the next state (position, velocity and
+        unmodelled accelerations).
         """
         return Dynamics.RK4(x=x, func=self.perturbed_state_derivative, dt=dt)
 

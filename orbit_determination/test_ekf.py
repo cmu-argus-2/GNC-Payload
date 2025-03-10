@@ -26,6 +26,8 @@ from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
+# pylint: disable=too-many-locals
+
 
 def imu_init(dt: float) -> IMU:
     """
@@ -75,7 +77,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 6 # Hz
+    config["solver"]["world_update_rate"] = 6  # Hz
     config["mission"]["duration"] = 3 * 90 * 40  # s
 
     dt = 1 / config["solver"]["world_update_rate"]

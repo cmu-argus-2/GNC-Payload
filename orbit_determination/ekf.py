@@ -18,6 +18,7 @@ from utils.math_utils import R, left_q, rot_2_q  # right_q
 # pylint: disable=too-many-positional-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
+# pylint: disable=too-many-locals
 
 
 class EKF:

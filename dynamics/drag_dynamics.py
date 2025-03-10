@@ -44,13 +44,11 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
 
     v_norm = np.linalg.norm(x[3:6])
 
-    if np.isclose(v_norm,0):
+    if np.isclose(v_norm, 0):
         return np.zeros((3, 3))
 
     density = density_harris_priester(x=x, epoch=latest_epoch)
 
-    da_drag_dv = (
-        density * drag_const * ((np.eye(3) * v_norm) - np.outer(x[3:6], x[3:6]) / v_norm)
-    )
+    da_drag_dv = density * drag_const * ((np.eye(3) * v_norm) - np.outer(x[3:6], x[3:6]) / v_norm)
 
     return da_drag_dv
