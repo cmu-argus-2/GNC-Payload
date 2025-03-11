@@ -41,6 +41,39 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_valid_bounding_boxes(
+    image: np.ndarray, closest_us: np.ndarray, closest_vs: np.ndarray
+) -> np.ndarray:
+    """
+    Compute a boolean mask indicating which bounding boxes are considered valid and should be used for training.
+
+    :param image: The image to check the bounding boxes against.
+    :param closest_us: A numpy array of shape (N, 4) containing the u-coordinates of the closest pixel to the top left,
+                       top right, bottom left, and bottom right corners of the bounding box, respectively.
+    :param closest_vs: A numpy array of shape (N, 4) containing the v-coordinates of the closest pixel to the top left,
+                       top right, bottom left, and bottom right corners of the bounding box, respectively.
+    :return: A boolean numpy array of shape (N,) indicating which bounding boxes are valid.
+    """
+    assert image.ndim == 3, f"Expected image to have 3 dimensions, but got {image.ndim}."
+    assert (
+        closest_us.shape == closest_vs.shape
+    ), f"Expected closest_us and closest_vs to have the same shape, but got {closest_us.shape} and {closest_vs.shape}."
+    assert (
+        closest_us.ndim == 2
+    ), f"Expected closest_us and closest_vs to have 2 dimensions, but got {closest_us.ndim}."
+    assert (
+        closest_us.shape[1] == 4
+    ), f"Expected closest_us and closest_vs to have 4 columns, but got {closest_us.shape[1]}."
+
+    # reject any bounding boxes that have a corner whose closest pixel is on the boundary of the image
+    height, width = image.shape[:2]
+    valid_bounding_boxes = np.all(
+        (closest_us > 0) & (closest_us < width - 1) & (closest_vs > 0) & (closest_vs < height - 1),
+        axis=1,
+    )
+    return valid_bounding_boxes
+
+
 def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> None:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
@@ -93,21 +126,15 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> None:
 
         closest_pixel_indices = np.argmin(distances, axis=1)
         closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
+        closest_us = closest_us.reshape(num_boxes, 4)
+        closest_vs = closest_vs.reshape(num_boxes, 4)
 
-        # reject any bounding boxes that have a corner whose closest pixel is on the boundary of the image
-        valid_box_corners = (
-            (closest_us > 0)
-            & (closest_us < width - 1)
-            & (closest_vs > 0)
-            & (closest_vs < height - 1)
-        )
-        valid_bounding_boxes = np.all(valid_box_corners.reshape(num_boxes, 4), axis=1)
+        valid_bounding_boxes = get_valid_bounding_boxes(image, closest_us, closest_vs)
+        closest_us = closest_us[valid_bounding_boxes, :]
+        closest_vs = closest_vs[valid_bounding_boxes, :]
         class_ids = np.arange(num_boxes)[valid_bounding_boxes]
 
         # widen bounding boxes to the smallest axis-aligned bounding box that contains all 4 corners
-        valid_box_corners = np.tile(valid_bounding_boxes, 4)
-        closest_us = closest_us[valid_box_corners].reshape(-1, 4)
-        closest_vs = closest_vs[valid_box_corners].reshape(-1, 4)
         min_us = np.min(closest_us, axis=1)
         max_us = np.max(closest_us, axis=1)
         min_vs = np.min(closest_vs, axis=1)
