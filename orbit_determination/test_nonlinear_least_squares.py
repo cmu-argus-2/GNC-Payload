@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 # pylint: disable=import-error
 # pylint: disable=unused-import
 # pylint: disable=invalid-name
-from dynamics.orbital_dynamics import f
+from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     RandomLandmarkBearingSensor,
@@ -71,7 +71,7 @@ def test_od() -> None:
     data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state))
 
     for t in range(0, N - 1):
-        next_state = f(data_manager.latest_state, dt)
+        next_state = Dynamics.f(data_manager.latest_state, dt)
         data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
 
         # take a set of measurements every 5 minutes
