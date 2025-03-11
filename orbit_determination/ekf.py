@@ -117,19 +117,15 @@ class EKF:
         dqdq = quaternion.as_rotation_matrix(
             quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b))
         )
-        dqdw = (
-            -1 * self.dt
-            * G(self.q_p).T
-            @ left_q(self.q_m)
-            @ Drp2q(self.dt * (w - self.w_b))
+        dqdw = -1 * self.dt * G(self.q_p).T @ left_q(self.q_m) @ Drp2q(self.dt * (w - self.w_b))
+
+        A = np.block(
+            [
+                [A_pos, np.zeros((9, 6))],
+                [np.zeros((3, 9)), dqdq, dqdw],
+                [np.zeros((3, 12)), np.eye(3)],
+            ]
         )
-
-        # A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
-
-        A = np.block([  [A_pos, np.zeros((9, 6))],
-                        [np.zeros((3, 9)), dqdq, dqdw],
-                        [np.zeros((3, 12)), np.eye(3)]
-                    ])
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 

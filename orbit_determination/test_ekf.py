@@ -25,7 +25,6 @@ from sensors.imu import IMU, IMUNoiseParams
 from sensors.sensor import SensorNoiseParams
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
-from utils.earth_utils import transform_eci_to_lvlh
 from utils.orbit_utils import get_sso_orbit_state  # , is_over_daytime
 
 # pylint: disable=too-many-locals
@@ -45,18 +44,30 @@ def imu_init(dt: float) -> IMU:
     bias_params = BiasParams.get_random_params([1e-3, 1e-2], [1e-7, 1e-6])
     # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.0], [0, 0.0])
-    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.0], [0, 0.0])
-    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(bias_params, [0, 0.0], [0, 0.0], [0, 0.0])
+    sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(
+        bias_params, [0, 0.0], [0, 0.0], [0, 0.0]
+    )
+    sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(
+        bias_params, [0, 0.0], [0, 0.0], [0, 0.0]
+    )
+    sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(
+        bias_params, [0, 0.0], [0, 0.0], [0, 0.0]
+    )
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
         sensor_noise_params_accel_y,
         sensor_noise_params_accel_z,
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
-    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01])
-    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01])
-    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01])
+    sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(
+        bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01]
+    )
+    sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(
+        bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01]
+    )
+    sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(
+        bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01]
+    )
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
         sensor_noise_params_gyro_y,
@@ -80,7 +91,7 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 5 # Hz
+    config["solver"]["world_update_rate"] = 5  # Hz
     config["mission"]["duration"] = 3 * 90 * 10  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -96,10 +107,9 @@ def run_simulation() -> None:
 
     data_manager.push_next_state(initial_state, init_rot)
 
-     # Apply error to init_rot
-    init_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
-    # Ensure orthonormality
-    noisy_rot = init_rot @ np.linalg.inv(np.linalg.cholesky(init_rot.T @ init_rot))
+    # Apply error to init_rot and ensure orthonormality
+    noisy_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
+    noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
 
     # Set the number of update iterations for the IEKF
     num_iter = 5
@@ -121,7 +131,6 @@ def run_simulation() -> None:
     P[9:12, 9:12] *= 1e-3
     P[12:15, 12:15] *= 1e-3
 
-
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
         config=config,
@@ -139,7 +148,6 @@ def run_simulation() -> None:
     imu = imu_init(dt)
     gyro_bias = imu.get_bias()[0]
     ekf = EKF(
-        # TODO: Apply initial error to quaternion initialization
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 1000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
@@ -171,7 +179,7 @@ def run_simulation() -> None:
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
         # x_y_wobble = np.random.normal(0, 5e-2, 2)
-        w = rot # + np.concatenate([x_y_wobble, np.zeros((1))])
+        w = rot  # + np.concatenate([x_y_wobble, np.zeros((1))])
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
         gyro_meas, _ = imu.update(w, np.zeros((3)))
@@ -186,7 +194,7 @@ def run_simulation() -> None:
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
-        if t % 150 == 0:
+        if t % 120 == 0:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
@@ -218,15 +226,32 @@ def run_simulation() -> None:
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)
-        sigma_high.append(np.array([3 * np.sqrt(ekf.P_m[0, 0]), 3 * np.sqrt(ekf.P_m[1, 1]), 3 * np.sqrt(ekf.P_m[2, 2])]))
-        sigma_low.append(np.array([-3 * np.sqrt(ekf.P_m[0, 0]), -3 * np.sqrt(ekf.P_m[1, 1]), -3 * np.sqrt(ekf.P_m[2, 2])]))
+
+        sigma_high.append(
+            np.array(
+                [
+                    3 * np.sqrt(ekf.P_m[0, 0]),
+                    3 * np.sqrt(ekf.P_m[1, 1]),
+                    3 * np.sqrt(ekf.P_m[2, 2]),
+                ]
+            )
+        )
+        sigma_low.append(
+            np.array(
+                [
+                    -3 * np.sqrt(ekf.P_m[0, 0]),
+                    -3 * np.sqrt(ekf.P_m[1, 1]),
+                    -3 * np.sqrt(ekf.P_m[2, 2]),
+                ]
+            )
+        )
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
         with open(f"od-simulation-data-{time()}.pkl", "wb") as file:
             pickle.dump(data_manager, file)
 
-    #Print final covariance matrix
+    # Print final covariance matrix
     print(ekf.P_m)
 
     plt.plot(error)
@@ -277,8 +302,6 @@ def run_simulation() -> None:
     plt.title("Actual Gyro Bias")
 
     plt.show()
-    # TODO: IMU runs at a higher rate than the rest of the system so probably better to introduce a separate dt for it
-
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
