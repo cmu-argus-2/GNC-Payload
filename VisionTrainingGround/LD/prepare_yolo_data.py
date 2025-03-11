@@ -42,16 +42,21 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_valid_bounding_boxes(
-    image: np.ndarray, closest_us: np.ndarray, closest_vs: np.ndarray
+    image: np.ndarray, closest_us: np.ndarray, closest_vs: np.ndarray, minimum_data_threshold: float = 0.5
 ) -> np.ndarray:
     """
     Compute a boolean mask indicating which bounding boxes are considered valid and should be used for training.
+
+    A bounding box is considered valid if none of the four corners' closest pixels are on the boundary of the image and
+    the fraction of the bounding box containing nonzero data is above the specified threshold.
 
     :param image: The image to check the bounding boxes against.
     :param closest_us: A numpy array of shape (N, 4) containing the u-coordinates of the closest pixel to the top left,
                        top right, bottom left, and bottom right corners of the bounding box, respectively.
     :param closest_vs: A numpy array of shape (N, 4) containing the v-coordinates of the closest pixel to the top left,
                        top right, bottom left, and bottom right corners of the bounding box, respectively.
+    :param minimum_data_threshold: The minimum fraction of the bounding box that must contain nonzero data for it to be
+                                   considered valid. Must be in the range [0, 1].
     :return: A boolean numpy array of shape (N,) indicating which bounding boxes are valid.
     """
     assert image.ndim == 3, f"Expected image to have 3 dimensions, but got {image.ndim}."
@@ -71,6 +76,26 @@ def get_valid_bounding_boxes(
         (closest_us > 0) & (closest_us < width - 1) & (closest_vs > 0) & (closest_vs < height - 1),
         axis=1,
     )
+
+    has_data = np.any(image > 0, axis=2)
+    for i in range(len(valid_bounding_boxes)):
+        if not valid_bounding_boxes[i]:
+            continue
+
+        # since the bounding box corners are mapped from lat/lon to pixel coordinates, they could form any quadrilateral
+        # cv2.fillPoly does not support numpy arrays with dtype=bool, so we need to use uint8 instead
+        quadrilateral_mask = np.zeros(has_data.shape, dtype=np.uint8)
+        cv2.fillPoly(
+            quadrilateral_mask,
+            # OpenCV expects the vertices to be in the form (num_polygons, num_points, 2)
+            np.column_stack((closest_us[i, :], closest_vs[i, :]))[np.newaxis, ...],
+            color=1,
+        )
+        quadrilateral_mask = quadrilateral_mask.astype(bool)
+
+        if np.sum(has_data[quadrilateral_mask]) / np.sum(quadrilateral_mask) < minimum_data_threshold:
+            valid_bounding_boxes[i] = False
+
     return valid_bounding_boxes
 
 
