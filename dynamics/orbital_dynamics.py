@@ -49,9 +49,6 @@ class Dynamics:
             / config["satellite"]["mass"]
         )
 
-        # If no measurement was made in the previous measurement step, set the unmodelled accelerations to zero
-        self.nominal_density = 1e-12
-
     @staticmethod
     def state_derivative(x: np.ndarray) -> np.ndarray:
         """
@@ -179,7 +176,7 @@ class Dynamics:
         updated_a = base_derivative[3:6]
 
         # Compute drag
-        if self.use_drag and np.isclose(v_norm, 0):
+        if self.use_drag and not np.isclose(v_norm, 0):
             if epoch is None:
                 raise ValueError("Epoch is required to compute drag")
             a_drag_gt = drag_dynamics(x=x, drag_const=self.drag_const, latest_epoch=epoch)
@@ -187,7 +184,7 @@ class Dynamics:
             updated_a += a_drag_gt
 
         # Compute J2
-        if self.use_j2 and np.isclose(r_norm, 0):
+        if self.use_j2 and not np.isclose(r_norm, 0):
             a_J2_gt = j2_dynamics(r)
 
             updated_a += a_J2_gt
@@ -213,7 +210,7 @@ class Dynamics:
         da_dv = base_jacobian[3:6, 3:6]
 
         # Compute drag
-        if self.use_drag and np.isclose(v_norm, 0):
+        if self.use_drag and not np.isclose(v_norm, 0):
             if epoch is None:
                 raise ValueError("Epoch is required to compute drag jacobian")
             da_drag_gt_dv = drag_jacobian(x=x, drag_const=self.drag_const, latest_epoch=epoch)
@@ -221,7 +218,7 @@ class Dynamics:
             da_dv += da_drag_gt_dv
 
         # Compute J2 either using autodiff or manually
-        if self.use_j2:
+        if self.use_j2 and not np.isclose(np.linalg.norm(x[0:3]), 0):
             # da_J2_gt_dr = j2_derivative_manual(x[:3])
             da_J2_gt_dr = j2_jacobian_auto(x[0:3])
 
