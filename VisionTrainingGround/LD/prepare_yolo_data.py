@@ -12,7 +12,7 @@ import numpy as np
 
 from utils.earth_utils import lat_lon_to_ecef
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
-from VisionTrainingGround.LD.generate_saliency_map import (
+from VisionTrainingGround.LD.run_saliency_analysis import (
     BOUNDING_BOXES_FILE_NAME,
     get_common_file_name_prefixes,
 )
