@@ -61,8 +61,9 @@ class EKFDynamics(Dynamics):
 
         # Compute unmodelled accelerations
         if self.use_unmodelled_a:
-            unmodelled_a = x[6:9]
-            ua_dot = np.random.normal(0, self.ua_std_dev, 3)
+            unmodelled_a = x[6:9] / 1e8
+            # ua_dot = np.random.normal(0, self.ua_std_dev, 3)
+            ua_dot = np.zeros((3,))
 
             updated_a += unmodelled_a
 

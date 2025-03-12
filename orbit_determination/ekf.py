@@ -112,7 +112,6 @@ class EKF:
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
-        self.ua = x_new[6:9]
 
         dqdq = quaternion.as_rotation_matrix(
             quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b))
@@ -177,7 +176,7 @@ class EKF:
             return
 
         # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([1e-5] * z0.shape[0])
+        self.R = np.diag([1e-2] * z0.shape[0])
 
         x_p = jnp.array(
             np.concatenate(
@@ -200,6 +199,7 @@ class EKF:
             # Check for ill-conditioned matrix and add regularization if necessary
             if i == 0:
                 cond = np.linalg.cond(S)
+                print(cond)
                 if cond > self.cond_threshold:
                     S += np.eye(S.shape[0]) * 1e-6
                     print("Ill-conditioned matrix detected. Regularization applied.")
@@ -210,6 +210,7 @@ class EKF:
 
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
+            self.ua = np.array(x_p[6:9]) + delta[6:9]
             self.q_m = quaternion.as_rotation_vector(
                 quaternion.from_rotation_vector(np.array(x_p[9:12]))
                 * quaternion.from_rotation_vector(delta[9:12])
