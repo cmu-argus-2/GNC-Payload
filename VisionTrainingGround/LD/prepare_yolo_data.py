@@ -291,14 +291,13 @@ def main():
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
-    for file_prefix in file_prefixes:
-        file_path = os.path.join(args.input_dir, f"{file_prefix}.txt")
-        if os.path.exists(file_path):
-            if not args.overwrite:
-                raise FileExistsError(
-                    f"Output file {file_prefix}.txt already exists. Use --overwrite to overwrite."
-                )
-            os.remove(file_path)
+    ld_training_dir = os.path.join(args.input_dir, LD_TRAINING_DIR_NAME)
+    if os.path.exists(ld_training_dir):
+        if not args.overwrite:
+            raise FileExistsError(
+                f"Output directory {LD_TRAINING_DIR_NAME} already exists. Use --overwrite to overwrite."
+            )
+        shutil.rmtree(ld_training_dir)
 
     create_LD_training_data_dir(args.input_dir, file_prefixes, args.test_fraction, args.val_fraction)
 
