@@ -42,7 +42,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_valid_bounding_boxes(
-    image: np.ndarray, closest_us: np.ndarray, closest_vs: np.ndarray, minimum_data_threshold: float = 0.5
+    image: np.ndarray,
+    closest_us: np.ndarray,
+    closest_vs: np.ndarray,
+    minimum_data_threshold: float = 0.5,
 ) -> np.ndarray:
     """
     Compute a boolean mask indicating which bounding boxes are considered valid and should be used for training.
@@ -93,7 +96,10 @@ def get_valid_bounding_boxes(
         )
         quadrilateral_mask = quadrilateral_mask.astype(bool)
 
-        if np.sum(has_data[quadrilateral_mask]) / np.sum(quadrilateral_mask) < minimum_data_threshold:
+        if (
+            np.sum(has_data[quadrilateral_mask]) / np.sum(quadrilateral_mask)
+            < minimum_data_threshold
+        ):
             valid_bounding_boxes[i] = False
 
     return valid_bounding_boxes
