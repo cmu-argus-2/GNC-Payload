@@ -5,10 +5,12 @@ of running salient region analysis to prepare the data for training a YOLO model
 
 import argparse
 import os
+import shutil
 from typing import List
 
 import cv2
 import numpy as np
+import yaml
 
 from utils.earth_utils import lat_lon_to_ecef
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
@@ -16,6 +18,9 @@ from VisionTrainingGround.LD.run_saliency_analysis import (
     BOUNDING_BOXES_FILE_NAME,
     get_common_file_name_prefixes,
 )
+
+LD_TRAINING_DIR_NAME = "LD_training"
+YOLO_CONFIG_FILE_NAME = "dataset.yaml"
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +42,18 @@ def parse_args() -> argparse.Namespace:
         "--overwrite",
         action="store_true",
         help="Whether to overwrite the output files if they exist.",
+    )
+    parser.add_argument(
+        "--test_fraction",
+        type=float,
+        default=0.2,
+        help="Fraction of images to use for testing.",
+    )
+    parser.add_argument(
+        "--val_fraction",
+        type=float,
+        default=0.1,
+        help="Fraction of images to use for validation.",
     )
     return parser.parse_args()
 
@@ -105,7 +122,7 @@ def get_valid_bounding_boxes(
     return valid_bounding_boxes
 
 
-def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> None:
+def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
 
@@ -116,6 +133,7 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> None:
     :param input_dir: The directory containing the PNGs, .npy files containing latitudes and longitudes, and the .csv
                       file containing the bounding box coordinates to use to generate the YOLO label files.
     :param file_prefixes: The common prefixes of the PNG and lat/lon files to process.
+    :return: The number of classes in the dataset.
     """
     csv_data = np.loadtxt(
         os.path.join(input_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
@@ -181,6 +199,84 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> None:
             for class_id, u, v, w, h in zip(class_ids, u_center, v_center, box_width, box_height):
                 file.write(f"{class_id} {u} {v} {w} {h}\n")
 
+    return num_boxes
+
+
+def create_LD_training_data_dir(
+    input_dir: str,
+    file_prefixes: List[str],
+    test_fraction: float,
+    val_fraction: float,
+    num_classes: int,
+) -> None:
+    """
+    Creates a directory for the LD training data in the format expected for training a YOLO model.
+    This includes performing a train/test/val split, creating symlinks to the image files, moving the YOLO label
+    .txt files, and creating a dataset.yaml file.
+
+    Args:
+        input_dir: The directory containing the PNGs and YOLO label .txt files.
+        file_prefixes: The common prefixes of the PNG and YOLO label .txt files to process.
+        test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
+        val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
+        num_classes: The number of classes in the dataset.
+    """
+    train_fraction = 1 - test_fraction - val_fraction
+    assert 0 <= train_fraction <= 1, "test_fraction + val_fraction must be less than or equal to 1."
+    assert 0 <= test_fraction <= 1, "test_fraction must be in the range [0, 1]."
+    assert 0 <= val_fraction <= 1, "val_fraction must be in the range [0, 1]."
+
+    num_files = len(file_prefixes)
+    train_cutoff = int(num_files * train_fraction)
+    test_cutoff = int(num_files * (train_fraction + test_fraction))
+
+    all_indices = np.arange(num_files)
+    np.random.shuffle(all_indices)
+    train_indices = all_indices[:train_cutoff]
+    test_indices = all_indices[train_cutoff:test_cutoff]
+    val_indices = all_indices[test_cutoff:]
+
+    LD_training_dir = os.path.join(input_dir, LD_TRAINING_DIR_NAME)
+    train_dir = os.path.join(LD_training_dir, "train")
+    test_dir = os.path.join(LD_training_dir, "test")
+    val_dir = os.path.join(LD_training_dir, "val")
+    os.makedirs(LD_training_dir, exist_ok=True)
+    os.makedirs(train_dir, exist_ok=True)
+    os.makedirs(test_dir, exist_ok=True)
+    os.makedirs(val_dir, exist_ok=True)
+
+    for indices, output_dir in zip(
+        [train_indices, test_indices, val_indices], [train_dir, test_dir, val_dir]
+    ):
+        images_dir = os.path.join(output_dir, "images")
+        labels_dir = os.path.join(output_dir, "labels")
+        os.makedirs(images_dir, exist_ok=True)
+        os.makedirs(labels_dir, exist_ok=True)
+
+        for i in indices:
+            file_prefix = file_prefixes[i]
+            os.symlink(
+                os.path.join(input_dir, f"{file_prefix}.png"),
+                os.path.join(images_dir, f"{file_prefix}.png"),
+            )
+            shutil.move(
+                os.path.join(input_dir, f"{file_prefix}.txt"),
+                os.path.join(labels_dir, f"{file_prefix}.txt"),
+            )
+
+    yolo_config = {
+        "path": os.path.abspath(LD_training_dir),
+        "train": "train/images",
+        "val": "val/images",
+        "test": "test/images",
+        "nc": num_classes,
+        "names": [str(i) for i in range(num_classes)],
+    }
+
+    yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
+    with open(yolo_config_path, "w", encoding="utf-8") as yolo_config_file:
+        yaml.dump(yolo_config, yolo_config_file, default_flow_style=False)
+
 
 def main():
     args = parse_args()
@@ -198,7 +294,8 @@ def main():
                 )
             os.remove(file_path)
 
-    generate_yolo_labels(args.input_dir, file_prefixes)
+    num_classes = generate_yolo_labels(args.input_dir, file_prefixes)
+    create_LD_training_data_dir(args.input_dir, file_prefixes, args.test_fraction, args.val_fraction, num_classes)
 
 
 if __name__ == "__main__":
