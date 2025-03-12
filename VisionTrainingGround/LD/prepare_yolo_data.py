@@ -122,7 +122,7 @@ def get_valid_bounding_boxes(
     return valid_bounding_boxes
 
 
-def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> int:
+def generate_yolo_labels(input_dir: str, file_prefixes: List[str], yolo_label_paths: List[str]) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
 
@@ -133,8 +133,11 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> int:
     :param input_dir: The directory containing the PNGs, .npy files containing latitudes and longitudes, and the .csv
                       file containing the bounding box coordinates to use to generate the YOLO label files.
     :param file_prefixes: The common prefixes of the PNG and lat/lon files to process.
+    :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
     :return: The number of classes in the dataset.
     """
+    assert len(file_prefixes) == len(yolo_label_paths), "file_prefixes and yolo_label_paths must be the same length."
+
     csv_data = np.loadtxt(
         os.path.join(input_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
     )
@@ -150,7 +153,7 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> int:
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
-    for file_prefix in file_prefixes:
+    for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
         image_path = os.path.join(input_dir, file_prefix + ".png")
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -195,9 +198,9 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str]) -> int:
         box_width = (max_us - min_us) / width
         box_height = (max_vs - min_vs) / height
 
-        with open(os.path.join(input_dir, f"{file_prefix}.txt"), "w") as file:
+        with open(yolo_label_path, "w") as yolo_label_file:
             for class_id, u, v, w, h in zip(class_ids, u_center, v_center, box_width, box_height):
-                file.write(f"{class_id} {u} {v} {w} {h}\n")
+                yolo_label_file.write(f"{class_id} {u} {v} {w} {h}\n")
 
     return num_boxes
 
@@ -207,7 +210,6 @@ def create_LD_training_data_dir(
     file_prefixes: List[str],
     test_fraction: float,
     val_fraction: float,
-    num_classes: int,
 ) -> None:
     """
     Creates a directory for the LD training data in the format expected for training a YOLO model.
@@ -219,7 +221,6 @@ def create_LD_training_data_dir(
         file_prefixes: The common prefixes of the PNG and YOLO label .txt files to process.
         test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
         val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
-        num_classes: The number of classes in the dataset.
     """
     train_fraction = 1 - test_fraction - val_fraction
     assert 0 <= train_fraction <= 1, "test_fraction + val_fraction must be less than or equal to 1."
@@ -245,6 +246,7 @@ def create_LD_training_data_dir(
     os.makedirs(test_dir, exist_ok=True)
     os.makedirs(val_dir, exist_ok=True)
 
+    yolo_label_paths = np.full(num_files, "", dtype=str)
     for indices, output_dir in zip(
         [train_indices, test_indices, val_indices], [train_dir, test_dir, val_dir]
     ):
@@ -253,16 +255,20 @@ def create_LD_training_data_dir(
         os.makedirs(images_dir, exist_ok=True)
         os.makedirs(labels_dir, exist_ok=True)
 
+        yolo_label_paths[indices] = [
+            os.path.join(labels_dir, f"{file_prefix}.txt") for file_prefix in file_prefixes[indices]
+        ]
+
         for i in indices:
             file_prefix = file_prefixes[i]
             os.symlink(
                 os.path.join(input_dir, f"{file_prefix}.png"),
                 os.path.join(images_dir, f"{file_prefix}.png"),
             )
-            shutil.move(
-                os.path.join(input_dir, f"{file_prefix}.txt"),
-                os.path.join(labels_dir, f"{file_prefix}.txt"),
-            )
+
+    yolo_label_paths = yolo_label_paths.tolist()
+    assert "" not in yolo_label_paths
+    num_classes = generate_yolo_labels(input_dir, file_prefixes, yolo_label_paths)
 
     yolo_config = {
         "path": os.path.abspath(LD_training_dir),
@@ -294,8 +300,7 @@ def main():
                 )
             os.remove(file_path)
 
-    num_classes = generate_yolo_labels(args.input_dir, file_prefixes)
-    create_LD_training_data_dir(args.input_dir, file_prefixes, args.test_fraction, args.val_fraction, num_classes)
+    create_LD_training_data_dir(args.input_dir, file_prefixes, args.test_fraction, args.val_fraction)
 
 
 if __name__ == "__main__":
