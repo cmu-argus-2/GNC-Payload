@@ -92,7 +92,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 20  # s
+    config["mission"]["duration"] = 3 * 90 * 30  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -124,9 +124,9 @@ def run_simulation() -> None:
     # Bias uncertainty also larger
     # Q[12:15, 12:15] = np.eye(3) * 1e-12
 
-    P = np.eye(15)
-    P[0:3, 0:3] *= 1
-    P[3:6, 3:6] *= 1
+    P = np.eye(15) * 1e-6
+    P[0:3, 0:3] *= 10
+    P[3:6, 3:6] *= 10
     P[6:9, 6:9] *= 1e-2
     P[9:12, 9:12] *= 1e-3
     P[12:15, 12:15] *= 1e-3
@@ -151,7 +151,7 @@ def run_simulation() -> None:
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
-        ua=np.random.normal(0, 1e-5, 3) * 1e8,
+        ua=np.random.normal(0, 1e-3, 3) * 1e8,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
@@ -194,7 +194,7 @@ def run_simulation() -> None:
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
-        if t % 120 == 0:
+        if t % 120 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
