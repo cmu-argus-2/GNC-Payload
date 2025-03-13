@@ -41,17 +41,19 @@ def imu_init(dt: float) -> IMU:
     # Initialize the IMU
     # bias params are min max range of bias and sigma_w
     # [units] and [(units/s)/sqrt(Hz)]
-    bias_params = BiasParams.get_random_params([1e-3, 1e-2], [1e-7, 1e-6])
+    bias_params_x = BiasParams.get_random_params([-1e-2, 1e-2], [1e-7, 1e-6])
+    bias_params_y = BiasParams.get_random_params([-1e-2, 1e-2], [1e-7, 1e-6])
+    bias_params_z = BiasParams.get_random_params([-1e-2, 1e-2], [1e-7, 1e-6])
     # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(
-        bias_params, [0, 0.0], [0, 0.0], [0, 0.0]
+        bias_params_x, [0, 0.0], [0, 0.0]
     )
     sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(
-        bias_params, [0, 0.0], [0, 0.0], [0, 0.0]
+        bias_params_y, [0, 0.0], [0, 0.0]
     )
     sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(
-        bias_params, [0, 0.0], [0, 0.0], [0, 0.0]
+        bias_params_z, [0, 0.0], [0, 0.0]
     )
     sensor_noise_params_accel = [
         sensor_noise_params_accel_x,
@@ -60,13 +62,13 @@ def imu_init(dt: float) -> IMU:
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(
-        bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01]
+        bias_params_x, [1e-7, 1e-6], [0, 0.01]
     )
     sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(
-        bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01]
+        bias_params_y, [1e-7, 1e-6], [0, 0.01]
     )
     sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(
-        bias_params, [1e-7, 1e-6], [0, 0.01], [0, 0.01]
+        bias_params_z, [1e-7, 1e-6], [0, 0.01]
     )
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
@@ -77,7 +79,11 @@ def imu_init(dt: float) -> IMU:
     imu_noise_params = IMUNoiseParams(
         gyro_params=sensor_noise_params_gyro, accel_params=sensor_noise_params_accel
     )
-    imu = IMU(dt, imu_noise_params)
+    imu = IMU(
+        dt=dt,
+        IMU_noise_params=imu_noise_params,
+        misalignment_range=[-0.01, 0.01],
+    )
 
     return imu
 
@@ -110,6 +116,11 @@ def run_simulation() -> None:
     # Apply error to init_rot and ensure orthonormality
     noisy_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
     noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
+
+    # Assert orthonormality
+    assert np.isclose(
+        np.linalg.det(noisy_rot), 1
+    ), "Rotation matrix is not a proper rotation matrix"
 
     # Set the number of update iterations for the IEKF
     num_iter = 5
@@ -145,7 +156,7 @@ def run_simulation() -> None:
         use_drag=False,
         use_j2=False,
         use_unmodelled_a=True,
-        ua_scale = ua_scale,
+        ua_scale=ua_scale,
     )
 
     # Initialize IMU and EKF
@@ -226,7 +237,7 @@ def run_simulation() -> None:
 
         error.append(ekf.r_m - next_state[0:3])
         vel_error.append(ekf.v_m - next_state[3:6])
-        ua_error.append(ekf.ua/ua_scale)
+        ua_error.append(ekf.ua / ua_scale)
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)
@@ -306,6 +317,7 @@ def run_simulation() -> None:
     plt.title("Actual Gyro Bias")
 
     plt.show()
+
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
