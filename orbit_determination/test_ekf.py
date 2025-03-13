@@ -114,6 +114,9 @@ def run_simulation() -> None:
     # Set the number of update iterations for the IEKF
     num_iter = 5
 
+    # Set up scaling parameter for the unmodelled acceleration
+    ua_scale = 1e8
+
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
 
@@ -142,6 +145,7 @@ def run_simulation() -> None:
         use_drag=False,
         use_j2=False,
         use_unmodelled_a=True,
+        ua_scale = ua_scale,
     )
 
     # Initialize IMU and EKF
@@ -151,7 +155,7 @@ def run_simulation() -> None:
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
-        ua=np.random.normal(0, 1e-5, 3) * 1e8,
+        ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
@@ -222,7 +226,7 @@ def run_simulation() -> None:
 
         error.append(ekf.r_m - next_state[0:3])
         vel_error.append(ekf.v_m - next_state[3:6])
-        ua_error.append(ekf.ua/1e8)
+        ua_error.append(ekf.ua/ua_scale)
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)

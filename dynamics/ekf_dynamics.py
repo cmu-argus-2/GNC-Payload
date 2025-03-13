@@ -28,6 +28,7 @@ class EKFDynamics(Dynamics):
         use_unmodelled_a: bool,
         use_drag: bool,
         use_j2: bool,
+        ua_scale: float = None,
     ) -> None:
         """
         Initialize the EKFDynamics class.
@@ -36,13 +37,14 @@ class EKFDynamics(Dynamics):
         :param use_unmodelled_a: Whether to use unmodelled accelerations in the dynamics.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
+        :param ua_scale: The scale factor for unmodelled accelerations.
         :return: None
         """
         super().__init__(config=config, use_drag=use_drag, use_j2=use_j2)
         self.use_unmodelled_a = use_unmodelled_a
 
         if use_unmodelled_a:
-            self.ua_std_dev = 1e-5
+            self.ua_scale = ua_scale
 
     def perturbed_state_derivative(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
@@ -61,13 +63,8 @@ class EKFDynamics(Dynamics):
 
         # Compute unmodelled accelerations
         if self.use_unmodelled_a:
-            unmodelled_a = x[6:9] / 1e8
-            # ua_dot = np.random.normal(0, self.ua_std_dev, 3)
-            ua_dot = np.zeros((3,))
-
-            updated_a += unmodelled_a
-
-            return np.concatenate([base_derivative[0:3], updated_a, ua_dot])
+            updated_a += x[6:9] / self.ua_scale
+            return np.concatenate([base_derivative[0:3], updated_a, np.zeros((3,))])
 
         return base_derivative
 
