@@ -12,11 +12,6 @@ import quaternion
 from brahe.epoch import Epoch
 
 
-import sys
-
-root = "/home/frederik/cmu/GNC-Payload"
-sys.path.append(root)
-
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -132,7 +127,7 @@ def run_simulation() -> None:
     num_iter = 5
 
     # Set up scaling parameter for the unmodelled acceleration
-    ua_scale = 1e8
+    ua_scale = 1e5
 
     # Set up scaling parameter for gyro bias
     gyro_bias_scale = 1e6
@@ -152,7 +147,7 @@ def run_simulation() -> None:
     P[3:6, 3:6] *= 5
     P[6:9, 6:9] *= 1e-2
     P[9:12, 9:12] *= 1e-2
-    P[12:15, 12:15] *= 1e-2
+    P[12:15, 12:15] *= 1
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -170,7 +165,7 @@ def run_simulation() -> None:
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
-    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 2e-5, 3)) * gyro_bias_scale
+    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 1e-4, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 5000, 3),
@@ -203,7 +198,7 @@ def run_simulation() -> None:
         q = data_manager.latest_attitude
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
-        # One wobble rotation every 10 seconds to model a relatively slow wobble
+        # One rotation every 10 seconds to model a relatively slow wobble
         w = rot  + 0.05 * np.array([np.cos(2*np.pi * t / (10 / dt)), np.sin(2*np.pi * t / (10 / dt)), 0])
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
