@@ -7,6 +7,9 @@ import jax.numpy as jnp
 import numpy as np
 from brahe.constants import GM_EARTH, J2_EARTH, R_EARTH
 
+# GM_EARTH = GM_EARTH / 1e9  # Convert to km^3/s^2
+# R_EARTH = R_EARTH / 1e3  # Convert to km
+
 F_DYN = (3 * GM_EARTH * J2_EARTH * R_EARTH**2) / 2
 F_DER = 1.5 * J2_EARTH * GM_EARTH * R_EARTH**2
 

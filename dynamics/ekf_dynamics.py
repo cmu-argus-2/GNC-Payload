@@ -2,12 +2,8 @@
 Functions for implementing EKF dynamics extending the orbital dynamics.
 """
 
-# pylint: disable=import-error
-from functools import partial
-
 import numpy as np
 from brahe import Epoch
-from brahe.constants import GM_EARTH
 
 from dynamics.orbital_dynamics import Dynamics
 

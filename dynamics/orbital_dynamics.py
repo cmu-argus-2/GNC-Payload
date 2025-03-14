@@ -19,6 +19,7 @@ from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manu
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
 
+# GM_EARTH = GM_EARTH / 1e9  # Convert to km^3/s^2
 
 class Dynamics:
     """

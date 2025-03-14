@@ -11,7 +11,6 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -99,7 +98,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 15  # s
+    config["mission"]["duration"] = 3 * 90 * 20  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -110,6 +109,8 @@ def run_simulation() -> None:
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
+    # initial_state = initial_state / 1e3  # Convert from m to km and m/s to km/s
+    # Set the initial rotation matrix to identity
     init_rot = np.eye(3)
 
     data_manager.push_next_state(initial_state, init_rot)
@@ -127,10 +128,10 @@ def run_simulation() -> None:
     num_iter = 5
 
     # Set up scaling parameter for the unmodelled acceleration
-    ua_scale = 1e5
+    ua_scale = 10
 
     # Set up scaling parameter for gyro bias
-    gyro_bias_scale = 1e6
+    gyro_bias_scale = 2
 
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
@@ -145,9 +146,9 @@ def run_simulation() -> None:
     P = np.eye(15)
     P[0:3, 0:3] *= 5
     P[3:6, 3:6] *= 5
-    P[6:9, 6:9] *= 1e-2
-    P[9:12, 9:12] *= 1e-2
-    P[12:15, 12:15] *= 1
+    P[6:9, 6:9] *= 1e-3
+    P[9:12, 9:12] *= 1e-3
+    P[12:15, 12:15] *= 1e-3
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -165,10 +166,10 @@ def run_simulation() -> None:
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
-    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 1e-4, 3)) * gyro_bias_scale
+    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
