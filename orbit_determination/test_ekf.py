@@ -97,8 +97,8 @@ def run_simulation() -> None:
 
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = 5  # Hz
-    config["mission"]["duration"] = 3 * 90 * 20  # s
+    config["solver"]["world_update_rate"] = 2  # Hz
+    config["mission"]["duration"] = 3 * 90 * 40  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -128,22 +128,25 @@ def run_simulation() -> None:
     # Set up scaling parameter for the unmodelled acceleration
     ua_scale = 1e8
 
+    # Set up scaling parameter for gyro bias
+    gyro_bias_scale = 1e6
+
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
 
     # Prep Q matrix for the EKF.
     Q = np.eye(15) * 1e-12
     # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-5
+    Q[6:9, 6:9] = np.eye(3) * 1e-9
     # Bias uncertainty also larger
-    # Q[12:15, 12:15] = np.eye(3) * 1e-12
+    Q[12:15, 12:15] = np.eye(3) * 1e-9
 
     P = np.eye(15)
-    P[0:3, 0:3] *= 1
-    P[3:6, 3:6] *= 1
+    P[0:3, 0:3] *= 5
+    P[3:6, 3:6] *= 5
     P[6:9, 6:9] *= 1e-2
-    P[9:12, 9:12] *= 1e-3
-    P[12:15, 12:15] *= 1e-3
+    P[9:12, 9:12] *= 1e-2
+    P[12:15, 12:15] *= 1e-2
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -161,10 +164,10 @@ def run_simulation() -> None:
 
     # Initialize IMU and EKF
     imu = imu_init(dt)
-    gyro_bias = imu.get_bias()[0]
+    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 2e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
@@ -173,7 +176,8 @@ def run_simulation() -> None:
         dt=dt,
         config=config,
         ekf_dynamics=ekf_dynamics,
-        w_b=gyro_bias + np.random.normal(0, 1e-4, 3),
+        w_b=gyro_bias,
+        gyro_bias_scale=gyro_bias_scale,
     )
 
     # Store errors for plotting
@@ -239,7 +243,7 @@ def run_simulation() -> None:
         vel_error.append(ekf.v_m - next_state[3:6])
         ua_error.append(ekf.ua / ua_scale)
         cov_trace.append(np.trace(ekf.P_m))
-        gyro_bias_error.append(ekf.w_b - imu_gyro_bias)
+        gyro_bias_error.append(ekf.w_b / gyro_bias_scale - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)
 
         sigma_high.append(

@@ -39,6 +39,7 @@ class EKF:
         config: dict,
         ua: np.ndarray,
         ekf_dynamics: Dynamics,
+        gyro_bias_scale: float,
     ) -> None:
         """
         Initialize the EKF
@@ -55,6 +56,7 @@ class EKF:
         :param config: The configuration dictionary.
         :param ua: The unmodeled acceleration with shape (3,)
         :param ekf_dynamics: The Dynamics object used to calculate the dynamics of the system.
+        :param gyro_bias_scale: The scale factor for the gyro bias.
 
         :return: None
 
@@ -71,6 +73,7 @@ class EKF:
 
         # self.a_b = a_b
         self.w_b = w_b
+        self.gyro_bias_scale = gyro_bias_scale
 
         self.ua = ua
 
@@ -107,16 +110,22 @@ class EKF:
         x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(self.dt * (w - self.w_b))
+            quaternion.from_rotation_vector(self.dt * (w - self.w_b / self.gyro_bias_scale))
         )
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
 
         dqdq = quaternion.as_rotation_matrix(
-            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b))
+            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b / self.gyro_bias_scale))
         )
-        dqdw = -1 * self.dt * G(self.q_p).T @ left_q(self.q_m) @ Drp2q(self.dt * (w - self.w_b))
+        dqdw = (
+            -1
+            * self.dt
+            * G(self.q_p).T
+            @ left_q(self.q_m)
+            @ Drp2q(self.dt * (w - self.w_b / self.gyro_bias_scale))
+        )
 
         A = np.block(
             [
