@@ -11,6 +11,12 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+
+import sys
+
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -41,9 +47,9 @@ def imu_init(dt: float) -> IMU:
     # Initialize the IMU
     # bias params are min max range of bias and sigma_w
     # [units] and [(units/s)/sqrt(Hz)]
-    bias_params_x = BiasParams.get_random_params([-1e-2, 1e-2], [1e-7, 1e-6])
-    bias_params_y = BiasParams.get_random_params([-1e-2, 1e-2], [1e-7, 1e-6])
-    bias_params_z = BiasParams.get_random_params([-1e-2, 1e-2], [1e-7, 1e-6])
+    bias_params_x = BiasParams.get_random_params([-1e-2, 1e-2], [1e-6, 1e-5])
+    bias_params_y = BiasParams.get_random_params([-1e-2, 1e-2], [1e-6, 1e-5])
+    bias_params_z = BiasParams.get_random_params([-1e-2, 1e-2], [1e-6, 1e-5])
     # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(
@@ -62,13 +68,13 @@ def imu_init(dt: float) -> IMU:
     ]
     # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
     sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(
-        bias_params_x, [1e-7, 1e-6], [0, 0.01]
+        bias_params_x, [1e-6, 1e-5], [0, 0.01]
     )
     sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(
-        bias_params_y, [1e-7, 1e-6], [0, 0.01]
+        bias_params_y, [1e-6, 1e-5], [0, 0.01]
     )
     sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(
-        bias_params_z, [1e-7, 1e-6], [0, 0.01]
+        bias_params_z, [1e-6, 1e-5], [0, 0.01]
     )
     sensor_noise_params_gyro = [
         sensor_noise_params_gyro_x,
@@ -98,7 +104,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 40  # s
+    config["mission"]["duration"] = 3 * 90 * 15  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -197,8 +203,8 @@ def run_simulation() -> None:
         q = data_manager.latest_attitude
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
-        # x_y_wobble = np.random.normal(0, 5e-2, 2)
-        w = rot  # + np.concatenate([x_y_wobble, np.zeros((1))])
+        # One wobble rotation every 10 seconds to model a relatively slow wobble
+        w = rot  + 0.05 * np.array([np.cos(2*np.pi * t / (10 / dt)), np.sin(2*np.pi * t / (10 / dt)), 0])
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
         gyro_meas, _ = imu.update(w, np.zeros((3)))
