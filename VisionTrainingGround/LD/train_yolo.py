@@ -128,4 +128,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    train_yolo()
+    main()
