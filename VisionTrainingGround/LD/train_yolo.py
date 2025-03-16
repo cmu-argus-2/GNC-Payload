@@ -52,33 +52,35 @@ def parse_args():
     return parser.parse_args()
 
 
-def train_yolo():
+def train_yolo(
+        training_dir: str,
+        region: str,
+        version: str,
+        epochs: int,
+) -> None:
     """
     Main function to initialize and train a YOLO model using specified command-line arguments.
 
     This function:
-    - Parses the command-line arguments to get training parameters.
     - Determines the computing device (CPU or GPU).
     - Loads the YOLO model based on the version specified.
     - Sets up the training configuration and runs the training process.
-    - Saves the trained model to the specified directory.
+    - Saves the trained model.
 
     Arguments:
-    - None
-
-    Returns:
-    - None
+    - training_dir (str): The main training directory.
+    - region (str): The MGRS region to train the model for.
+    - version (str): The YOLO model version to use.
+    - epochs (int): The number of epochs for training.
     """
-    args = parse_args()
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    model = YOLO(f"{args.version}.pt")
-    save_dir = os.path.join(args.training_dir, args.region, LD_TRAINING_DIR_NAME)
-    name = args.version + "_" + args.region + "_" + "n" + str(args.epochs)
+    model = YOLO(f"{version}.pt")
+    save_dir = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
+    name = version + "_" + region + "_" + "n" + str(epochs)
 
-    yolo_config_path = os.path.join(args.training_dir, args.region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
+    yolo_config_path = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
 
     # pylint: disable=unused-variable
     results = model.train(
@@ -94,9 +96,17 @@ def train_yolo():
         plots=True,  # Plot the results
         save=True,  # Save the trained model
         resume=False,  # Do not resume training
-        epochs=args.epochs,  # Number of epochs for training
+        epochs=epochs,  # Number of epochs for training
         device=device,  # Set device to cuda or cpu
     )
+
+
+def main() -> None:
+    """
+    Script entry point.
+    """
+    args = parse_args()
+    train_yolo(args.training_dir, args.region, args.version, args.epochs)
 
 
 if __name__ == "__main__":
