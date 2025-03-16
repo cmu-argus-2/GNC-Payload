@@ -4,9 +4,9 @@ Generate training data using the EarthImageSimulator.
 
 import argparse
 import os
-import pickle
 from shutil import rmtree
 
+import cv2
 import numpy as np
 from brahe.constants import R_EARTH
 from scipy.spatial.transform import Rotation
@@ -38,8 +38,11 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--regions", type=str, nargs="+", default=load_config()["vision"]["salient_mgrs_region_ids"],
-        help="MGRS regions to generate training data for."
+        "--regions",
+        type=str,
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to generate training data for.",
     )
     parser.add_argument(
         "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
@@ -160,17 +163,13 @@ def main() -> None:
                 ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
             )
 
-            # TODO: integrate with RC and LD training scripts
-            pickle_path = os.path.join(region_dir, f"{i:05d}.pkl")
-            with open(pickle_path, "wb") as f:
-                pickle.dump(
-                    {
-                        "image": frame.image,
-                        "mgrs_regions": mgrs_regions,
-                        "lat_lon": lat_lon,
-                    },
-                    f,
-                )
+            file_name = f"{i:05d}"
+            cv2.imwrite(
+                os.path.join(region_dir, f"{file_name}.png"),
+                cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
+            )
+            np.save(os.path.join(region_dir, f"{file_name}_mgrs_regions.npy"), mgrs_regions)
+            np.save(os.path.join(region_dir, f"{file_name}_lat_lon.npy"), lat_lon)
 
 
 if __name__ == "__main__":
