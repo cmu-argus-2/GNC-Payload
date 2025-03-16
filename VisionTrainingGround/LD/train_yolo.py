@@ -43,6 +43,12 @@ def parse_args():
         help="The main training directory.",
     )
     parser.add_argument("--region", type=str, required=True, help="Region Code")
+
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Whether to overwrite the output file if it exists.",
+    )
     parser.add_argument(
         "--version", type=str, required=False, default="yolov8n", help="YOLO version"
     )
@@ -55,6 +61,7 @@ def parse_args():
 def train_yolo(
         training_dir: str,
         region: str,
+        overwrite: bool,
         version: str,
         epochs: int,
 ) -> None:
@@ -70,18 +77,24 @@ def train_yolo(
     Arguments:
     - training_dir (str): The main training directory.
     - region (str): The MGRS region to train the model for.
+    - overwrite (bool): Whether to overwrite the output file if it exists.
     - version (str): The YOLO model version to use.
     - epochs (int): The number of epochs for training.
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    model = YOLO(f"{version}.pt")
     save_dir = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
     name = f"{version}_{region}_n{epochs}"
+    output_file = os.path.join(save_dir, f"{name}.pt")
+    if os.path.exists(output_file):
+        if not overwrite:
+            raise FileExistsError(f"Output file {output_file} already exists.")
 
+        os.remove(output_file)
+
+    model = YOLO(f"{version}.pt")
     yolo_config_path = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
-
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,  # Dataset path from argument
@@ -106,7 +119,7 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    train_yolo(args.training_dir, args.region, args.version, args.epochs)
+    train_yolo(args.training_dir, args.region, args.overwrite, args.version, args.epochs)
 
 
 if __name__ == "__main__":
