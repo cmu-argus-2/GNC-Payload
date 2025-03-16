@@ -20,16 +20,17 @@ class IMUNoiseParams:
 
 
 class IMU:
-    def __init__(self, dt: float, IMU_noise_params: IMUNoiseParams) -> None:
+    def __init__(self, dt: float, IMU_noise_params: IMUNoiseParams, misalignment_range: list) -> None:
         """
         Initialize an IMU sensor with given noise parameters.
 
         Args:
             dt (float): The time step for the simulation.
             IMU_noise_params (IMUNoiseParams): The noise parameters for the IMU sensor.
+            misalignment_range (list): The misalignment range for the sensor.
         """
-        self.gyro = TriAxisSensor(dt, IMU_noise_params.gyro)
-        self.accel = TriAxisSensor(dt, IMU_noise_params.accel)
+        self.gyro = TriAxisSensor(dt, IMU_noise_params.gyro, misalignment_range)
+        self.accel = TriAxisSensor(dt, IMU_noise_params.accel, misalignment_range)
 
     def get_bias(self) -> tuple:
         """

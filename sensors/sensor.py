@@ -1,6 +1,7 @@
 """
 Module that implements a sensor class that adds noise to a clean signal.
 """
+
 from math import sqrt
 
 import numpy as np
@@ -9,7 +10,12 @@ from sensors.bias import Bias, BiasParams
 
 
 class SensorNoiseParams:
-    def __init__(self, biasParams: BiasParams, sigma_v: float, scale_factor_error: float) -> None:
+    def __init__(
+        self,
+        biasParams: BiasParams,
+        sigma_v: float,
+        scale_factor_error: float,
+    ) -> None:
         """Parameters for a time-varying bias modeled as a random walk
 
         Args:
@@ -23,7 +29,9 @@ class SensorNoiseParams:
 
     @staticmethod
     def get_random_params(
-        biasParams: BiasParams, sigma_v_range: list, scale_factor_error_range: list
+        biasParams: BiasParams,
+        sigma_v_range: list,
+        scale_factor_error_range: list,
     ) -> "SensorNoiseParams":
         """
         Getter for random bias parameters
@@ -60,6 +68,9 @@ class Sensor:
 
         self.scale_factor_error = sensor_noise_params.scale_factor_error
 
+        self.value = 0
+
+
     def update(self, clean_signal: np.ndarray) -> np.ndarray:
         """
         Update the measurements of the sensor by applying noise to the clean signal.
@@ -72,28 +83,40 @@ class Sensor:
         """
         self.bias.update()
         noise = self.white_noise * np.random.standard_normal()
-        return (1 + self.scale_factor_error) * clean_signal + self.bias.get_bias() + noise
+        self.value = (1 + self.scale_factor_error) * clean_signal + self.bias.get_bias() + noise
+        return self.value
 
     def get_bias(self) -> float:
         """
         Getter for the bias
         """
         return self.bias.get_bias()
+    
+    def get_value(self) -> float:
+        """
+        Getter for the latest signal value
+        """
+        return self.value
 
 
 class TriAxisSensor:
-    def __init__(self, dt: float, axes_params: list) -> None:
+    def __init__(self, dt: float, axes_params: list, misalignment_range: list) -> None:
         """
         Class that creates a noisy tri-axis signal.
 
         Args:
             dt (float): The time step for the simulation.
             axes_params (IMUNoiseParams): The noise parameters for the sensor.
+            misalignment_range (list): The misalignment range for the sensor.
         """
         self.dt = dt
         self.x = Sensor(dt, axes_params[0])
         self.y = Sensor(dt, axes_params[1])
         self.z = Sensor(dt, axes_params[2])
+
+        self.misalignmentxy = np.random.uniform(*misalignment_range)
+        self.misalignmentxz = np.random.uniform(*misalignment_range)
+        self.misalignmentyz = np.random.uniform(*misalignment_range)
 
     def get_bias(self) -> np.ndarray:
         """
@@ -111,10 +134,29 @@ class TriAxisSensor:
         Returns:
             np.ndarray: The noisy signal.
         """
+        self.x.update(clean_signal[0])
+        self.y.update(clean_signal[1])
+        self.z.update(clean_signal[2])
+
+        # Apply misalignment to each sensor
+        signal_x = (
+            self.x.get_value() + self.misalignmentxy * clean_signal[1] + self.misalignmentxz * clean_signal[2]
+        )
+        signal_y = (
+            self.y.get_value()
+            + (-1) * self.misalignmentxy * clean_signal[0]
+            + self.misalignmentyz * clean_signal[2]
+        )
+        signal_z = (
+            self.z.get_value()
+            + (-1) * self.misalignmentxz * clean_signal[0]
+            + (-1) * self.misalignmentyz * clean_signal[1]
+        )
+
         return np.array(
             [
-                self.x.update(clean_signal[0]),
-                self.y.update(clean_signal[1]),
-                self.z.update(clean_signal[2]),
+                signal_x,
+                signal_y,
+                signal_z,
             ]
         )
