@@ -2,7 +2,6 @@
 Test the nonlinear least squares orbit determination algorithm.
 """
 
-import os
 import pickle
 from time import perf_counter, time
 
@@ -14,7 +13,7 @@ from scipy.spatial.transform import Rotation
 # pylint: disable=import-error
 # pylint: disable=unused-import
 # pylint: disable=invalid-name
-from dynamics.orbital_dynamics import f
+from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     RandomLandmarkBearingSensor,
@@ -23,7 +22,7 @@ from orbit_determination.landmark_bearing_sensors import (
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
-from utils.brahe_utils import load_brahe_data_files
+from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
@@ -72,7 +71,7 @@ def test_od() -> None:
     data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state))
 
     for t in range(0, N - 1):
-        next_state = f(data_manager.latest_state, dt)
+        next_state = Dynamics.f(data_manager.latest_state, dt)
         data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
 
         # take a set of measurements every 5 minutes
@@ -142,5 +141,5 @@ def test_od() -> None:
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    load_brahe_data_files()
+    load_brahe_data_files_if_needed()
     test_od()
