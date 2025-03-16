@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Whether to overwrite the output files if they exist.",
+        help="Whether to overwrite the output directory if it exists.",
     )
     parser.add_argument(
         "--test_fraction",
