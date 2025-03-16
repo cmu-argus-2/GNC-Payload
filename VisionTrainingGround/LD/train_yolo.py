@@ -13,9 +13,12 @@ Optional arguments:
 """
 
 import argparse
+import os
 
 import torch
 from ultralytics import YOLO
+
+from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
 
 def parse_args():
@@ -34,8 +37,12 @@ def parse_args():
        - epochs (int): Number of training epochs (default is 300).
     """
     parser = argparse.ArgumentParser(description="Train YOLO model with custom name and data path.")
+    parser.add_argument(
+        "training_dir",
+        type=str,
+        help="The main training directory.",
+    )
     parser.add_argument("--region", type=str, required=True, help="Region Code")
-    parser.add_argument("--data", type=str, required=True, help="Path to the dataset YAML file")
     parser.add_argument(
         "--save_dir",
         type=str,
@@ -77,9 +84,11 @@ def train_yolo():
     name = args.version + "_" + args.region + "_" + "n" + str(args.epochs)
     print(args.save_dir)
 
+    yolo_config_path = os.path.join(args.training_dir, args.region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
+
     # pylint: disable=unused-variable
     results = model.train(
-        data=args.data,  # Dataset path from argument
+        data=yolo_config_path,  # Dataset path from argument
         project=args.save_dir,
         name=name,  # The result files are saved in project/name
         degrees=180,  # Image augmentation parameters
