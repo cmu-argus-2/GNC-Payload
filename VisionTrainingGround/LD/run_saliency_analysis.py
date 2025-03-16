@@ -16,6 +16,7 @@ from scipy.ndimage import uniform_filter
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.earth_utils import get_MGRS_grid
+from utils.config_utils import load_config
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
@@ -32,10 +33,22 @@ def parse_args() -> argparse.Namespace:
         description="Create a GeoTIFF saliency map for a MGRS region from a directory of PNGs and .npy files."
     )
     parser.add_argument(
-        "input_dir",
+        "training_dir",
         type=str,
-        help="The directory containing the PNGs and .npy files to use to generate the saliency map.",
+        help="The directory containing the MGRS region directories with PNGs and .npy files to use for saliency analysis.",
     )
+
+    parser.add_argument(
+        "--regions",
+        type=str,
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to run saliency analysis for.",
+    )
+    parser.add_argument(
+        "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
+    )
+
     parser.add_argument(
         "--overwrite",
         action="store_true",
@@ -46,12 +59,6 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=50.0,
         help="The ground sample distance to use for the saliency map.",
-    )
-    parser.add_argument(
-        "--region",
-        type=str,
-        help="The MGRS region to generate the saliency map for."
-        "If not provided, the region will be inferred from the input directory name.",
     )
     parser.add_argument(
         "--bounding_box_size",
@@ -255,10 +262,12 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    region = args.region if args.region is not None else os.path.basename(args.input_dir)
-    run_saliency_analysis_for_region(
-        args.input_dir, region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
-    )
+    regions = list(set(args.regions) - set(args.skip_regions))
+    for region in regions:
+        region_dir: str = os.path.join(args.training_dir, region)
+        run_saliency_analysis_for_region(
+            region_dir, region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
+        )
 
 
 if __name__ == "__main__":
