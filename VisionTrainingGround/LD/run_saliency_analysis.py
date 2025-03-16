@@ -7,6 +7,8 @@ The saliency map is then used to identify the top saliency bounding boxes, which
 import argparse
 import os
 from typing import List
+from functools import partial
+from multiprocessing import Pool, cpu_count
 
 import cv2
 import numpy as np
@@ -43,12 +45,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
     )
-
     parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Whether to overwrite the output file if it exists.",
     )
+    parser.add_argument(
+        "--num_processes",
+        type=int,
+        default=int(0.8 * cpu_count()),
+        help="Number of processes to use for running saliency analysis in parallel across the specified regions.",
+    )
+
     parser.add_argument(
         "--gsd",
         type=float,
@@ -259,10 +267,19 @@ def main() -> None:
     """
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
-    for region in regions:
-        run_saliency_analysis_for_region(
-            region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
-        )
+
+    func = partial(
+        run_saliency_analysis_for_region,
+        overwrite=args.overwrite,
+        gsd=args.gsd,
+        bounding_box_size=args.bounding_box_size,
+        num_boxes=args.num_boxes
+    )
+    if args.num_processes > 1:
+        with Pool(args.num_processes) as pool:
+            pool.map(func, regions)
+    else:
+        map(func, regions)
 
 
 if __name__ == "__main__":

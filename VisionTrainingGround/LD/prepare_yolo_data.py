@@ -7,6 +7,8 @@ import argparse
 import os
 import shutil
 from typing import List
+from functools import partial
+from multiprocessing import Pool, cpu_count
 
 import cv2
 import numpy as np
@@ -43,12 +45,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
     )
-
     parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Whether to overwrite the output directory if it exists.",
     )
+    parser.add_argument(
+        "--num_processes",
+        type=int,
+        default=int(0.8 * cpu_count()),
+        help="Number of processes to use for preparing the data for training a YOLO model"
+             "in parallel across the specified regions.",
+    )
+
     parser.add_argument(
         "--test_fraction",
         type=float,
@@ -160,6 +169,7 @@ def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_pa
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
+    # TODO: upgrade workflow to parallelize this loop with multiprocessing
     for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
         image_path = os.path.join(region_dir, file_prefix + ".png")
         image = cv2.imread(image_path)
@@ -325,8 +335,17 @@ def main():
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
 
-    for region in regions:
-        prepare_yolo_data_for_region(region, args.overwrite, args.test_fraction, args.val_fraction)
+    func = partial(
+        prepare_yolo_data_for_region,
+        overwrite=args.overwrite,
+        test_fraction=args.test_fraction,
+        val_fraction=args.val_fraction,
+    )
+    if args.num_processes > 1:
+        with Pool(args.num_processes) as pool:
+            pool.map(func, regions)
+    else:
+        map(func, regions)
 
 
 if __name__ == "__main__":

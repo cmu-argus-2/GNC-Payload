@@ -5,6 +5,9 @@ Generate training data using the EarthImageSimulator.
 import argparse
 import os
 from shutil import rmtree
+from functools import partial
+from multiprocessing import Pool, cpu_count
+from itertools import product, starmap
 
 import cv2
 import numpy as np
@@ -43,6 +46,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite", action="store_true", help="Overwrite the output directory if it exists."
     )
+    parser.add_argument(
+        "--num_processes",
+        type=int,
+        default=int(0.8 * cpu_count()),
+        help="Number of processes to use for generating training data in parallel.",
+    )
+
     parser.add_argument(
         "--lat_lon_buffer", type=float, default=0.0, help="Extra buffer in lat/lon for each region."
     )
@@ -179,9 +189,9 @@ def main() -> None:
     Generate training data using the EarthImageSimulator.
     """
     args = parse_args()
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
 
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in regions:
         region_dir: str = os.path.join(training_dir, region)
         if not setup_region_directory(region_dir, args.overwrite):
@@ -190,17 +200,19 @@ def main() -> None:
             )
             return
 
-        for i in range(args.num_images):
-            file_prefix = f"{i:05d}"
-
-            generate_training_image(
-                region,
-                file_prefix,
-                args.lat_lon_buffer,
-                args.nominal_altitude,
-                args.altitude_variation,
-                args.off_nadir_variation,
-            )
+    func = partial(
+        generate_training_image,
+        lat_lon_buffer=args.lat_lon_buffer,
+        nominal_altitude=args.nominal_altitude,
+        altitude_variation=args.altitude_variation,
+        off_nadir_variation=args.off_nadir_variation,
+    )
+    file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
+    if args.num_processes > 1:
+        with Pool(args.num_processes) as pool:
+            pool.starmap(func, product(regions, file_prefixes_generator))
+    else:
+        starmap(func, product(regions, file_prefixes_generator))
 
 
 if __name__ == "__main__":

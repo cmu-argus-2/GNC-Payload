@@ -6,6 +6,7 @@ regions="05V 09V 10S 10T 11R 12R 14Q 15V 16T 18Q 18S 19J 21H 23L 29Q 30U 32S 32T
 python run_saliency_analysis.py \
   --regions $regions \
   --overwrite \
+  --num_processes 10 \
   --gsd 50.0 \
   --bounding_box_size 7200 \
   --num_boxes 50
@@ -13,6 +14,7 @@ python run_saliency_analysis.py \
 python prepare_yolo_data.py \
   --regions $regions \
   --overwrite \
+  --num_processes 10 \
   --test_fraction 0.2 \
   --val_fraction 0.1
 
