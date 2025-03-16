@@ -336,7 +336,7 @@ def prepare_yolo_data_for_region(
     """
     Prepare YOLO training data for a single region.
 
-    :param region_id: The MGRS region ID to prepare the YOLO training data.
+    :param region_id: The MGRS region ID to prepare the YOLO training data for.
     :param overwrite: Whether to overwrite the output files if they exist.
     :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
     :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
