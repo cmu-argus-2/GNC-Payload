@@ -38,7 +38,7 @@ class RegionClassifier:
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
-    MODEL_WEIGHTS_RELATIVE_PATH = os.path.join("rc", "model.pth")
+    MODEL_WEIGHTS_RELATIVE_PATH = "rc_model_weights.pth"
 
     def __init__(self):
         Logger.log("INFO", "Initializing RegionClassifier.")

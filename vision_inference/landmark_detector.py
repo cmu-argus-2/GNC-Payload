@@ -159,15 +159,14 @@ class LandmarkDetector:
         """
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
         models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
-        ld_models_dir = os.path.join(models_dir, "ld")
 
         self.region_id = region_id
         try:
             self.model = YOLO(
-                os.path.join(ld_models_dir, self.get_LD_model_weights_relative_path(region_id))
+                os.path.join(models_dir, self.get_LD_model_weights_relative_path(region_id))
             )
             self.ground_truth = LandmarkDetector.load_ground_truth(
-                os.path.join(ld_models_dir, self.get_region_bounding_boxes_relative_path(region_id))
+                os.path.join(models_dir, self.get_region_bounding_boxes_relative_path(region_id))
             )
         except Exception as e:
             Logger.log("ERROR", f"Failed to load necessary data: {e}")
@@ -184,7 +183,7 @@ class LandmarkDetector:
         Returns:
             The relative path to the LD model weights file.
         """
-        return os.path.join(region_id, f"{region_id}_nadir.pt")
+        return os.path.join(region_id, "yolo_model_weights.pt")
 
     @staticmethod
     def get_region_bounding_boxes_relative_path(region_id: str) -> str:
@@ -197,7 +196,7 @@ class LandmarkDetector:
         Returns:
             The relative path to the bounding box coordinates file.
         """
-        return os.path.join(region_id, f"{region_id}_top_salient.csv")
+        return os.path.join(region_id, "bounding_boxes.csv")
 
     @staticmethod
     def load_ground_truth(ground_truth_path: str) -> np.ndarray:

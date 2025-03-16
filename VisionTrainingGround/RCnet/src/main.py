@@ -37,6 +37,7 @@ def parse_args():
     )
 
     # Paths
+    # TODO: update the RC training pipeline to automatically handle file paths within /training_directory
     parser.add_argument(
         "--data_dir", type=str, required=True, help="Path to the dataset directory."
     )

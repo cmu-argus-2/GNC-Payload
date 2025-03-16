@@ -14,11 +14,9 @@ import yaml
 
 from utils.earth_utils import lat_lon_to_ecef
 from utils.config_utils import load_config, USER_CONFIG_PATH
+from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
-from VisionTrainingGround.LD.run_saliency_analysis import (
-    BOUNDING_BOXES_FILE_NAME,
-    get_common_file_name_prefixes,
-)
+from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
 
 LD_TRAINING_DIR_NAME = "LD_training"
 YOLO_CONFIG_FILE_NAME = "dataset.yaml"
@@ -147,8 +145,8 @@ def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_pa
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
-    bounding_boxes_lat_lon = np.loadtxt(
-        os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
+    bounding_boxes_lat_lon = LandmarkDetector.load_ground_truth(
+        os.path.join(training_dir, LandmarkDetector.get_LD_ground_truth_relative_path(region_id))
     )
     num_classes = bounding_boxes_lat_lon.shape[0]
 

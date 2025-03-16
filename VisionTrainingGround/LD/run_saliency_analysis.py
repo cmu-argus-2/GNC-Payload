@@ -17,10 +17,10 @@ from scipy.ndimage import uniform_filter
 from image_simulation.earth_vis import GeoTIFFData
 from utils.earth_utils import get_MGRS_grid
 from utils.config_utils import load_config, USER_CONFIG_PATH
+from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
-BOUNDING_BOXES_FILE_NAME = "bounding_boxes.csv"
 
 
 def parse_args() -> argparse.Namespace:
@@ -246,7 +246,7 @@ def run_saliency_analysis_for_region(
     bounding_boxes_lat_lon = find_best_bounding_boxes(saliency_map, window_size, num_boxes)
 
     np.savetxt(
-        os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME),
+        os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region)),
         bounding_boxes_lat_lon,
         delimiter=",",
         header="Centroid Latitude,Centroid Longitude,Top-Left Latitude,"
