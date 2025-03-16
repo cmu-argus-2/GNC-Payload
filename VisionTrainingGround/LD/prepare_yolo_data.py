@@ -147,13 +147,13 @@ def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_pa
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
-    csv_data = np.loadtxt(
+    bounding_boxes_lat_lon = np.loadtxt(
         os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
     )
-    num_classes = csv_data.shape[0]
+    num_classes = bounding_boxes_lat_lon.shape[0]
 
-    top_left_lat_lon = np.column_stack((csv_data[:, 3], csv_data[:, 2]))
-    bottom_right_lat_lon = np.column_stack((csv_data[:, 5], csv_data[:, 4]))
+    top_left_lat_lon = bounding_boxes_lat_lon[:, 2:4]
+    bottom_right_lat_lon = bounding_boxes_lat_lon[:, 4:6]
     top_right_lat_lon = np.column_stack((top_left_lat_lon[:, 0], bottom_right_lat_lon[:, 1]))
     bottom_left_lat_lon = np.column_stack((bottom_right_lat_lon[:, 0], top_left_lat_lon[:, 1]))
 

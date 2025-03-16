@@ -177,8 +177,8 @@ def find_best_bounding_boxes(
     :param saliency_map: The saliency map to generate bounding boxes for.
     :param window_size: The size of the bounding boxes to find in the saliency map. Must be odd.
     :param num_boxes: The number of top saliency boxes to identify.
-    :return: A numpy array of shape (num_boxes, 6) containing (centroid_lon, centroid_lat, top_left_lon, top_left_lat,
-             bottom_right_lon, bottom_right_lat) for each of the top saliency bounding boxes.
+    :return: A numpy array of shape (num_boxes, 6) containing (centroid_lat, centroid_lon, top_left_lat, top_left_lon,
+             bottom_right_lat, bottom_right_lon) for each of the top saliency bounding boxes.
     """
     if window_size % 2 == 0:
         raise ValueError("Window size must be odd.")
@@ -212,10 +212,10 @@ def find_best_bounding_boxes(
     top_left_lon, top_left_lat = inverse_transform * (top_left_us, top_left_vs)
     bottom_right_lon, bottom_right_lat = inverse_transform * (bottom_right_us, bottom_right_vs)
 
-    csv_data = np.column_stack(
-        (centroid_lon, centroid_lat, top_left_lon, top_left_lat, bottom_right_lon, bottom_right_lat)
+    bounding_boxes_lat_lon = np.column_stack(
+        (centroid_lat, centroid_lon, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon)
     )
-    return csv_data
+    return bounding_boxes_lat_lon
 
 def run_saliency_analysis_for_region(
         region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
@@ -243,14 +243,14 @@ def run_saliency_analysis_for_region(
     window_size = bounding_box_size / gsd
     # round to the nearest odd number of pixels
     window_size = 2 * int(np.rint((window_size - 1) / 2)) + 1
-    csv_data = find_best_bounding_boxes(saliency_map, window_size, num_boxes)
+    bounding_boxes_lat_lon = find_best_bounding_boxes(saliency_map, window_size, num_boxes)
 
     np.savetxt(
         os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME),
-        csv_data,
+        bounding_boxes_lat_lon,
         delimiter=",",
-        header="Centroid Longitude,Centroid Latitude,Top-Left Longitude,"
-        "Top-Left Latitude,Bottom-Right Longitude,Bottom-Right Latitude",
+        header="Centroid Latitude,Centroid Longitude,Top-Left Latitude,"
+        "Top-Left Longitude,Bottom-Right Latitude,Bottom-Right Longitude",
     )
 
 def main() -> None:
