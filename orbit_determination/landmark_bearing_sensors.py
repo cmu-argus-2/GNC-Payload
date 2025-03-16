@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation
 # pylint: disable=import-error
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModel
-from utils.config_utils import load_config
+from utils.config_utils import load_config, USER_CONFIG_PATH
 from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.ml_pipeline import MLPipeline
@@ -196,11 +196,14 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
                  the coordinates of the landmarks in ECEF.
         """
         salient_regions: List[str] = load_config()["vision"]["salient_mgrs_region_ids"]
+        models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
+        ld_models_dir = os.path.join(models_dir, "ld")
+
         region_landmarks_ecef = {}
         for region_id in salient_regions:
             region_landmarks = LandmarkDetector.load_ground_truth(
                 os.path.join(
-                    LandmarkDetector.MODEL_DIR,
+                    ld_models_dir,
                     LandmarkDetector.get_region_bounding_boxes_relative_path(region_id),
                 )
             )

@@ -5,3 +5,5 @@ earth_engine_project_name: your_earth_engine_project_name
 # The directory where the training data is stored as it is being generated, processed, labelled, and trained on
 # If you are working with multiple datasets, just pick one to use for the script you are running
 training_directory: /path/to/training/directory
+# The directory where the trained models will be loaded from
+models_directory: /path/to/models/directory
