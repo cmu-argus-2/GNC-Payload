@@ -214,33 +214,50 @@ def find_best_bounding_boxes(
     )
     return csv_data
 
+def run_saliency_analysis_for_region(
+        region_dir: str, region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
+) -> None:
+    """
+    Run the saliency analysis for a single region.
+
+    :param region_dir: The directory containing the PNGs and .npy files for the MGRS region to use to generate the
+                       saliency map.
+    :param region: The MGRS region to generate the saliency map for.
+    :param overwrite: Whether to overwrite the output file if it exists.
+    :param gsd: The ground sample distance to use for the saliency map.
+    :param bounding_box_size: The side length of the bounding boxes to find in the saliency map, in meters.
+    :param num_boxes: The number of top saliency bounding boxes to identify.
+    """
+    output_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
+    if os.path.exists(output_file):
+        if not overwrite:
+            raise FileExistsError(f"Output file {output_file} already exists.")
+        os.remove(output_file)
+
+    saliency_map = generate_saliency_map(region_dir, output_file, gsd, region)
+    saliency_map.save()
+
+    window_size = bounding_box_size / gsd
+    # round to the nearest odd number of pixels
+    window_size = 2 * int(np.rint((window_size - 1) / 2)) + 1
+    csv_data = find_best_bounding_boxes(saliency_map, window_size, num_boxes)
+
+    np.savetxt(
+        os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME),
+        csv_data,
+        delimiter=",",
+        header="Centroid Longitude,Centroid Latitude,Top-Left Longitude,"
+        "Top-Left Latitude,Bottom-Right Longitude,Bottom-Right Latitude",
+    )
 
 def main() -> None:
     """
     Script entry point.
     """
     args = parse_args()
-
     region = args.region if args.region is not None else os.path.basename(args.input_dir)
-    output_file = os.path.join(args.input_dir, SALIENCY_MAP_FILE_NAME)
-    if os.path.exists(output_file):
-        if not args.overwrite:
-            raise FileExistsError(f"Output file {output_file} already exists.")
-        os.remove(output_file)
-
-    saliency_map = generate_saliency_map(args.input_dir, output_file, args.gsd, region)
-    saliency_map.save()
-
-    window_size = args.bounding_box_size / args.gsd
-    # round to the nearest odd integer
-    window_size = 2 * int(np.rint((window_size - 1) / 2)) + 1
-    csv_data = find_best_bounding_boxes(saliency_map, window_size, args.num_boxes)
-    np.savetxt(
-        os.path.join(args.input_dir, BOUNDING_BOXES_FILE_NAME),
-        csv_data,
-        delimiter=",",
-        header="Centroid Longitude,Centroid Latitude,Top-Left Longitude,"
-        "Top-Left Latitude,Bottom-Right Longitude,Bottom-Right Latitude",
+    run_saliency_analysis_for_region(
+        args.input_dir, region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
     )
 
 
