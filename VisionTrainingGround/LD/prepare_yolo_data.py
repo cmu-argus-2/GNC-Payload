@@ -284,22 +284,36 @@ def create_LD_training_data_dir(
         yaml.dump(yolo_config, yolo_config_file, default_flow_style=False)
 
 
-def main():
-    args = parse_args()
+def prepare_yolo_data_for_region(
+        region_dir: str, overwrite: bool, test_fraction: float, val_fraction: float
+) -> None:
+    """
+    Prepare YOLO training data for a single region.
 
-    file_prefixes = get_common_file_name_prefixes(args.input_dir)
+    :param region_dir: The directory containing the PNGs, the saliency map .tiff file, and bounding boxes .csv file to
+                       prepare the YOLO training data.
+    :param overwrite: Whether to overwrite the output files if they exist.
+    :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
+    :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
+    """
+    file_prefixes = get_common_file_name_prefixes(region_dir)
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
-    ld_training_dir = os.path.join(args.input_dir, LD_TRAINING_DIR_NAME)
+    ld_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
     if os.path.exists(ld_training_dir):
-        if not args.overwrite:
+        if not overwrite:
             raise FileExistsError(
                 f"Output directory {LD_TRAINING_DIR_NAME} already exists. Use --overwrite to overwrite."
             )
         shutil.rmtree(ld_training_dir)
 
-    create_LD_training_data_dir(args.input_dir, file_prefixes, args.test_fraction, args.val_fraction)
+    create_LD_training_data_dir(region_dir, file_prefixes, test_fraction, val_fraction)
+
+
+def main():
+    args = parse_args()
+    prepare_yolo_data_for_region(args.input_dir, args.overwrite, args.test_fraction, args.val_fraction)
 
 
 if __name__ == "__main__":
