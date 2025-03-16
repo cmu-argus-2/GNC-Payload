@@ -218,19 +218,19 @@ def find_best_bounding_boxes(
     return csv_data
 
 def run_saliency_analysis_for_region(
-        region: str, region_dir: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
+        region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
 ) -> None:
     """
     Run the saliency analysis for a single region.
 
     :param region: The MGRS region to generate the saliency map for.
-    :param region_dir: The directory containing the PNGs and .npy files for the MGRS region to use to generate the
-                       saliency map.
     :param overwrite: Whether to overwrite the output file if it exists.
     :param gsd: The ground sample distance to use for the saliency map.
     :param bounding_box_size: The side length of the bounding boxes to find in the saliency map, in meters.
     :param num_boxes: The number of top saliency bounding boxes to identify.
     """
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region)
     output_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
     if os.path.exists(output_file):
         if not overwrite:
@@ -258,12 +258,10 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
     for region in regions:
-        region_dir: str = os.path.join(training_dir, region)
         run_saliency_analysis_for_region(
-            region_dir, region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
+            region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
         )
 
 
