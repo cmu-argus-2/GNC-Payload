@@ -254,13 +254,18 @@ def run_saliency_analysis_for_region(
     """
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
-    output_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
-    if os.path.exists(output_file):
+    saliency_map_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
+    bounding_boxes_file = os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region))
+    if os.path.exists(saliency_map_file):
         if not overwrite:
-            raise FileExistsError(f"Output file {output_file} already exists.")
-        os.remove(output_file)
+            raise FileExistsError(f"Output file {saliency_map_file} already exists.")
+        os.remove(saliency_map_file)
+    if os.path.exists(bounding_boxes_file):
+        if not overwrite:
+            raise FileExistsError(f"Output file {bounding_boxes_file} already exists.")
+        os.remove(bounding_boxes_file)
 
-    saliency_map = generate_saliency_map(region_dir, output_file, gsd, region)
+    saliency_map = generate_saliency_map(region_dir, saliency_map_file, gsd, region)
     saliency_map.save()
 
     window_size = bounding_box_size / gsd
@@ -269,7 +274,7 @@ def run_saliency_analysis_for_region(
     bounding_boxes_lat_lon = find_best_bounding_boxes(saliency_map, window_size, num_boxes)
 
     np.savetxt(
-        os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region)),
+        bounding_boxes_file,
         bounding_boxes_lat_lon,
         delimiter=",",
         header="Centroid Latitude,Centroid Longitude,Top-Left Latitude,"
