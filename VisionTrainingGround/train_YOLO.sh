@@ -4,7 +4,7 @@
 BASE_OUTPATH="Landsat_Data"
 LANDMARK_BASE="$(pwd)/Landsat_Data"  # Path relative to the current directory
 FINAL_OUTPUT_PATH="$(pwd)/LD/datasets"  # Path relative to the current directory
-VALFLAG=False
+VALFLAG=True
 CURR_DIR="$(pwd)"
 
 # Parse command line arguments (optional)
@@ -25,5 +25,5 @@ for KEY in "${KEYS[@]}"; do
   python ./DataPipeline/prepare_yolo_data.py --data_path "$BASE_OUTPATH/$KEY" --landmark_path "$LANDMARK_BASE/$KEY/landmarks" --output_path "$FINAL_OUTPUT_PATH/${KEY}_dataset" --r "$KEY" --val $VALFLAG
 
   # Train YOLO model
-  python ./LD/train_yolo.py --data "$CURR_DIR/LD/datasets/${KEY}_dataset/dataset.yaml" --save_dir "$CURR_DIR/LD/runs" --region "$KEY" --version "yolov8n" --epochs 10
+  python ./LD/train_yolo.py --data "$CURR_DIR/LD/datasets/${KEY}_dataset/dataset.yaml" --save_dir "$CURR_DIR/LD/runs" --region "$KEY" --version "yolov8x" --epochs 100
 done

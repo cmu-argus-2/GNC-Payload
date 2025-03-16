@@ -7,6 +7,8 @@ import os
 import brahe
 from brahe.epoch import Epoch
 
+from utils.config_utils import load_config
+
 
 def increment_epoch(epoch: Epoch, dt: float) -> Epoch:
     """
@@ -33,9 +35,10 @@ def load_brahe_data_files() -> None:
 
 def load_brahe_data_files_if_needed() -> None:
     """
-    Load up-to-date brahe files if they are not already present.
+    Load up-to-date brahe files if they are needed.
     """
+    config = load_config()
     try:
-        _ = brahe.rECItoECEF(Epoch(*brahe.time.mjd_to_caldate(60431.0)))
+        _ = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     except Exception:
         load_brahe_data_files()
