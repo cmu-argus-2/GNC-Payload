@@ -106,18 +106,19 @@ def get_common_file_name_prefixes(input_dir: str) -> List[str]:
 
 
 def generate_saliency_map(
-    input_dir: str, output_file: str, gsd: float, region_id: str
+    region_dir: str, output_file: str, gsd: float, region_id: str
 ) -> GeoTIFFData:
     """
     Generate a saliency map for a MGRS region from a directory of PNGs and .npy files.
 
-    :param input_dir: The directory containing the PNGs and .npy files to use to generate the saliency map.
+    :param region_dir: The directory containing the PNGs and .npy files for the region to use to generate the saliency
+                       map.
     :param output_file: The file to save the saliency map to.
     :param gsd: The ground sample distance to use for the saliency map.
     :param region_id: The MGRS region to generate the saliency map for.
     :return: The saliency map as a GeoTIFFData object.
     """
-    file_prefixes = get_common_file_name_prefixes(input_dir)
+    file_prefixes = get_common_file_name_prefixes(region_dir)
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
@@ -138,7 +139,7 @@ def generate_saliency_map(
     saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
     for file_prefix in file_prefixes:
-        file_path = os.path.join(input_dir, file_prefix + ".png")
+        file_path = os.path.join(region_dir, file_prefix + ".png")
         image = cv2.imread(file_path)
         success, img_saliency_map = saliency_computer.computeSaliency(image)
 
@@ -150,7 +151,7 @@ def generate_saliency_map(
             img_saliency_map.dtype == region_saliency_map.dtype
         ), f"Expected saliency map to have dtype {region_saliency_map.dtype}, but got {img_saliency_map.dtype}."
 
-        lat_lon = np.load(os.path.join(input_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
+        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
         assert (
             lat_lon.shape[:2] == image.shape[:2]
         ), f"Lat/lon shape {lat_lon.shape[:2]} does not match image shape {image.shape[:2]}."
@@ -222,14 +223,14 @@ def find_best_bounding_boxes(
     return csv_data
 
 def run_saliency_analysis_for_region(
-        region_dir: str, region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
+        region: str, region_dir: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
 ) -> None:
     """
     Run the saliency analysis for a single region.
 
+    :param region: The MGRS region to generate the saliency map for.
     :param region_dir: The directory containing the PNGs and .npy files for the MGRS region to use to generate the
                        saliency map.
-    :param region: The MGRS region to generate the saliency map for.
     :param overwrite: Whether to overwrite the output file if it exists.
     :param gsd: The ground sample distance to use for the saliency map.
     :param bounding_box_size: The side length of the bounding boxes to find in the saliency map, in meters.

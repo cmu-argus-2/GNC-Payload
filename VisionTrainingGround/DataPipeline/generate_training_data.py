@@ -77,32 +77,32 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_output_directory(output_dir: str, overwrite: bool) -> bool:
+def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
     """
-    Create the output directory if it does not exist, or clear it if it does and overwrite is True.
+    Create the region directory if it does not exist, or clear it if it does and overwrite is True.
 
-    :param output_dir: The path to the output directory.
+    :param region_dir: The path to the region directory.
     :param overwrite: Whether to overwrite the directory if it exists.
-    :return: True if output_dir is now an empty directory, False otherwise.
+    :return: True if region_dir is now an empty directory, False otherwise.
     """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if not os.path.exists(region_dir):
+        os.makedirs(region_dir)
         return True
 
-    if not os.path.isdir(output_dir):
+    if not os.path.isdir(region_dir):
         if not overwrite:
             return False
-        os.remove(output_dir)
-        os.makedirs(output_dir)
+        os.remove(region_dir)
+        os.makedirs(region_dir)
         return True
 
-    if len(os.listdir(output_dir)) == 0:
+    if len(os.listdir(region_dir)) == 0:
         return True
 
     if not overwrite:
         return False
-    rmtree(output_dir)
-    os.makedirs(output_dir)
+    rmtree(region_dir)
+    os.makedirs(region_dir)
     return True
 
 
