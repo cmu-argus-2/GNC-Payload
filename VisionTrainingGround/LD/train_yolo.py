@@ -18,6 +18,7 @@ import os
 import torch
 from ultralytics import YOLO
 
+from utils.config_utils import load_config
 from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
 
@@ -42,7 +43,17 @@ def parse_args():
         type=str,
         help="The main training directory.",
     )
-    parser.add_argument("--region", type=str, required=True, help="Region Code")
+
+    parser.add_argument(
+        "--regions",
+        type=str,
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to run saliency analysis for.",
+    )
+    parser.add_argument(
+        "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
+    )
 
     parser.add_argument(
         "--overwrite",
@@ -119,7 +130,10 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    train_yolo(args.training_dir, args.region, args.overwrite, args.version, args.epochs)
+    regions = list(set(args.regions) - set(args.skip_regions))
+
+    for region in regions:
+        train_yolo(args.training_dir, region, args.overwrite, args.version, args.epochs)
 
 
 if __name__ == "__main__":
