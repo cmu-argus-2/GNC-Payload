@@ -44,12 +44,6 @@ def parse_args():
     )
     parser.add_argument("--region", type=str, required=True, help="Region Code")
     parser.add_argument(
-        "--save_dir",
-        type=str,
-        required=True,
-        help='Path to save the model.pt file. The file is saved in save_dir/"<version>_<region>_n<epochs"',
-    )
-    parser.add_argument(
         "--version", type=str, required=False, default="yolov8n", help="YOLO version"
     )
     parser.add_argument(
@@ -81,15 +75,15 @@ def train_yolo():
     print(f"Using device: {device}")
 
     model = YOLO(f"{args.version}.pt")
+    save_dir = os.path.join(args.training_dir, args.region, LD_TRAINING_DIR_NAME)
     name = args.version + "_" + args.region + "_" + "n" + str(args.epochs)
-    print(args.save_dir)
 
     yolo_config_path = os.path.join(args.training_dir, args.region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
 
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,  # Dataset path from argument
-        project=args.save_dir,
+        project=save_dir,
         name=name,  # The result files are saved in project/name
         degrees=180,  # Image augmentation parameters
         scale=0.3,
