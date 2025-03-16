@@ -1,5 +1,13 @@
 """
-Generate training data using the EarthImageSimulator.
+Generate training data using the EarthImageSimulator for the specified MGRS regions.
+
+This script will generate/overwrite the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - 00000.png
+    - 00000_mgrs_regions.npy
+    - 00000_lat_lon.npy
+    - ...
 """
 
 import argparse
@@ -30,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     :return: Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        description="Generate training data using the EarthImageSimulator."
+        description="Generate training data for the specified MGRS regions using the EarthImageSimulator."
     )
 
     parser.add_argument(
@@ -41,7 +49,11 @@ def parse_args() -> argparse.Namespace:
         help="MGRS regions to generate training data for.",
     )
     parser.add_argument(
-        "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
+        "--skip_regions",
+        type=str,
+        nargs="+",
+        default=[],
+        help="MGRS regions to skip. This takes precedence over --regions."
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Overwrite the output directory if it exists."

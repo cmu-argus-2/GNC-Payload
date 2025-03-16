@@ -1,15 +1,27 @@
 """
-This script trains a YOLO model on a custom dataset. It accepts command-line arguments to specify
-the region code, dataset path, model save directory, YOLO version, and the number of epochs for training.
-The model is trained using the provided dataset, and the results are saved in the specified directory.
+Train landmark detection YOLO models for the specified MGRS regions.
 
-Required arguments:
-- --region: The region code for naming and saving model results.
-- --data: Path to the dataset YAML file.
-- --save_dir: Directory to save the trained model file.
-Optional arguments:
-- --version: YOLO model version (default is "yolov8n").
-- --epochs: Number of training epochs (default is 300).
+This script expects to find the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - /LD_training
+      - dataset.yaml
+      - /train
+        - /images
+          - 00000.png (symlink)
+          - ...
+        - /labels
+          - 00000.txt
+          - ...
+      - /test
+        - ...
+      - /val
+        - ...
+
+This scipy will generate/overwrite the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - yolo_model_weights.pt
 """
 
 import argparse
@@ -29,17 +41,23 @@ def parse_args():
 
     :return: The parsed arguments.
     """
-    parser = argparse.ArgumentParser(description="Train YOLO model with custom name and data path.")
+    parser = argparse.ArgumentParser(
+        description="Train landmark detection YOLO models for the specified MGRS regions."
+    )
 
     parser.add_argument(
         "--regions",
         type=str,
         nargs="+",
         default=load_config()["vision"]["salient_mgrs_region_ids"],
-        help="MGRS regions to run saliency analysis for.",
+        help="MGRS regions to train landmark detection YOLO models for.",
     )
     parser.add_argument(
-        "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
+        "--skip_regions",
+        type=str,
+        nargs="+",
+        default=[],
+        help="MGRS regions to skip. This takes precedence over --regions."
     )
 
     parser.add_argument(
@@ -48,10 +66,10 @@ def parse_args():
         help="Whether to overwrite the output file if it exists.",
     )
     parser.add_argument(
-        "--version", type=str, required=False, default="yolov8n", help="YOLO version"
+        "--version", type=str, required=False, default="yolov8n", help="The YOLO version to use."
     )
     parser.add_argument(
-        "--epochs", type=int, required=False, default=300, help="Number of training epochs"
+        "--epochs", type=int, required=False, default=300, help="The number of training epochs."
     )
     return parser.parse_args()
 
