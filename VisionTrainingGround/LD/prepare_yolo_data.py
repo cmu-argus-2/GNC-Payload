@@ -333,18 +333,18 @@ def prepare_yolo_data_for_region(
     val_indices = all_indices[test_cutoff:]
 
     yolo_label_paths = np.full(num_files, "", dtype=str)
-    for indices, split_dir_name in zip(
+    for split_indices, split_dir_name in zip(
         [train_indices, test_indices, val_indices], ["train", "test", "val"]
     ):
         split_dir = os.path.join(LD_training_dir, split_dir_name)
         images_dir = os.path.join(split_dir, "images")
         labels_dir = os.path.join(split_dir, "labels")
 
-        yolo_label_paths[indices] = [
-            os.path.join(labels_dir, f"{file_prefix}.txt") for file_prefix in file_prefixes[indices]
+        yolo_label_paths[split_indices] = [
+            os.path.join(labels_dir, f"{file_prefix}.txt") for file_prefix in file_prefixes[split_indices]
         ]
 
-        for i in indices:
+        for i in split_indices:
             file_prefix = file_prefixes[i]
             os.symlink(
                 os.path.join(region_dir, f"{file_prefix}.png"),
