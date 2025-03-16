@@ -57,7 +57,6 @@ def parse_args():
 
 def train_yolo(
         region: str,
-        LD_training_dir: str,
         overwrite: bool,
         version: str,
         epochs: int,
@@ -73,7 +72,6 @@ def train_yolo(
 
     Arguments:
     - region (str): The MGRS region to train the model for.
-    - LD_training_dir (str): The LD training directory for the region.
     - overwrite (bool): Whether to overwrite the output file if it exists.
     - version (str): The YOLO model version to use.
     - epochs (int): The number of epochs for training.
@@ -81,6 +79,9 @@ def train_yolo(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region)
+    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
     name = f"{version}_{region}_n{epochs}"
     output_file = os.path.join(LD_training_dir, f"{name}.pt")
     if os.path.exists(output_file):
@@ -115,12 +116,10 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
 
     for region in regions:
-        LD_training_dir: str = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
-        train_yolo(region, LD_training_dir, args.overwrite, args.version, args.epochs)
+        train_yolo(region, args.overwrite, args.version, args.epochs)
 
 
 if __name__ == "__main__":
