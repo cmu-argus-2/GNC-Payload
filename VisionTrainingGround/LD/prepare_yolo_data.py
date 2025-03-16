@@ -340,16 +340,13 @@ def prepare_yolo_data_for_region(
         images_dir = os.path.join(split_dir, "images")
         labels_dir = os.path.join(split_dir, "labels")
 
-        yolo_label_paths[split_indices] = [
-            os.path.join(labels_dir, f"{file_prefix}.txt") for file_prefix in file_prefixes[split_indices]
-        ]
-
         for i in split_indices:
             file_prefix = file_prefixes[i]
             os.symlink(
                 os.path.join(region_dir, f"{file_prefix}.png"),
                 os.path.join(images_dir, f"{file_prefix}.png"),
             )
+            yolo_label_paths[i] = os.path.join(labels_dir, f"{file_prefix}.txt")
 
     yolo_label_paths = yolo_label_paths.tolist()
     assert "" not in yolo_label_paths
