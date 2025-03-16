@@ -29,7 +29,6 @@ This scipy will generate/overwrite the following contents in the training direct
 
 import argparse
 import os
-import shutil
 from typing import List
 from functools import partial
 from multiprocessing import Pool, cpu_count
@@ -98,6 +97,55 @@ def parse_args() -> argparse.Namespace:
         help="Fraction of images to use for validation.",
     )
     return parser.parse_args()
+
+
+def setup_LD_training_directory(LD_training_dir: str, overwrite: bool) -> bool:
+    """
+    Create the LD_training directory if it does not exist, or clear the output files that will be replaced if overwrite
+    is True.
+
+    :param LD_training_dir: The path to the LD_training directory.
+    :param overwrite: Whether to overwrite the output files if they exist.
+    :return: True if LD_training is now a directory that doesn't contain any of the output files that would be replaced,
+             False otherwise.
+    """
+    if not os.path.exists(LD_training_dir):
+        os.makedirs(LD_training_dir)
+
+    if not os.path.isdir(LD_training_dir):
+        if not overwrite:
+            return False
+        os.remove(LD_training_dir)
+        os.makedirs(LD_training_dir)
+
+    yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
+    if os.path.exists(yolo_config_path):
+        if not overwrite:
+            return False
+        os.remove(yolo_config_path)
+
+    for split_dir_name in ["train", "test", "val"]:
+        split_dir = os.path.join(LD_training_dir, split_dir_name)
+        os.makedirs(split_dir, exist_ok=True)
+
+        for data_dir_name, conflicting_suffix in [("images", ".png"), ("labels", ".txt")]:
+            data_dir = os.path.join(split_dir, data_dir_name)
+            os.makedirs(data_dir, exist_ok=True)
+
+            conflicting_file_names = [
+                file_name
+                for file_name in os.listdir(data_dir)
+                if file_name.endswith(conflicting_suffix)
+            ]
+            if len(conflicting_file_names) == 0:
+                continue
+
+            if not overwrite:
+                return False
+            for conflicting_file_name in conflicting_file_names:
+                os.remove(os.path.join(data_dir, conflicting_file_name))
+
+    return True
 
 
 def get_valid_bounding_boxes(
@@ -283,23 +331,15 @@ def create_LD_training_data_dir(
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
-    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
-    train_dir = os.path.join(LD_training_dir, "train")
-    test_dir = os.path.join(LD_training_dir, "test")
-    val_dir = os.path.join(LD_training_dir, "val")
-    os.makedirs(LD_training_dir, exist_ok=True)
-    os.makedirs(train_dir, exist_ok=True)
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(val_dir, exist_ok=True)
+    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)\
 
     yolo_label_paths = np.full(num_files, "", dtype=str)
-    for indices, output_dir in zip(
-        [train_indices, test_indices, val_indices], [train_dir, test_dir, val_dir]
+    for indices, split_dir_name in zip(
+        [train_indices, test_indices, val_indices], ["train", "test", "val"]
     ):
-        images_dir = os.path.join(output_dir, "images")
-        labels_dir = os.path.join(output_dir, "labels")
-        os.makedirs(images_dir, exist_ok=True)
-        os.makedirs(labels_dir, exist_ok=True)
+        split_dir = os.path.join(LD_training_dir, split_dir_name)
+        images_dir = os.path.join(split_dir, "images")
+        labels_dir = os.path.join(split_dir, "labels")
 
         yolo_label_paths[indices] = [
             os.path.join(labels_dir, f"{file_prefix}.txt") for file_prefix in file_prefixes[indices]
@@ -331,13 +371,12 @@ def create_LD_training_data_dir(
 
 
 def prepare_yolo_data_for_region(
-        region_id: str, overwrite: bool, test_fraction: float, val_fraction: float
+        region_id: str, test_fraction: float, val_fraction: float
 ) -> None:
     """
     Prepare YOLO training data for a single region.
 
     :param region_id: The MGRS region ID to prepare the YOLO training data for.
-    :param overwrite: Whether to overwrite the output files if they exist.
     :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
     :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
     """
@@ -347,14 +386,6 @@ def prepare_yolo_data_for_region(
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
-    ld_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
-    if os.path.exists(ld_training_dir):
-        if not overwrite:
-            raise FileExistsError(
-                f"Output directory {LD_TRAINING_DIR_NAME} already exists. Use --overwrite to overwrite."
-            )
-        shutil.rmtree(ld_training_dir)
-
     create_LD_training_data_dir(region_dir, file_prefixes, test_fraction, val_fraction)
 
 
@@ -362,9 +393,17 @@ def main():
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
 
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    for region in regions:
+        LD_training_dir: str = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
+        if not setup_LD_training_directory(LD_training_dir, args.overwrite):
+            print(
+                f"Output directory {LD_training_dir} could not be emptied. Set --overwrite to clear any existing data."
+            )
+            return
+
     func = partial(
         prepare_yolo_data_for_region,
-        overwrite=args.overwrite,
         test_fraction=args.test_fraction,
         val_fraction=args.val_fraction,
     )
