@@ -14,7 +14,7 @@ def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     Computes the drag acceleration.
 
     :param x: state vector
-    :param drag_const: Drag constant calculated as -0.5 * CD * AREA / MASS
+    :param drag_const: Drag constant in m^2/kg calculated as -0.5 * CD * AREA / MASS
     :param latest_epoch: latest epoch for which to compute the density parameter
 
     :return: drag acceleration

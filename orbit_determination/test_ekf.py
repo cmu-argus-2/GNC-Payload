@@ -120,7 +120,7 @@ def run_simulation() -> None:
     noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
 
     # Assert orthonormality
-    assert np.isclose(
+    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
         np.linalg.det(noisy_rot), 1
     ), "Rotation matrix is not a proper rotation matrix"
 
