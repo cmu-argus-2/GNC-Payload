@@ -16,7 +16,7 @@ from scipy.ndimage import uniform_filter
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.earth_utils import get_MGRS_grid
-from utils.config_utils import load_config
+from utils.config_utils import load_config, USER_CONFIG_PATH
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
@@ -31,11 +31,6 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description="Create a GeoTIFF saliency map for a MGRS region from a directory of PNGs and .npy files."
-    )
-    parser.add_argument(
-        "training_dir",
-        type=str,
-        help="The directory containing the MGRS region directories with PNGs and .npy files to use for saliency analysis.",
     )
 
     parser.add_argument(
@@ -263,9 +258,10 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
     for region in regions:
-        region_dir: str = os.path.join(args.training_dir, region)
+        region_dir: str = os.path.join(training_dir, region)
         run_saliency_analysis_for_region(
             region_dir, region, args.overwrite, args.gsd, args.bounding_box_size, args.num_boxes
         )

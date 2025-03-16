@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
-from utils.config_utils import load_config
+from utils.config_utils import load_config, USER_CONFIG_PATH
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 
 MGRS_REGIONS_OUTPUT_FILE_SUFFIX = "_mgrs_regions.npy"
@@ -28,16 +28,6 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description="Generate training data using the EarthImageSimulator."
-    )
-
-    parser.add_argument(
-        "--geotiff_folder",
-        type=str,
-        default=GeoTIFFCache.get_default_geotiff_folder(),
-        help="Path to the folder containing GeoTIFF files for each region.",
-    )
-    parser.add_argument(
-        "--output_dir", type=str, required=True, help="Path to save the training data."
     )
 
     parser.add_argument(
@@ -107,9 +97,8 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
 
 
 def generate_training_image(
-        geotiff_folder: str,
-        output_dir: str,
         region: str,
+        region_dir: str,
         file_prefix: str,
         lat_lon_buffer: float,
         nominal_altitude: float,
@@ -124,9 +113,8 @@ def generate_training_image(
     - A .npy file with dtype=str containing the MGRS regions for each pixel.
     - A .npy file with containing the lat/lon coordinates for each pixel.
 
-    :param geotiff_folder: The path to the folder containing GeoTIFF files for each region.
-    :param output_dir: The path to save the training image.
     :param region: The MGRS region to generate the training image for.
+    :param region_dir: The region directory to save the training image to.
     :param file_prefix: The prefix for the output files.
     :param lat_lon_buffer: The extra buffer in possible lat/lon coordinates for the region.
     :param nominal_altitude: The nominal altitude of the satellite, in m.
@@ -169,14 +157,11 @@ def generate_training_image(
         @ perturbed_body_R_perturbed_camera.T
     )
 
-    image_simulator = EarthImageSimulator(
-        GeoTIFFCache(geotiff_folder=geotiff_folder, max_cache_size=0)
-    )
+    image_simulator = EarthImageSimulator(GeoTIFFCache(max_cache_size=0))
     frame, mgrs_regions, lat_lon = image_simulator.simulate_image_for_training(
         ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
     )
 
-    region_dir = os.path.join(output_dir, region)
     os.makedirs(region_dir, exist_ok=True)
     cv2.imwrite(
         os.path.join(region_dir, f"{file_prefix}.png"),
@@ -194,20 +179,23 @@ def main() -> None:
     Generate training data using the EarthImageSimulator.
     """
     args = parse_args()
-    if not setup_output_directory(args.output_dir, args.overwrite):
-        print(
-            f"Output directory {args.output_dir} could not be emptied. Set --overwrite to clear any existing data."
-        )
-        return
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
 
     for region in regions:
+        region_dir: str = os.path.join(training_dir, region)
+        if not setup_region_directory(region_dir, args.overwrite):
+            print(
+                f"Output directory {args.output_dir} could not be emptied. Set --overwrite to clear any existing data."
+            )
+            return
+
         for i in range(args.num_images):
             file_prefix = f"{i:05d}"
+
             generate_training_image(
-                args.geotiff_folder,
-                args.output_dir,
                 region,
+                region_dir,
                 file_prefix,
                 args.lat_lon_buffer,
                 args.nominal_altitude,

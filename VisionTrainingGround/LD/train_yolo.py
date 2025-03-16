@@ -18,7 +18,7 @@ import os
 import torch
 from ultralytics import YOLO
 
-from utils.config_utils import load_config
+from utils.config_utils import load_config, USER_CONFIG_PATH
 from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
 
@@ -29,11 +29,6 @@ def parse_args():
     :return: The parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Train YOLO model with custom name and data path.")
-    parser.add_argument(
-        "training_dir",
-        type=str,
-        help="The main training directory.",
-    )
 
     parser.add_argument(
         "--regions",
@@ -120,10 +115,11 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
 
     for region in regions:
-        LD_training_dir: str = os.path.join(args.training_dir, region, LD_TRAINING_DIR_NAME)
+        LD_training_dir: str = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
         train_yolo(region, LD_training_dir, args.overwrite, args.version, args.epochs)
 
 
