@@ -98,7 +98,6 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
 
 def generate_training_image(
         region: str,
-        region_dir: str,
         file_prefix: str,
         lat_lon_buffer: float,
         nominal_altitude: float,
@@ -114,7 +113,6 @@ def generate_training_image(
     - A .npy file with containing the lat/lon coordinates for each pixel.
 
     :param region: The MGRS region to generate the training image for.
-    :param region_dir: The region directory to save the training image to.
     :param file_prefix: The prefix for the output files.
     :param lat_lon_buffer: The extra buffer in possible lat/lon coordinates for the region.
     :param nominal_altitude: The nominal altitude of the satellite, in m.
@@ -162,6 +160,8 @@ def generate_training_image(
         ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
     )
 
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region)
     os.makedirs(region_dir, exist_ok=True)
     cv2.imwrite(
         os.path.join(region_dir, f"{file_prefix}.png"),
@@ -195,7 +195,6 @@ def main() -> None:
 
             generate_training_image(
                 region,
-                region_dir,
                 file_prefix,
                 args.lat_lon_buffer,
                 args.nominal_altitude,
