@@ -30,7 +30,7 @@ import os
 import torch
 from ultralytics import YOLO
 
-from utils.config_utils import load_config, USER_CONFIG_PATH
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
@@ -57,7 +57,7 @@ def parse_args():
         type=str,
         nargs="+",
         default=[],
-        help="MGRS regions to skip. This takes precedence over --regions."
+        help="MGRS regions to skip. This takes precedence over --regions.",
     )
 
     parser.add_argument(
@@ -75,10 +75,10 @@ def parse_args():
 
 
 def train_yolo(
-        region: str,
-        overwrite: bool,
-        version: str,
-        epochs: int,
+    region: str,
+    overwrite: bool,
+    version: str,
+    epochs: int,
 ) -> None:
     """
     Main function to initialize and train a YOLO model using specified command-line arguments.
@@ -99,7 +99,9 @@ def train_yolo(
     print(f"Using device: {device}")
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    output_file = os.path.join(training_dir, LandmarkDetector.get_LD_model_weights_relative_path(region))
+    output_file = os.path.join(
+        training_dir, LandmarkDetector.get_LD_model_weights_relative_path(region)
+    )
     if os.path.exists(output_file):
         if not overwrite:
             raise FileExistsError(f"Output file {output_file} already exists.")
@@ -107,12 +109,16 @@ def train_yolo(
         os.remove(output_file)
 
     model = YOLO(f"{version}.pt")
-    yolo_config_path = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
+    yolo_config_path = os.path.join(
+        training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
+    )
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,  # Dataset path from argument
         project=os.path.dirname(os.path.abspath(output_file)),
-        name=os.path.splitext(os.path.basename(output_file))[0],  # The result files are saved in project/name
+        name=os.path.splitext(os.path.basename(output_file))[
+            0
+        ],  # The result files are saved in project/name
         degrees=180,  # Image augmentation parameters
         scale=0.3,
         fliplr=0.0,

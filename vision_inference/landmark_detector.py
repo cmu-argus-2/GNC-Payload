@@ -27,9 +27,9 @@ from PIL import Image
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
-from utils.config_utils import load_config, USER_CONFIG_PATH
 
 
 @dataclass

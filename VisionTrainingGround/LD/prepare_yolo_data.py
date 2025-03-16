@@ -29,16 +29,16 @@ This scipy will generate/overwrite the following contents in the training direct
 
 import argparse
 import os
-from typing import List
 from functools import partial
 from multiprocessing import Pool, cpu_count
+from typing import List
 
 import cv2
 import numpy as np
 import yaml
 
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef
-from utils.config_utils import load_config, USER_CONFIG_PATH
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         nargs="+",
         default=[],
-        help="MGRS regions to skip. This takes precedence over --regions."
+        help="MGRS regions to skip. This takes precedence over --regions.",
     )
     parser.add_argument(
         "--overwrite",
@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=int(0.8 * cpu_count()),
         help="Number of processes to use to prepare training data for training YOLO models"
-             "in parallel across the specified regions.",
+        "in parallel across the specified regions.",
     )
 
     parser.add_argument(
@@ -212,7 +212,9 @@ def get_valid_bounding_boxes(
     return valid_bounding_boxes
 
 
-def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_paths: List[str]) -> int:
+def generate_yolo_labels(
+    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str]
+) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
 
@@ -225,7 +227,9 @@ def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_pa
     :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
     :return: The number of classes in the dataset.
     """
-    assert len(file_prefixes) == len(yolo_label_paths), "file_prefixes and yolo_label_paths must be the same length."
+    assert len(file_prefixes) == len(
+        yolo_label_paths
+    ), "file_prefixes and yolo_label_paths must be the same length."
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
@@ -297,9 +301,7 @@ def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_pa
     return num_classes
 
 
-def prepare_yolo_data_for_region(
-        region_id: str, test_fraction: float, val_fraction: float
-) -> None:
+def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fraction: float) -> None:
     """
     Prepare YOLO training data for the specified MGRS region.
     This includes performing a train/test/val split, creating symlinks to the image files, generating the YOLO label

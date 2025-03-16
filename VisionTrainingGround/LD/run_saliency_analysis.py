@@ -17,9 +17,9 @@ This script will generate/overwrite the following contents in the training direc
 
 import argparse
 import os
-from typing import List
 from functools import partial
 from multiprocessing import Pool, cpu_count
+from typing import List
 
 import cv2
 import numpy as np
@@ -28,8 +28,8 @@ from brahe.constants import R_EARTH
 from scipy.ndimage import uniform_filter
 
 from image_simulation.earth_vis import GeoTIFFData
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid
-from utils.config_utils import load_config, USER_CONFIG_PATH
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
 
@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         nargs="+",
         default=[],
-        help="MGRS regions to skip. This takes precedence over --regions."
+        help="MGRS regions to skip. This takes precedence over --regions.",
     )
     parser.add_argument(
         "--overwrite",
@@ -240,8 +240,9 @@ def find_best_bounding_boxes(
     )
     return bounding_boxes_lat_lon
 
+
 def run_saliency_analysis_for_region(
-        region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
+    region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
 ) -> None:
     """
     Run the saliency analysis for a single region.
@@ -255,7 +256,9 @@ def run_saliency_analysis_for_region(
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
     saliency_map_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
-    bounding_boxes_file = os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region))
+    bounding_boxes_file = os.path.join(
+        training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region)
+    )
     if os.path.exists(saliency_map_file):
         if not overwrite:
             raise FileExistsError(f"Output file {saliency_map_file} already exists.")
@@ -281,6 +284,7 @@ def run_saliency_analysis_for_region(
         "Top-Left Longitude,Bottom-Right Latitude,Bottom-Right Longitude",
     )
 
+
 def main() -> None:
     """
     Script entry point.
@@ -293,7 +297,7 @@ def main() -> None:
         overwrite=args.overwrite,
         gsd=args.gsd,
         bounding_box_size=args.bounding_box_size,
-        num_boxes=args.num_boxes
+        num_boxes=args.num_boxes,
     )
     if args.num_processes > 1:
         with Pool(min(args.num_processes, len(regions))) as pool:

@@ -13,8 +13,8 @@ This script will generate/overwrite the following contents in the training direc
 import argparse
 import os
 from functools import partial
-from multiprocessing import Pool, cpu_count
 from itertools import product, starmap
+from multiprocessing import Pool, cpu_count
 
 import cv2
 import numpy as np
@@ -23,7 +23,7 @@ from scipy.spatial.transform import Rotation
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
-from utils.config_utils import load_config, USER_CONFIG_PATH
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 
 MGRS_REGIONS_OUTPUT_FILE_SUFFIX = "_mgrs_regions.npy"
@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         nargs="+",
         default=[],
-        help="MGRS regions to skip. This takes precedence over --regions."
+        help="MGRS regions to skip. This takes precedence over --regions.",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Overwrite the output directory if it exists."
@@ -126,12 +126,12 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
 
 
 def generate_training_image(
-        region: str,
-        file_prefix: str,
-        lat_lon_buffer: float,
-        nominal_altitude: float,
-        altitude_variation: float,
-        off_nadir_variation: float,
+    region: str,
+    file_prefix: str,
+    lat_lon_buffer: float,
+    nominal_altitude: float,
+    altitude_variation: float,
+    off_nadir_variation: float,
 ) -> None:
     """
     Generate a single training image using the EarthImageSimulator.
@@ -159,9 +159,7 @@ def generate_training_image(
     lon = np.random.uniform(min_lon, max_lon)
     lat = np.clip(lat, -90, 90)
     lon = np.clip(lon, -180, 180)
-    altitude = nominal_altitude + np.random.uniform(
-        -altitude_variation, altitude_variation
-    )
+    altitude = nominal_altitude + np.random.uniform(-altitude_variation, altitude_variation)
 
     ecef_position = lat_lon_to_ecef(lat, lon)
     ecef_position /= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
