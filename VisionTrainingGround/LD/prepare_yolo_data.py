@@ -130,7 +130,7 @@ def get_valid_bounding_boxes(
     return valid_bounding_boxes
 
 
-def generate_yolo_labels(region_dir: str, file_prefixes: List[str], yolo_label_paths: List[str]) -> int:
+def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_paths: List[str]) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
 
@@ -138,14 +138,15 @@ def generate_yolo_labels(region_dir: str, file_prefixes: List[str], yolo_label_p
     The line is formatted as follows, with all coordinates normalized to the range [0, 1]:
     <class_id> <u_center> <v_center> <box_width> <box_height>
 
-    :param region_dir: The region directory containing the PNGs, .npy files containing latitudes and longitudes, and the
-                       .csv file containing the bounding box coordinates to use to generate the YOLO label files.
+    :param region_id: The MGRS region ID to generate YOLO label files for.
     :param file_prefixes: The common prefixes of the PNG and lat/lon .npy files to process.
     :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
     :return: The number of classes in the dataset.
     """
     assert len(file_prefixes) == len(yolo_label_paths), "file_prefixes and yolo_label_paths must be the same length."
 
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region_id)
     csv_data = np.loadtxt(
         os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
     )
@@ -214,7 +215,7 @@ def generate_yolo_labels(region_dir: str, file_prefixes: List[str], yolo_label_p
 
 
 def create_LD_training_data_dir(
-    region_dir: str,
+    region_id: str,
     file_prefixes: List[str],
     test_fraction: float,
     val_fraction: float,
@@ -225,7 +226,7 @@ def create_LD_training_data_dir(
     .txt files, and creating a dataset.yaml file.
 
     Args:
-        region_dir: The region directory containing the PNGs and YOLO label .txt files.
+        region_id: The MGRS region ID to create the LD training data directory for.
         file_prefixes: The common prefixes of the PNG and YOLO label .txt files to process.
         test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
         val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
@@ -245,6 +246,8 @@ def create_LD_training_data_dir(
     test_indices = all_indices[train_cutoff:test_cutoff]
     val_indices = all_indices[test_cutoff:]
 
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region_id)
     LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
     train_dir = os.path.join(LD_training_dir, "train")
     test_dir = os.path.join(LD_training_dir, "test")
@@ -293,17 +296,18 @@ def create_LD_training_data_dir(
 
 
 def prepare_yolo_data_for_region(
-        region_dir: str, overwrite: bool, test_fraction: float, val_fraction: float
+        region_id: str, overwrite: bool, test_fraction: float, val_fraction: float
 ) -> None:
     """
     Prepare YOLO training data for a single region.
 
-    :param region_dir: The directory containing the PNGs, the saliency map .tiff file, and bounding boxes .csv file to
-                       prepare the YOLO training data.
+    :param region_id: The MGRS region ID to prepare the YOLO training data.
     :param overwrite: Whether to overwrite the output files if they exist.
     :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
     :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
     """
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region_id)
     file_prefixes = get_common_file_name_prefixes(region_dir)
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
@@ -321,12 +325,10 @@ def prepare_yolo_data_for_region(
 
 def main():
     args = parse_args()
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     regions = list(set(args.regions) - set(args.skip_regions))
 
     for region in regions:
-        region_dir: str = os.path.join(training_dir, region)
-        prepare_yolo_data_for_region(region_dir, args.overwrite, args.test_fraction, args.val_fraction)
+        prepare_yolo_data_for_region(region, args.overwrite, args.test_fraction, args.val_fraction)
 
 
 if __name__ == "__main__":
