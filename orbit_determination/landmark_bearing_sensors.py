@@ -198,13 +198,13 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         salient_regions: List[str] = load_config()["vision"]["salient_mgrs_region_ids"]
         region_landmarks_ecef = {}
         for region_id in salient_regions:
-            region_landmarks_csv = os.path.join(
-                LandmarkDetector.MODEL_DIR,
-                f"{region_id}/{region_id}_top_salient.csv",
+            region_landmarks = LandmarkDetector.load_ground_truth(
+                os.path.join(
+                    LandmarkDetector.MODEL_DIR,
+                    LandmarkDetector.get_region_bounding_boxes_relative_path(region_id),
+                )
             )
-            region_landmarks = np.loadtxt(region_landmarks_csv, delimiter=",", skiprows=1)
-            # TODO: change this to :2 once the lat and lon columns are reordered in the csvs
-            region_landmarks_ecef[region_id] = lat_lon_to_ecef(region_landmarks[:, 1::-1])
+            region_landmarks_ecef[region_id] = lat_lon_to_ecef(region_landmarks[:, :2])
         return region_landmarks_ecef
 
     # pylint: disable=too-many-locals
