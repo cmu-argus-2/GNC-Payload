@@ -78,7 +78,7 @@ def train_yolo(
 
     model = YOLO(f"{version}.pt")
     save_dir = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
-    name = version + "_" + region + "_" + "n" + str(epochs)
+    name = f"{version}_{region}_n{epochs}"
 
     yolo_config_path = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
 
