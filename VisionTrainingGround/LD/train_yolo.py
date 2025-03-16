@@ -24,18 +24,9 @@ from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO
 
 def parse_args():
     """
-    Parses command-line arguments to specify configuration for YOLO training.
+    Parse command-line arguments.
 
-    Arguments:
-    - None
-
-    Returns:
-    - args: Namespace object containing parsed arguments with the following attributes:
-       - region (str): The region code (required).
-       - data (str): Path to the dataset YAML file (required).
-       - save_dir (str): Directory to save the model file (required).
-       - version (str): YOLO model version (default is "yolov8n").
-       - epochs (int): Number of training epochs (default is 300).
+    :return: The parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Train YOLO model with custom name and data path.")
     parser.add_argument(
