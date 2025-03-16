@@ -2,3 +2,6 @@
 geotiff_folder: /path/to/geotiff/folder
 # The name of the Earth Engine project that will be used by image_simulator/eedl.py to fetch the geotiff files
 earth_engine_project_name: your_earth_engine_project_name
+# The directory where the training data is stored as it is being generated, processed, labelled, and trained on
+# If you are working with multiple datasets, just pick one to use for the script you are running
+training_directory: /path/to/training/directory

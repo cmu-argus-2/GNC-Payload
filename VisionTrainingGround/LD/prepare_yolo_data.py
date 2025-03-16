@@ -213,7 +213,7 @@ def create_LD_training_data_dir(
 ) -> None:
     """
     Creates a directory for the LD training data in the format expected for training a YOLO model.
-    This includes performing a train/test/val split, creating symlinks to the image files, moving the YOLO label
+    This includes performing a train/test/val split, creating symlinks to the image files, generating the YOLO label
     .txt files, and creating a dataset.yaml file.
 
     Args:
