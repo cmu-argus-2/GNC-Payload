@@ -12,7 +12,6 @@ This script will generate/overwrite the following contents in the training direc
 
 import argparse
 import os
-from shutil import rmtree
 from functools import partial
 from multiprocessing import Pool, cpu_count
 from itertools import product, starmap
@@ -91,11 +90,13 @@ def parse_args() -> argparse.Namespace:
 
 def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
     """
-    Create the region directory if it does not exist, or clear it if it does and overwrite is True.
+    Create the region directory if it does not exist, or clear the output files that will be replaced if overwrite is
+    True.
 
     :param region_dir: The path to the region directory.
-    :param overwrite: Whether to overwrite the directory if it exists.
-    :return: True if region_dir is now an empty directory, False otherwise.
+    :param overwrite: Whether to overwrite the output files if they exist.
+    :return: True if region_dir is now a directory that doesn't contain any of the output files that would be replaced,
+             False otherwise.
     """
     if not os.path.exists(region_dir):
         os.makedirs(region_dir)
@@ -108,13 +109,19 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
         os.makedirs(region_dir)
         return True
 
-    if len(os.listdir(region_dir)) == 0:
+    conflicting_suffixes = [".png", MGRS_REGIONS_OUTPUT_FILE_SUFFIX, LAT_LON_OUTPUT_FILE_SUFFIX]
+    conflicting_file_names = [
+        file_name
+        for file_name in os.listdir(region_dir)
+        if any(file_name.endswith(suffix) for suffix in conflicting_suffixes)
+    ]
+    if len(conflicting_file_names) == 0:
         return True
 
     if not overwrite:
         return False
-    rmtree(region_dir)
-    os.makedirs(region_dir)
+    for file_name in conflicting_file_names:
+        os.remove(os.path.join(region_dir, file_name))
     return True
 
 
