@@ -40,6 +40,8 @@ Copy `user_config.example.yaml` to `user_config.yaml` and fill in the necessary 
 ```
 cp user_config.example.yaml user_config.yaml
 ```
+## Downloading Vision Models to run Vision Inference
+The trained models and CSV files are stored on the Argus CubeSat Google Drive ([here](https://drive.google.com/drive/folders/1vgICB7FE5D_y5Cdk25nwwWwlerpyez-7?usp=drive_link)). Download, unzip, and move them into ```GNC-Payload/vision_inference```
 
 ## Pre-Commit Hook 
 A pre-commit hook can be set up to run pylint and black formatter.

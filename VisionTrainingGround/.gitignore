@@ -6,9 +6,11 @@ DataPipeline/commands.txt
 Landsat_Data/
 !Landsat_Data/.gitkeep
 
+LD/*.pt
 LD/datasets/
-LD/runs
-LD/models
+LD/runs/*
+!LD/runs/*/weights/
+!LD/runs/*/weights/*.pt
 LD/wandb/
 
 RCnet/datasets/train/
@@ -18,6 +20,7 @@ RCnet/results/loss_vs_epoch.png
 RCnet/results/
 !RCnet/results/.gitkeep
 RCnet/chkpts/
+RCnet/model/
 
 Salient_Region_Analysis/highlighted_map*
 
