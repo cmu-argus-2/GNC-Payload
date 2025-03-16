@@ -297,27 +297,30 @@ def generate_yolo_labels(region_id: str, file_prefixes: List[str], yolo_label_pa
     return num_classes
 
 
-def create_LD_training_data_dir(
-    region_id: str,
-    file_prefixes: List[str],
-    test_fraction: float,
-    val_fraction: float,
+def prepare_yolo_data_for_region(
+        region_id: str, test_fraction: float, val_fraction: float
 ) -> None:
     """
-    Creates a directory for the LD training data in the format expected for training a YOLO model.
+    Prepare YOLO training data for the specified MGRS region.
     This includes performing a train/test/val split, creating symlinks to the image files, generating the YOLO label
     .txt files, and creating a dataset.yaml file.
+    All the resulting files are written to the LD_training directory within the specified region's directory.
 
-    Args:
-        region_id: The MGRS region ID to create the LD training data directory for.
-        file_prefixes: The common prefixes of the PNG and YOLO label .txt files to process.
-        test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
-        val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
+    :param region_id: The MGRS region ID to prepare the YOLO training data for.
+    :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
+    :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
     """
     train_fraction = 1 - test_fraction - val_fraction
     assert 0 <= train_fraction <= 1, "test_fraction + val_fraction must be less than or equal to 1."
     assert 0 <= test_fraction <= 1, "test_fraction must be in the range [0, 1]."
     assert 0 <= val_fraction <= 1, "val_fraction must be in the range [0, 1]."
+
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region_id)
+    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
+    file_prefixes = get_common_file_name_prefixes(region_dir)
+    if len(file_prefixes) == 0:
+        raise ValueError("No matching PNG and lat/lon files found.")
 
     num_files = len(file_prefixes)
     train_cutoff = int(num_files * train_fraction)
@@ -328,10 +331,6 @@ def create_LD_training_data_dir(
     train_indices = all_indices[:train_cutoff]
     test_indices = all_indices[train_cutoff:test_cutoff]
     val_indices = all_indices[test_cutoff:]
-
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    region_dir = os.path.join(training_dir, region_id)
-    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)\
 
     yolo_label_paths = np.full(num_files, "", dtype=str)
     for indices, split_dir_name in zip(
@@ -368,25 +367,6 @@ def create_LD_training_data_dir(
     yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
     with open(yolo_config_path, "w", encoding="utf-8") as yolo_config_file:
         yaml.dump(yolo_config, yolo_config_file, default_flow_style=False)
-
-
-def prepare_yolo_data_for_region(
-        region_id: str, test_fraction: float, val_fraction: float
-) -> None:
-    """
-    Prepare YOLO training data for a single region.
-
-    :param region_id: The MGRS region ID to prepare the YOLO training data for.
-    :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
-    :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
-    """
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    region_dir = os.path.join(training_dir, region_id)
-    file_prefixes = get_common_file_name_prefixes(region_dir)
-    if len(file_prefixes) == 0:
-        raise ValueError("No matching PNG and lat/lon files found.")
-
-    create_LD_training_data_dir(region_dir, file_prefixes, test_fraction, val_fraction)
 
 
 def main():
