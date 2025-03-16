@@ -276,7 +276,7 @@ def main() -> None:
         num_boxes=args.num_boxes
     )
     if args.num_processes > 1:
-        with Pool(args.num_processes) as pool:
+        with Pool(min(args.num_processes, len(regions))) as pool:
             pool.map(func, regions)
     else:
         map(func, regions)
