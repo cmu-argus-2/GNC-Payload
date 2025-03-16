@@ -34,10 +34,22 @@ def parse_args() -> argparse.Namespace:
         "running salient region analysis to prepare the data for training a YOLO model."
     )
     parser.add_argument(
-        "input_dir",
+        "training_dir",
         type=str,
-        help="The directory containing the PNGs, the saliency map .tiff file, and bounding boxes .csv file to use.",
+        help="The main training directory.",
     )
+
+    parser.add_argument(
+        "--regions",
+        type=str,
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to run saliency analysis for.",
+    )
+    parser.add_argument(
+        "--skip_regions", type=str, nargs="+", default=[], help="MGRS regions to skip."
+    )
+
     parser.add_argument(
         "--overwrite",
         action="store_true",
@@ -313,7 +325,11 @@ def prepare_yolo_data_for_region(
 
 def main():
     args = parse_args()
-    prepare_yolo_data_for_region(args.input_dir, args.overwrite, args.test_fraction, args.val_fraction)
+    regions = list(set(args.regions) - set(args.skip_regions))
+
+    for region in regions:
+        region_dir: str = os.path.join(args.training_dir, region)
+        prepare_yolo_data_for_region(region_dir, args.overwrite, args.test_fraction, args.val_fraction)
 
 
 if __name__ == "__main__":
