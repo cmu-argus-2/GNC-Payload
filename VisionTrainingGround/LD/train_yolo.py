@@ -61,8 +61,8 @@ def parse_args():
 
 
 def train_yolo(
-        training_dir: str,
         region: str,
+        LD_training_dir: str,
         overwrite: bool,
         version: str,
         epochs: int,
@@ -77,8 +77,8 @@ def train_yolo(
     - Saves the trained model.
 
     Arguments:
-    - training_dir (str): The main training directory.
     - region (str): The MGRS region to train the model for.
+    - LD_training_dir (str): The LD training directory for the region.
     - overwrite (bool): Whether to overwrite the output file if it exists.
     - version (str): The YOLO model version to use.
     - epochs (int): The number of epochs for training.
@@ -86,9 +86,8 @@ def train_yolo(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    save_dir = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
     name = f"{version}_{region}_n{epochs}"
-    output_file = os.path.join(save_dir, f"{name}.pt")
+    output_file = os.path.join(LD_training_dir, f"{name}.pt")
     if os.path.exists(output_file):
         if not overwrite:
             raise FileExistsError(f"Output file {output_file} already exists.")
@@ -96,11 +95,11 @@ def train_yolo(
         os.remove(output_file)
 
     model = YOLO(f"{version}.pt")
-    yolo_config_path = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
+    yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,  # Dataset path from argument
-        project=save_dir,
+        project=LD_training_dir,
         name=name,  # The result files are saved in project/name
         degrees=180,  # Image augmentation parameters
         scale=0.3,
@@ -124,7 +123,8 @@ def main() -> None:
     regions = list(set(args.regions) - set(args.skip_regions))
 
     for region in regions:
-        train_yolo(args.training_dir, region, args.overwrite, args.version, args.epochs)
+        LD_training_dir: str = os.path.join(args.training_dir, region, LD_TRAINING_DIR_NAME)
+        train_yolo(region, LD_training_dir, args.overwrite, args.version, args.epochs)
 
 
 if __name__ == "__main__":
