@@ -120,8 +120,8 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
 
     if not overwrite:
         return False
-    for file_name in conflicting_file_names:
-        os.remove(os.path.join(region_dir, file_name))
+    for conflicting_file_name in conflicting_file_names:
+        os.remove(os.path.join(region_dir, conflicting_file_name))
     return True
 
 
