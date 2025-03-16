@@ -122,7 +122,7 @@ def get_valid_bounding_boxes(
     return valid_bounding_boxes
 
 
-def generate_yolo_labels(input_dir: str, file_prefixes: List[str], yolo_label_paths: List[str]) -> int:
+def generate_yolo_labels(region_dir: str, file_prefixes: List[str], yolo_label_paths: List[str]) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
 
@@ -130,18 +130,18 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str], yolo_label_pa
     The line is formatted as follows, with all coordinates normalized to the range [0, 1]:
     <class_id> <u_center> <v_center> <box_width> <box_height>
 
-    :param input_dir: The directory containing the PNGs, .npy files containing latitudes and longitudes, and the .csv
-                      file containing the bounding box coordinates to use to generate the YOLO label files.
-    :param file_prefixes: The common prefixes of the PNG and lat/lon files to process.
+    :param region_dir: The region directory containing the PNGs, .npy files containing latitudes and longitudes, and the
+                       .csv file containing the bounding box coordinates to use to generate the YOLO label files.
+    :param file_prefixes: The common prefixes of the PNG and lat/lon .npy files to process.
     :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
     :return: The number of classes in the dataset.
     """
     assert len(file_prefixes) == len(yolo_label_paths), "file_prefixes and yolo_label_paths must be the same length."
 
     csv_data = np.loadtxt(
-        os.path.join(input_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
+        os.path.join(region_dir, BOUNDING_BOXES_FILE_NAME), delimiter=",", skiprows=1
     )
-    num_boxes = csv_data.shape[0]
+    num_classes = csv_data.shape[0]
 
     top_left_lat_lon = np.column_stack((csv_data[:, 3], csv_data[:, 2]))
     bottom_right_lat_lon = np.column_stack((csv_data[:, 5], csv_data[:, 4]))
@@ -154,12 +154,12 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str], yolo_label_pa
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
     for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
-        image_path = os.path.join(input_dir, file_prefix + ".png")
+        image_path = os.path.join(region_dir, file_prefix + ".png")
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         height, width = image.shape[:2]
 
-        lat_lon = np.load(os.path.join(input_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
+        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
         assert (
             lat_lon.shape[:2] == image.shape[:2]
         ), f"Lat/lon shape {lat_lon.shape} does not match image shape {image.shape} for {file_prefix}."
@@ -174,17 +174,17 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str], yolo_label_pa
         # surprisingly row_stack is actually faster than column_stack here, probably because of the overhead in
         # creating the stacked array (https://chatgpt.com/share/67ce49e5-e1c8-800c-b931-b3862d7d299f)
         distances = np.linalg.norm(np.row_stack((x_distances, y_distances, z_distances)), axis=0)
-        assert distances.shape == (4 * num_boxes, height * width)
+        assert distances.shape == (4 * num_classes, height * width)
 
         closest_pixel_indices = np.argmin(distances, axis=1)
         closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
-        closest_us = closest_us.reshape(num_boxes, 4)
-        closest_vs = closest_vs.reshape(num_boxes, 4)
+        closest_us = closest_us.reshape(num_classes, 4)
+        closest_vs = closest_vs.reshape(num_classes, 4)
 
         valid_bounding_boxes = get_valid_bounding_boxes(image, closest_us, closest_vs)
         closest_us = closest_us[valid_bounding_boxes, :]
         closest_vs = closest_vs[valid_bounding_boxes, :]
-        class_ids = np.arange(num_boxes)[valid_bounding_boxes]
+        class_ids = np.arange(num_classes)[valid_bounding_boxes]
 
         # widen bounding boxes to the smallest axis-aligned bounding box that contains all 4 corners
         min_us = np.min(closest_us, axis=1)
@@ -202,11 +202,11 @@ def generate_yolo_labels(input_dir: str, file_prefixes: List[str], yolo_label_pa
             for class_id, u, v, w, h in zip(class_ids, u_center, v_center, box_width, box_height):
                 yolo_label_file.write(f"{class_id} {u} {v} {w} {h}\n")
 
-    return num_boxes
+    return num_classes
 
 
 def create_LD_training_data_dir(
-    input_dir: str,
+    region_dir: str,
     file_prefixes: List[str],
     test_fraction: float,
     val_fraction: float,
@@ -217,7 +217,7 @@ def create_LD_training_data_dir(
     .txt files, and creating a dataset.yaml file.
 
     Args:
-        input_dir: The directory containing the PNGs and YOLO label .txt files.
+        region_dir: The region directory containing the PNGs and YOLO label .txt files.
         file_prefixes: The common prefixes of the PNG and YOLO label .txt files to process.
         test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
         val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
@@ -237,7 +237,7 @@ def create_LD_training_data_dir(
     test_indices = all_indices[train_cutoff:test_cutoff]
     val_indices = all_indices[test_cutoff:]
 
-    LD_training_dir = os.path.join(input_dir, LD_TRAINING_DIR_NAME)
+    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
     train_dir = os.path.join(LD_training_dir, "train")
     test_dir = os.path.join(LD_training_dir, "test")
     val_dir = os.path.join(LD_training_dir, "val")
@@ -262,13 +262,13 @@ def create_LD_training_data_dir(
         for i in indices:
             file_prefix = file_prefixes[i]
             os.symlink(
-                os.path.join(input_dir, f"{file_prefix}.png"),
+                os.path.join(region_dir, f"{file_prefix}.png"),
                 os.path.join(images_dir, f"{file_prefix}.png"),
             )
 
     yolo_label_paths = yolo_label_paths.tolist()
     assert "" not in yolo_label_paths
-    num_classes = generate_yolo_labels(input_dir, file_prefixes, yolo_label_paths)
+    num_classes = generate_yolo_labels(region_dir, file_prefixes, yolo_label_paths)
 
     yolo_config = {
         "path": os.path.abspath(LD_training_dir),
