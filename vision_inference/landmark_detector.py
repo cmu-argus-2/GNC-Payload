@@ -162,14 +162,45 @@ class LandmarkDetector:
         self.region_id = region_id
         try:
             self.model = YOLO(
-                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_nadir.pt")
+                os.path.join(
+                    LandmarkDetector.MODEL_DIR, self.get_LD_model_weights_relative_path(region_id)
+                )
             )
             self.ground_truth = LandmarkDetector.load_ground_truth(
-                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_top_salient.csv")
+                os.path.join(
+                    LandmarkDetector.MODEL_DIR,
+                    self.get_region_bounding_boxes_relative_path(region_id),
+                )
             )
         except Exception as e:
             Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
+
+    @staticmethod
+    def get_LD_model_weights_relative_path(region_id: str) -> str:
+        """
+        Get the relative path to the model weights file for a specific MGRS region.
+
+        Args:
+            region_id: The MGRS region ID to get the LD model weights relative path for.
+
+        Returns:
+            The relative path to the LD model weights file.
+        """
+        return os.path.join(region_id, f"{region_id}_nadir.pt")
+
+    @staticmethod
+    def get_region_bounding_boxes_relative_path(region_id: str) -> str:
+        """
+        Get the relative path to the bounding box lat/lon coordinates file for a specific MGRS region.
+
+        Args:
+            region_id: The MGRS region ID to get the bounding box coordinates relative path for.
+
+        Returns:
+            The relative path to the bounding box coordinates file.
+        """
+        return os.path.join(region_id, f"{region_id}_top_salient.csv")
 
     @staticmethod
     def load_ground_truth(ground_truth_path: str) -> np.ndarray:
