@@ -146,9 +146,9 @@ def run_simulation() -> None:
     P = np.eye(15)
     P[0:3, 0:3] *= 5
     P[3:6, 3:6] *= 5
-    P[6:9, 6:9] *= 1e-3
-    P[9:12, 9:12] *= 1e-3
-    P[12:15, 12:15] *= 1e-3
+    P[6:9, 6:9] *= 1e-4
+    P[9:12, 9:12] *= 1e-4
+    P[12:15, 12:15] *= 1e-4
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -169,7 +169,7 @@ def run_simulation() -> None:
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
@@ -200,7 +200,9 @@ def run_simulation() -> None:
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
         # One rotation every 10 seconds to model a relatively slow wobble
-        w = rot  + 0.05 * np.array([np.cos(2*np.pi * t / (10 / dt)), np.sin(2*np.pi * t / (10 / dt)), 0])
+        w = rot + 0.05 * np.array(
+            [np.cos(2 * np.pi * t / (10 / dt)), np.sin(2 * np.pi * t / (10 / dt)), 0]
+        )
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
         gyro_meas, _ = imu.update(w, np.zeros((3)))
@@ -215,7 +217,9 @@ def run_simulation() -> None:
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
-        if t % 120 == 0:
+        if t % 120 == 0 and is_over_daytime(
+            data_manager.latest_epoch, data_manager.latest_state[:3]
+        ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
