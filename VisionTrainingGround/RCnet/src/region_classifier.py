@@ -27,6 +27,11 @@ from sklearn.manifold import TSNE
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from vision_inference.frame import Frame
+from vision_inference.logger import Logger
+from time import perf_counter
+from utils.config_utils import load_config
+import cv2
 
 
 class RegionClassifier:
@@ -72,10 +77,12 @@ class RegionClassifier:
 
     def __init__(
         self,
-        data_path: str,
+        data_path: Optional[str] = None,
         selected_classes: Optional[List[str]] = None,
         save_plot_flag: bool = False,
         save_plot_path: Optional[str] = None,
+        is_training: Optional[bool] = True,
+        confidence_threshold: Optional[int] = 0.5
     ) -> None:
         """
         Initializes the ImageClassifier.
@@ -87,7 +94,15 @@ class RegionClassifier:
             save_plot_path (str): Path to save the loss plot.
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._prepare_data(data_path, selected_classes)
+        self.is_training = is_training
+        self.regions = selected_classes
+        self.data_path = data_path
+        self.confidence_threshold = confidence_threshold
+        
+        if self.is_training:
+            self._prepare_data(data_path, selected_classes)
+        else:
+            self.l
         self.model = EfficientNet.from_pretrained("efficientnet-b0")
 
         # Replace the classifier layer
@@ -99,7 +114,50 @@ class RegionClassifier:
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
-    def _prepare_data(self, data_path: str, selected_classes: Optional[List[str]]) -> None:
+    def _get_regions_from_dataset(self):
+        """
+        Extracts region classes from the dataset directory structure.
+        
+        This function reads subdirectories in the training data path to determine
+        available region classes. It sets and returns the list of regions in
+        sorted order.
+        
+        Returns:
+            list: Sorted list of region names found in the training dataset.
+        """
+
+        if self.regions == None:
+            self.regions = sorted(os.listdir(self.data_path + "/train"))
+            print("Warning: Using all available classes for training!") 
+        print(f"{len(self.regions)} Regions: ", self.regions)
+
+    def _get_regions_from_config(self):
+        """
+        Loads region classes from the configuration file.
+        
+        This function reads the region IDs from the configuration file under the
+        vision.salient_mgrs_region_ids key. It validates that there are no duplicate
+        regions in the configuration. Used primarily during evaluation mode.
+        
+        Returns:
+            list: List of region IDs as specified in the configuration.
+            
+        Raises:
+            Exception: If there's an error loading the configuration or if
+                    duplicate regions are detected.
+        """
+
+        if self.regions == None:
+            try:
+                config = load_config()
+                self.regions = config["vision"]["salient_mgrs_region_ids"]
+                assert(len(self.regions)==len(set(self.regions)), "Duplicate Regions Present")
+            except Exception as e:
+                Logger.log("ERROR", f"Configuration error: {e}")
+            raise
+        print(f"{len(self.regions)} Regions: ", self.regions)
+
+    def _prepare_data(self) -> None:
         """
         Prepares the dataset by applying transformations and loading it into DataLoaders.
 
@@ -107,13 +165,6 @@ class RegionClassifier:
             data_path (str): Path to the dataset directory.
             selected_classes (list): List of salient regions for classification.
         """
-        if selected_classes is None:
-            # Use all available classes and output a warning
-            selected_classes = sorted(os.listdir(data_path + "/train"))
-            print("Warning: Using all available classes for training!")
-
-        self.regions = selected_classes
-        print("self.regions", self.regions)
 
         # Define transforms for training and testing sets
         self.train_transform = transforms.Compose(
@@ -153,13 +204,13 @@ class RegionClassifier:
 
         # Load datasets with appropriate transforms
         train_dataset = CustomImageDataset(
-            root_dir=data_path + "/train", selected_classes=self.regions, transform=self.train_transform
+            root_dir=self.data_path + "/train", selected_classes=self.regions, transform=self.train_transform
         )
         test_dataset = CustomImageDataset(
-            root_dir=data_path + "/test", selected_classes=self.regions, transform=self.val_transform
+            root_dir=self.data_path + "/test", selected_classes=self.regions, transform=self.val_transform
         )
         val_dataset = CustomImageDataset(
-            root_dir=data_path + "/val", selected_classes=self.regions, transform=self.val_transform
+            root_dir=self.data_path + "/val", selected_classes=self.regions, transform=self.val_transform
         )
 
         # Create DataLoader objects for training and testing sets
@@ -265,7 +316,7 @@ class RegionClassifier:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)
-                predictions = torch.sigmoid(outputs) > 0.5  # Sigmoid + thresholding for multi-label
+                predictions = torch.sigmoid(outputs) > self.confidence_threshold  # Sigmoid + thresholding for multi-label
                 
                 # Calculate multi-label metrics
                 true_positives += (predictions * labels).sum().item()
@@ -327,7 +378,7 @@ class RegionClassifier:
                 outputs = self.model(images)
                 end_time = time.time()
                 probabilities = torch.sigmoid(outputs)
-                predicted = (probabilities > 0.5).float()  # Multi-label thresholding
+                predicted = (probabilities > self.confidence_threshold).float()  # Multi-label thresholding
                 tot_time += end_time - start_time
                 # Store features and labels for t-SNE
                 all_features.append(outputs.cpu().numpy())
@@ -422,3 +473,37 @@ class RegionClassifier:
             print(f"Total Inf time:{tot_time}")
 
             return f1_score * 100
+        
+    def classify_region(self, frame_obj: Frame) -> List[str]:
+        """
+        Classify the regions present in the given frame.
+
+        :param frame_obj: The frame object to classify.
+        :return: A list of region IDs.
+        """
+        Logger.log(
+            "INFO",
+            f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] Starting the classification process.",
+        )
+        try:
+            img = Image.fromarray(cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2RGB))
+            img = self.transforms(img).unsqueeze(0).to(self.device)
+
+            with torch.no_grad():
+                start_time = perf_counter()
+                probabilities = self.model(img)
+                inference_time = perf_counter() - start_time
+
+                predicted = (probabilities > self.confidence_threshold).float()
+                predicted_indices = predicted.nonzero(as_tuple=True)[1]
+                predicted_region_ids = [self.regions[idx] for idx in predicted_indices]
+
+        except Exception as e:
+            Logger.log("ERROR", f"Classification process failed: {e}")
+            raise
+
+        Logger.log(
+            "INFO",
+            f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
+        )
+        Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
