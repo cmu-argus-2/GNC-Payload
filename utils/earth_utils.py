@@ -2,14 +2,11 @@
 Common earth utilities.
 """
 
-<<<<<<< HEAD:packages/utils/earth_utils.py
 from functools import cache
 
-=======
 import math
 
 import brahe
->>>>>>> main:utils/earth_utils.py
 import numpy as np
 from brahe import Epoch
 
@@ -231,7 +228,6 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
     return mgrs_regions
 
 
-<<<<<<< HEAD:packages/utils/earth_utils.py
 @cache
 def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     """
@@ -270,7 +266,6 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     del mgrs_grid["34X"]
     del mgrs_grid["36X"]
     return mgrs_grid
-=======
 def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
     """
     Add Gaussian noise to a bearing measurement.
@@ -541,4 +536,3 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
 
     # Finished
     return density
->>>>>>> main:utils/earth_utils.py

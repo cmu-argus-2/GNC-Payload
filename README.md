@@ -46,7 +46,6 @@ The trained models and CSV files are stored on the Argus CubeSat Google Drive ([
 ### Installing utils as a package
 After activating your environment, do the following to install the necessary modules as editable packages:
 ```
-cd packages
 pip install -e .
 ```
 
