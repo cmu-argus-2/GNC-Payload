@@ -29,7 +29,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 
-class ImageClassifier:
+class RegionClassifier:
     """
     A deep learning-based multi-label image classifier using EfficientNet.
 
@@ -92,7 +92,7 @@ class ImageClassifier:
 
         # Replace the classifier layer
         num_ftrs = self.model._fc.in_features
-        self.model._fc = nn.Linear(num_ftrs, len(self.classes))  # Output for each class
+        self.model._fc = nn.Linear(num_ftrs, len(self.regions))  # Output for each class
 
         self.model = self.model.to(self.device)
         self.plotter = Plotter()
@@ -112,11 +112,11 @@ class ImageClassifier:
             selected_classes = sorted(os.listdir(data_path + "/train"))
             print("Warning: Using all available classes for training!")
 
-        self.classes = selected_classes
-        print("self.class", self.classes)
+        self.regions = selected_classes
+        print("self.regions", self.regions)
 
         # Define transforms for training and testing sets
-        train_transform = transforms.Compose(
+        self.train_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
@@ -130,7 +130,7 @@ class ImageClassifier:
             ]
         )
 
-        test_transform = transforms.Compose(
+        self.val_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
@@ -143,15 +143,23 @@ class ImageClassifier:
             ]
         )
 
+        self.inference_transforms = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
         # Load datasets with appropriate transforms
         train_dataset = CustomImageDataset(
-            root_dir=data_path + "/train", selected_classes=self.classes, transform=train_transform
+            root_dir=data_path + "/train", selected_classes=self.regions, transform=self.train_transform
         )
         test_dataset = CustomImageDataset(
-            root_dir=data_path + "/test", selected_classes=self.classes, transform=test_transform
+            root_dir=data_path + "/test", selected_classes=self.regions, transform=self.val_transform
         )
         val_dataset = CustomImageDataset(
-            root_dir=data_path + "/val", selected_classes=self.classes, transform=test_transform
+            root_dir=data_path + "/val", selected_classes=self.regions, transform=self.val_transform
         )
 
         # Create DataLoader objects for training and testing sets
@@ -244,25 +252,42 @@ class ImageClassifier:
         Evaluates model performance on the validation dataset.
 
         Returns:
-            float: Validation accuracy in percentage.
+            float: Validation F1 score in percentage.
         """
         self.model.eval()  # Set the model to evaluation mode
-        correct = 0
-        total = 0
+        
+        true_positives = 0
+        false_positives = 0
+        false_negatives = 0
+        
         with torch.no_grad():  # No gradient is needed for validation
             for images, labels in self.val_loader:  # Use the validation data loader
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)
                 predictions = torch.sigmoid(outputs) > 0.5  # Sigmoid + thresholding for multi-label
-                total += labels.numel()
-                correct += (predictions == labels).sum().item()
-
-        accuracy = 100 * correct / total
-        wandb.log({"validation_accuracy": accuracy})
-
-        print(f"Validation Accuracy: {accuracy:.2f}%")
-        return accuracy
+                
+                # Calculate multi-label metrics
+                true_positives += (predictions * labels).sum().item()
+                false_positives += (predictions * (1 - labels)).sum().item()
+                false_negatives += ((1 - predictions) * labels).sum().item()
+        
+        precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+        recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        
+        # Log metrics
+        wandb.log({
+            "validation_f1_score": f1_score * 100,
+            "validation_precision": precision * 100,
+            "validation_recall": recall * 100
+        })
+        
+        print(f"Validation F1 Score: {f1_score * 100:.2f}%")
+        print(f"Validation Precision: {precision * 100:.2f}%")
+        print(f"Validation Recall: {recall * 100:.2f}%")
+        
+        return f1_score * 100  # Return F1 score as percentage
 
     # pylint: disable=too-many-locals
     def evaluate(self, output_file: str = "RCnet/results/evaluation_results.txt") -> float:
@@ -286,8 +311,6 @@ class ImageClassifier:
             )
 
         self.model.eval()
-        total_correct = 0
-        total_labels = 0
         all_features = []
         all_labels = []
         class_correct = {i: 0 for i in range(40)}  # Assuming 40 classes
@@ -316,10 +339,22 @@ class ImageClassifier:
                     for pred_class in predicted_classes:
                         class_images[pred_class].append(images[i].cpu())
 
-                # Compute accuracy
+                # For sample-wise accuracy (exact matches)
+                exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
+                sample_accuracy = 100 * exact_matches / labels.size(0)
+
+                # For label-wise metrics
                 true_positives = (predicted * labels).sum().item()
-                total_correct += true_positives
-                total_labels += labels.numel()
+                false_positives = (predicted * (1 - labels)).sum().item()
+                false_negatives = ((1 - predicted) * labels).sum().item()
+
+                precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+                recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+                f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+                # Calculate exact match ratio (all labels correct for each sample)
+                exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
+                exact_match_ratio = exact_matches / labels.size(0)
 
                 # Compute per-class accuracy
                 for class_idx in range(labels.size(1)):  # Iterate over classes
@@ -337,7 +372,7 @@ class ImageClassifier:
             for class_id, image_list in class_images.items():
                 if len(image_list) > 0:
                     image_grid = torch.stack(image_list, dim=0)
-                    class_name = self.classes[class_id]
+                    class_name = self.regions[class_id]
                     wandb.log(
                         {
                             f"class_{class_name}_images": wandb.Image(
@@ -348,7 +383,7 @@ class ImageClassifier:
 
             # Compute class-wise accuracies
             class_accuracies = {
-                self.classes[class_idx]: (
+                self.regions[class_idx]: (
                     (100 * class_correct[class_idx] / class_total[class_idx])
                     if class_total[class_idx] > 0
                     else 0
@@ -363,7 +398,7 @@ class ImageClassifier:
             plt.ylabel("Accuracy (%)")
             plt.title("Class-wise Accuracies")
             plt.xticks(
-                ticks=range(len(self.classes)), labels=self.classes, rotation=90
+                ticks=range(len(self.regions)), labels=self.regions, rotation=90
             )  # Assuming 40 classes
             plt.ylim(0, 100)  # Accuracy range 0-100%
 
@@ -374,72 +409,16 @@ class ImageClassifier:
             wandb.log({"class_wise_accuracies_plot": wandb.Image(plot_path)})
 
             # Log overall accuracy and per-class accuracies
-            wandb.log(
-                {
-                    "overall_accuracy": 100 * total_correct / total_labels,
+            wandb.log({
+                    "overall_f1_score": f1_score * 100,
+                    "precision": precision * 100,
+                    "recall": recall * 100,
+                    "exact_match_ratio": exact_match_ratio * 100,
                     **{f"{k}_accuracy": v for k, v in class_accuracies.items()},
-                }
-            )
+                })
 
-            # Plot t-SNE visualization
-            self.plot_tsne(all_features, all_labels, num_classes=40)
+            print(f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
+            print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
+            print(f"Total Inf time:{tot_time}")
 
-        accuracy = 100 * total_correct / total_labels
-        print(f"Accuracy of the network on the test images: {accuracy:.2f}%")
-        print(f"Total Inf time:{tot_time}")
-
-        return accuracy
-
-    def plot_tsne(self, features, labels, num_classes):
-        """
-        Generates and logs a t-SNE plot for the given features and labels to wandb.
-
-        Args:
-            features (ndarray): Feature representations of the dataset.
-            labels (ndarray): Multi-label ground truth labels.
-            num_classes (int): Number of classes in the dataset.
-
-        Returns:
-            None
-        """
-        # Reduce to 2D using t-SNE
-        tsne_plot = TSNE(n_components=2, perplexity=30, random_state=42)
-        tsne_results = tsne_plot.fit_transform(features)
-
-        # Assign colors for multi-labels
-        base_colors = [hsv_to_rgb([i / num_classes, 1, 1]) for i in range(num_classes)]
-
-        def get_mixed_color(label_vector):
-            """Mix colors based on label activation."""
-            active_classes = np.where(label_vector == 1)[0]
-            if len(active_classes) == 1:
-                return base_colors[active_classes[0]]
-            elif len(active_classes) > 1:
-                return np.mean([base_colors[i] for i in active_classes], axis=0)
-            return [0, 0, 0]  # Default color for no class
-
-        colors = np.array([get_mixed_color(label) for label in labels])
-
-        # Plot t-SNE
-        plt.figure(figsize=(10, 8))
-        plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=colors, alpha=0.7, edgecolors="k")
-        plt.title("t-SNE Visualization of Model Features")
-        plt.xlabel("t-SNE Dimension 1")
-        plt.ylabel("t-SNE Dimension 2")
-        plt.grid(True)
-
-        # Save plot to memory using BytesIO
-        buf = BytesIO()
-        plt.savefig(buf, format="png")
-        buf.seek(0)  # Rewind buffer for reading
-
-        # Open the image from the buffer with PIL
-        img = Image.open(buf)
-
-        # Log the image to wandb
-        wandb.log({"t-SNE Plot": wandb.Image(img)})
-
-        buf.close()  # Close the buffer
-
-        # Close the plot to avoid memory issues
-        plt.close()
+            return f1_score * 100
