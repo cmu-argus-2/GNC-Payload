@@ -137,18 +137,19 @@ def run_simulation() -> None:
     rot = np.array([0, 0, np.pi / 18])
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(15) * 1e-12
+    Q = np.eye(16) * 1e-12
     # Unmodelled acceleration has larger uncertainty
     Q[6:9, 6:9] = np.eye(3) * 1e-9
-    # Bias uncertainty also larger
-    Q[12:15, 12:15] = np.eye(3) * 1e-9
+    # # Bias uncertainty also larger
+    Q[13:16, 13:16] = np.eye(3) * 1e-9
 
-    P = np.eye(15)
+    P = np.eye(16)
     P[0:3, 0:3] *= 5
     P[3:6, 3:6] *= 5
     P[6:9, 6:9] *= 1e-4
-    P[9:12, 9:12] *= 1e-4
-    P[12:15, 12:15] *= 1e-4
+    P[9:10, 9:10] *= 1e-4
+    P[10:13, 10:13] *= 1e-4
+    P[13:16, 13:16] *= 1e-4
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -161,6 +162,7 @@ def run_simulation() -> None:
         use_drag=False,
         use_j2=False,
         use_unmodelled_a=True,
+        use_drag_scalar=True,
         ua_scale=ua_scale,
     )
 
@@ -189,6 +191,7 @@ def run_simulation() -> None:
     cov_trace = []
     gyro_bias_error = []
     actual_bias = []
+    drag_estimate = []
     sigma_high = []
     sigma_low = []
 
@@ -251,6 +254,7 @@ def run_simulation() -> None:
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b / gyro_bias_scale - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)
+        drag_estimate.append(ekf.drag_est)
 
         sigma_high.append(
             np.array(
@@ -325,6 +329,12 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Actual gyro bias [rad/s]")
     plt.title("Actual Gyro Bias")
+
+    plt.figure()
+    plt.plot(drag_estimate)
+    plt.xlabel("Time step")
+    plt.ylabel("Drag estimate")
+    plt.title("EKF Drag Estimate")
 
     plt.show()
 

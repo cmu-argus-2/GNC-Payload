@@ -3,10 +3,13 @@ Module that defines drag dynamics and its jacobian.
 """
 
 import numpy as np
-from brahe import Epoch
+from brahe import R_EARTH, Epoch
 
 # pylint: disable=import-error
 from utils.earth_utils import density_harris_priester
+
+REF_HEIGHT = 600e3
+NOMINAL_DENSITY = 1e-13
 
 
 def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.ndarray:
@@ -52,3 +55,70 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     da_drag_dv = density * drag_const * ((np.eye(3) * v_norm) - np.outer(x[3:6], x[3:6]) / v_norm)
 
     return da_drag_dv
+
+
+def drag_scalar_estimate(x: np.ndarray, drag_const: float) -> np.ndarray:
+    """
+    Compute the drag acceleration using a scalar drag estimate.
+
+    :param x: state vector
+    :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
+    :return: drag acceleration
+    """
+
+    v_norm = np.linalg.norm(x[3:6])
+    height = np.linalg.norm(x[0:3]) - R_EARTH
+    density_estimate = x[9] * NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
+    drag_a = density_estimate * x[3:6] * drag_const * v_norm
+    return drag_a
+
+
+def da_dest_drag_derivative(x: np.ndarray, drag_const: float) -> np.ndarray:
+    """
+    Compute the derivative of the acceleration dynamics with respect to the drag estimate term.
+
+    :param x: state vector
+    :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
+    :return: drag derivative
+    """
+
+    v_norm = np.linalg.norm(x[3:6])
+    height = np.linalg.norm(x[0:3]) - R_EARTH
+    da_drag = NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT) * x[3:6] * drag_const * v_norm
+    return np.expand_dims(da_drag, axis=1)
+
+
+def dadrag_dr_partial(x: np.ndarray, drag_const: float) -> np.ndarray:
+    """
+    Compute the partial derivative of the drag acceleration with respect to position.
+    :param x: state vector"
+    :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
+    :return: drag acceleration partial derivative with respect to position
+    """
+    v_norm = np.linalg.norm(x[3:6])
+    height = np.linalg.norm(x[0:3]) - R_EARTH
+    density_estimate = x[9] * NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
+    dadrag_dr = (
+        density_estimate
+        * drag_const
+        * v_norm
+        * np.outer(x[3:6], -x[0:3])
+        / (np.linalg.norm(x[0:3]) * REF_HEIGHT)
+    )
+    return dadrag_dr
+
+
+def dadrag_dv_partial(x: np.ndarray, drag_const: float) -> np.ndarray:
+    """
+    Compute the partial derivative of the drag acceleration with respect to velocity.
+    :param x: state vector
+    :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
+    :return: drag acceleration partial derivative with respect to velocity
+    """
+    v_norm = np.linalg.norm(x[3:6])
+    height = np.linalg.norm(x[0:3]) - R_EARTH
+    density_estimate = x[9] * NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
+    dadrag_dv = (
+        density_estimate * drag_const * (np.eye(3) * v_norm - np.outer(x[3:6], x[3:6]) / v_norm)
+    )
+    return dadrag_dv
