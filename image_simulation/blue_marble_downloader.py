@@ -4,6 +4,7 @@ from itertools import product
 
 from requests.exceptions import ChunkedEncodingError
 from tqdm import tqdm
+from time import sleep
 
 
 OUTPUT_DIR = os.path.join(__file__, "../blue_marble")
@@ -46,11 +47,14 @@ def download_image(url: str, output_path: str, max_retries=100) -> None:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
                     pbar.update(len(chunk))
-                print("Download complete")
+                print(f"Download complete after {retry} retries")
                 return
             except ChunkedEncodingError:
-                print(f"Connection closed, resuming download from byte {pbar.n}")
+                sleep(5)
                 continue
+
+    print(f"Failed to download: {url}")
+    os.remove(output_path)
 
 
 def main():
