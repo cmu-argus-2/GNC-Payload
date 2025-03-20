@@ -89,7 +89,7 @@ class EKFDynamics(Dynamics):
         remainder = np.zeros((0,))
 
         if self.use_drag_scalar:
-            drag_a = drag_scalar_estimate(x, self.drag_const)
+            drag_a = drag_scalar_estimate(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
             updated_a += drag_a
             remainder = np.append(remainder, np.zeros((1,)))
 
@@ -115,9 +115,9 @@ class EKFDynamics(Dynamics):
 
         if self.use_drag_scalar:
             dv_dest_drag = np.zeros((3, 1))
-            da_dest_drag = da_dest_drag_derivative(x, self.drag_const)
-            daestdrag_dr = dadrag_dr_partial(x, self.drag_const)
-            daestdrag_dv = dadrag_dv_partial(x, self.drag_const)
+            da_dest_drag = da_dest_drag_derivative(x[0:6], self.drag_const)
+            daestdrag_dr = dadrag_dr_partial(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
+            daestdrag_dv = dadrag_dv_partial(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
             base_jacobian[3:6, 0:3] += daestdrag_dr
             base_jacobian[3:6, 3:6] += daestdrag_dv
             drag_jac = np.zeros((1, self.state_dim))

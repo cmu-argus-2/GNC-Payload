@@ -202,7 +202,7 @@ class Dynamics:
         if self.use_drag and not np.isclose(v_norm, 0):
             if epoch is None:
                 raise ValueError("Epoch is required to compute drag")
-            a_drag_gt = drag_dynamics(x=x, drag_const=self.drag_const, latest_epoch=epoch)
+            a_drag_gt = drag_dynamics(x=x[0:6], drag_const=self.drag_const, latest_epoch=epoch)
 
             updated_a += a_drag_gt
 
@@ -216,21 +216,20 @@ class Dynamics:
         if self.use_j34 and not np.isclose(r_norm, 0):
             a_J3_gt = j3_dynamics(r)
             a_J4_gt = j4_dynamics(r)
-            print(f"J3: {a_J3_gt}, J4: {a_J4_gt}")
             updated_a += a_J3_gt + a_J4_gt
 
         # Compute third body gravity
-        if self.use_sun_grav and not np.isclose(r_norm, 0):
+        if self.use_sun_grav:
             if epoch is None:
                 raise ValueError("Epoch is required to compute sun gravitational effects")
-            a_sun_gt = sun_gravity(x=x, epoch=epoch)
+            a_sun_gt = sun_gravity(r_sat=x[0:3], epoch=epoch)
 
             updated_a += a_sun_gt
 
-        if self.use_moon_grav and not np.isclose(r_norm, 0):
+        if self.use_moon_grav:
             if epoch is None:
                 raise ValueError("Epoch is required to compute moon gravitational effects")
-            a_moon_gt = moon_gravity(x=x, epoch=epoch)
+            a_moon_gt = moon_gravity(r_sat=x[0:3], epoch=epoch)
 
             updated_a += a_moon_gt
 
@@ -258,7 +257,7 @@ class Dynamics:
         if self.use_drag and not np.isclose(v_norm, 0):
             if epoch is None:
                 raise ValueError("Epoch is required to compute drag jacobian")
-            da_drag_gt_dv = drag_jacobian(x=x, drag_const=self.drag_const, latest_epoch=epoch)
+            da_drag_gt_dv = drag_jacobian(x=x[0:6], drag_const=self.drag_const, latest_epoch=epoch)
 
             da_dv += da_drag_gt_dv
 
@@ -277,17 +276,17 @@ class Dynamics:
             da_dr += da_J3_gt_dr + da_J4_gt_dr
 
         # Compute third body gravity
-        if self.use_sun_grav and not np.isclose(np.linalg.norm(x[0:3]), 0):
+        if self.use_sun_grav:
             if epoch is None:
                 raise ValueError("Epoch is required to compute sun gravitational effects jacobian")
-            da_sun_gt_dr = sun_gravity_jac(x=x, epoch=epoch)
+            da_sun_gt_dr = sun_gravity_jac(x=x[0:3], epoch=epoch)
 
             da_dr += da_sun_gt_dr
 
-        if self.use_moon_grav and not np.isclose(np.linalg.norm(x[0:3]), 0):
+        if self.use_moon_grav:
             if epoch is None:
                 raise ValueError("Epoch is required to compute moon gravitational effects jacobian")
-            da_moon_gt_dr = moon_gravity_jac(x=x, epoch=epoch)
+            da_moon_gt_dr = moon_gravity_jac(x=x[0:3], epoch=epoch)
 
             da_dr += da_moon_gt_dr
 
