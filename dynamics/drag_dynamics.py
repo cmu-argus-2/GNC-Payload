@@ -8,8 +8,8 @@ from brahe import R_EARTH, Epoch
 # pylint: disable=import-error
 from utils.earth_utils import density_harris_priester
 
-REF_HEIGHT = 600e3
-NOMINAL_DENSITY = 1e-13
+REF_HEIGHT = 600e3 # m
+NOMINAL_DENSITY = 1e-13 # kg/m^3
 
 
 def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.ndarray:

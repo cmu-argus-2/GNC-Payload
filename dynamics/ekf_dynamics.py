@@ -3,7 +3,9 @@ Functions for implementing EKF dynamics extending the orbital dynamics.
 """
 
 import numpy as np
-from brahe import R_EARTH, Epoch
+from brahe import Epoch
+
+# pylint: disable=import-error
 
 from dynamics.drag_dynamics import (
     da_dest_drag_derivative,
@@ -18,7 +20,6 @@ from dynamics.orbital_dynamics import Dynamics
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
 
-
 class EKFDynamics(Dynamics):
     """
     This class contains the EKF dynamics functions. It inherits from the basic Dynamics class.
@@ -29,6 +30,8 @@ class EKFDynamics(Dynamics):
         config: dict,
         use_unmodelled_a: bool,
         use_drag_scalar: bool,
+        use_sun_grav: bool,
+        use_moon_grav: bool,
         use_drag: bool,
         use_j2: bool,
         ua_scale: float = None,
@@ -39,12 +42,20 @@ class EKFDynamics(Dynamics):
         :param config: The configuration dictionary.
         :param use_unmodelled_a: Whether to use unmodelled accelerations in the dynamics.
         :param use_drag_scalar: Whether to use a scalar drag estimate.
+        :param use_moon_grav: Whether to use the moon's gravity in the dynamics.
+        :param use_sun_grav: Whether to use the sun's gravity in the dynamics.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
         :param ua_scale: The scale factor for unmodelled accelerations.
         :return: None
         """
-        super().__init__(config=config, use_drag=use_drag, use_j2=use_j2)
+        super().__init__(
+            config=config,
+            use_drag=use_drag,
+            use_j2=use_j2,
+            use_sun_grav=use_sun_grav,
+            use_moon_grav=use_moon_grav,
+        )
         self.use_unmodelled_a = use_unmodelled_a
         self.use_drag_scalar = use_drag_scalar
 
@@ -104,7 +115,6 @@ class EKFDynamics(Dynamics):
             da_dest_drag = da_dest_drag_derivative(x, self.drag_const)
             daestdrag_dr = dadrag_dr_partial(x, self.drag_const)
             daestdrag_dv = dadrag_dv_partial(x, self.drag_const)
-            # da_dest_drag = np.array([[1],[1],[1]])
             base_jacobian[3:6, 0:3] += daestdrag_dr
             base_jacobian[3:6, 3:6] += daestdrag_dv
             drag_jac = np.zeros((1, self.state_dim))

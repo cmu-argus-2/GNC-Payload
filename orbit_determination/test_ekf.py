@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -156,11 +160,15 @@ def run_simulation() -> None:
         config=config,
         use_drag=True,
         use_j2=True,
+        use_sun_grav=True,
+        use_moon_grav=True,
     )
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=False,
         use_j2=False,
+        use_sun_grav=False,
+        use_moon_grav=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
         ua_scale=ua_scale,
