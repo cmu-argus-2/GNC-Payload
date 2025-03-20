@@ -12,7 +12,15 @@ from brahe import Epoch
 from brahe.constants import GM_EARTH
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
-from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manual
+from dynamics.grav_potential_dynamics import (
+    j2_dynamics,
+    j2_jacobian_auto,
+    j2_jacobian_manual,
+    j3_dynamics,
+    j3_jacobian_auto,
+    j4_dynamics,
+    j4_jacobian_auto,
+)
 from dynamics.third_body_dynamics import (
     moon_gravity,
     moon_gravity_jac,
@@ -37,6 +45,7 @@ class Dynamics:
         config: dict,
         use_drag: bool,
         use_j2: bool,
+        use_j34: bool,
         use_sun_grav: bool,
         use_moon_grav: bool,
     ) -> None:
@@ -46,12 +55,14 @@ class Dynamics:
         :param config: The configuration dictionary.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
+        :param use_j34: Whether to use J3 and J4 perturbations in the dynamics.
         :param use_sun_grav: Whether to use the sun's gravity in the dynamics.
         :param use_moon_grav: Whether to use the moon's gravity in the dynamics.
         :return: None
         """
         self.use_drag = use_drag
         self.use_j2 = use_j2
+        self.use_j34 = use_j34
         self.use_sun_grav = use_sun_grav
         self.use_moon_grav = use_moon_grav
         self.drag_const = (
@@ -201,6 +212,13 @@ class Dynamics:
 
             updated_a += a_J2_gt
 
+        # Compute J3 and J4
+        if self.use_j34 and not np.isclose(r_norm, 0):
+            a_J3_gt = j3_dynamics(r)
+            a_J4_gt = j4_dynamics(r)
+            print(f"J3: {a_J3_gt}, J4: {a_J4_gt}")
+            updated_a += a_J3_gt + a_J4_gt
+
         # Compute third body gravity
         if self.use_sun_grav and not np.isclose(r_norm, 0):
             if epoch is None:
@@ -251,6 +269,13 @@ class Dynamics:
 
             da_dr += da_J2_gt_dr
 
+        # Compute J3 and J4
+        if self.use_j34 and not np.isclose(np.linalg.norm(x[0:3]), 0):
+            da_J3_gt_dr = j3_jacobian_auto(x[0:3])
+            da_J4_gt_dr = j4_jacobian_auto(x[0:3])
+
+            da_dr += da_J3_gt_dr + da_J4_gt_dr
+
         # Compute third body gravity
         if self.use_sun_grav and not np.isclose(np.linalg.norm(x[0:3]), 0):
             if epoch is None:
@@ -281,7 +306,7 @@ class Dynamics:
         """
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
-            if self.use_drag
+            if (self.use_drag or self.use_moon_grav or self.use_sun_grav)
             else self.perturbed_state_derivative
         )
         return Dynamics.RK4(x=x, func=func, dt=dt)
@@ -300,12 +325,12 @@ class Dynamics:
 
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
-            if self.use_drag
+            if (self.use_drag or self.use_moon_grav or self.use_sun_grav)
             else self.perturbed_state_derivative
         )
         func_jac = (
             partial(self.perturbed_state_derivative_jac, epoch=epoch)
-            if self.use_drag
+            if (self.use_drag or self.use_moon_grav or self.use_sun_grav)
             else self.perturbed_state_derivative_jac
         )
         return Dynamics.RK4_jac(

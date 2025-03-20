@@ -34,6 +34,7 @@ class EKFDynamics(Dynamics):
         use_moon_grav: bool,
         use_drag: bool,
         use_j2: bool,
+        use_j34: bool,
         ua_scale: float = None,
     ) -> None:
         """
@@ -46,6 +47,7 @@ class EKFDynamics(Dynamics):
         :param use_sun_grav: Whether to use the sun's gravity in the dynamics.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
+        :param use_j34: Whether to use J3 and J4 perturbations in the dynamics.
         :param ua_scale: The scale factor for unmodelled accelerations.
         :return: None
         """
@@ -53,6 +55,7 @@ class EKFDynamics(Dynamics):
             config=config,
             use_drag=use_drag,
             use_j2=use_j2,
+            use_j34=use_j34,
             use_sun_grav=use_sun_grav,
             use_moon_grav=use_moon_grav,
         )

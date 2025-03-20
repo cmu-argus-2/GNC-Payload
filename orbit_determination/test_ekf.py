@@ -11,10 +11,6 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-import sys
-root = "/home/frederik/cmu/GNC-Payload"
-sys.path.append(root)
-
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -102,7 +98,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 20  # s
+    config["mission"]["duration"] = 3 * 90 * 45  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -160,6 +156,7 @@ def run_simulation() -> None:
         config=config,
         use_drag=True,
         use_j2=True,
+        use_j34=True,
         use_sun_grav=True,
         use_moon_grav=True,
     )
@@ -167,6 +164,7 @@ def run_simulation() -> None:
         config=config,
         use_drag=False,
         use_j2=False,
+        use_j34=False,
         use_sun_grav=False,
         use_moon_grav=False,
         use_unmodelled_a=True,
