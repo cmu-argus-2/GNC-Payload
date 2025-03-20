@@ -14,6 +14,15 @@ RESOLUTION = "3x21600x21600"
 
 
 def download_image(url: str, output_path: str, max_retries=100) -> None:
+    """
+    Download an image from a URL to a file.
+    If the download fails, retry up to max_retries times.
+    Each retry will resume the download from where it left off.
+
+    :param url: The URL of the image to download.
+    :param output_path: The path to save the downloaded image to.
+    :param max_retries: The maximum number of times to retry the download.
+    """
     # get file metadata
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
@@ -45,6 +54,9 @@ def download_image(url: str, output_path: str, max_retries=100) -> None:
 
 
 def main():
+    """
+    Script entry point.
+    """
     for i, (month_name, dataset_id) in enumerate(zip(MONTH_NAMES, DATASET_IDS_BY_MONTH)):
         month_dir = os.path.join(OUTPUT_DIR, month_name)
         os.makedirs(month_dir, exist_ok=True)
