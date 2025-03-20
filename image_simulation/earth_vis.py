@@ -163,13 +163,14 @@ class GeoTIFFData:
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Get the pixel coordinates corresponding to the given latitudes and longitudes.
-        A mask is also returned to indicate which output pixel coordinates contain valid data.
+        A mask is also returned to indicate which output pixel coordinates contain data that is in bounds.
 
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
         :return: A Tuple containing:
                  - A numpy array of shape lat_lon.shape[:-1] containing the horizontal pixel coordinates, u.
                  - A numpy array of shape lat_lon.shape[:-1] containing the vertical pixel coordinates, v.
-                 - A numpy array of shape lat_lon.shape[:-1] indicating which pixel coordinates contain valid data.
+                 - A numpy array of shape lat_lon.shape[:-1] indicating which pixel coordinates contain data that is in
+                   bounds.
         """
         assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
 
