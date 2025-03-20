@@ -196,12 +196,9 @@ class GeoTIFFData:
         """
         us, vs, valid_mask = self.get_pixel_coordinates(lat_lon)
 
-        image_flat = np.zeros(
-            lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype
-        )
-        image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
-
-        return image_flat
+        image = np.zeros(lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype)
+        image[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
+        return image
 
 
 class GeoTIFFCache:
