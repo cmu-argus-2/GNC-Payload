@@ -10,6 +10,7 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import label
 import rasterio
 from affine import Affine
 
@@ -264,6 +265,30 @@ class EarthImageSimulator:
         self.inpaint_blue_marble = inpaint_blue_marble
         self.blue_marble_month = blue_marble_month
 
+    @staticmethod
+    def trim_small_connected_components(mask: np.ndarray, min_size: int = 3) -> np.ndarray:
+        """
+        Remove small connected components from the provided binary mask.
+
+        Parameters:
+            mask: A binary mask to trim.
+            min_size: The minimum size of connected components to keep.
+
+        Returns:
+            The trimmed binary mask.
+        """
+        assert mask.dtype == bool, "mask must be a binary mask."
+
+        labeled_connected_components, num_labels = label(mask, structure=np.ones((3, 3), dtype=bool))
+
+        for label_id in range(1, num_labels + 1):
+            connected_component_mask = labeled_connected_components == label_id
+
+            if np.sum(connected_component_mask) < min_size:
+                mask[connected_component_mask] = False
+
+        return mask
+
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
     ) -> Tuple[Frame, np.ndarray, np.ndarray]:
@@ -317,6 +342,11 @@ class EarthImageSimulator:
 
         if self.inpaint_blue_marble:
             inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
+
+            # avoid inpainting very small connected components of pixels since we want to avoid overwriting data that
+            # just happens to consist of zeros by chance, despite being valid data
+            inpaint_mask = EarthImageSimulator.trim_small_connected_components(inpaint_mask)
+
             image[inpaint_mask, :] = query_blue_marble_pixel_colors(lat_lon[inpaint_mask, :], self.blue_marble_month)
 
         return (
