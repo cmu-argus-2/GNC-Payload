@@ -6,10 +6,11 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
-from typing import Tuple
+from typing import ClassVar, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import label
 import rasterio
 from affine import Affine
 from rasterio.crs import CRS
@@ -25,6 +26,7 @@ from utils.earth_utils import (
     intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
+from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 
 
 @dataclass
@@ -182,7 +184,7 @@ class GeoTIFFData:
         valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
         return us, vs, valid_mask
 
-    def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
@@ -190,9 +192,7 @@ class GeoTIFFData:
         (red, green, blue).
 
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
-        :return: A Tuple containing:
-                 - A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
-                 - A numpy array of shape lat_lon.shape[:-1] indicating which output pixels contain valid data.
+        :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
         """
         us, vs, valid_mask = self.get_pixel_coordinates(lat_lon)
 
@@ -201,7 +201,7 @@ class GeoTIFFData:
         )
         image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
-        return image_flat, valid_mask
+        return image_flat
 
 
 class GeoTIFFCache:
@@ -311,14 +311,48 @@ class EarthImageSimulator:
     Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
     """
 
-    def __init__(self, geotiff_cache: GeoTIFFCache | None = None):
+    def __init__(
+            self,
+            geotiff_cache: GeoTIFFCache | None = None,
+            inpaint_blue_marble: bool = True,
+            blue_marble_month: str | None = None
+    ):
         """
         Initialize the Earth image simulator.
 
         Parameters:
             geotiff_cache: The GeoTIFFCache to use. If None, a default GeoTIFFCache will be created.
+            inpaint_blue_marble: Whether to inpaint from the Blue Marble dataset for Earth pixels with no valid data.
+            blue_marble_month: The month of the Blue Marble dataset to use. If None, a random month will be chosen for
+                               each simulated image, possibly resulting in worse performance due to increased file I/O.
         """
         self.cache = geotiff_cache if geotiff_cache is not None else GeoTIFFCache()
+        self.inpaint_blue_marble = inpaint_blue_marble
+        self.blue_marble_month = blue_marble_month
+
+    @staticmethod
+    def trim_small_connected_components(mask: np.ndarray, min_size: int = 3) -> np.ndarray:
+        """
+        Remove small connected components from the provided binary mask.
+
+        Parameters:
+            mask: A binary mask to trim.
+            min_size: The minimum size of connected components to keep.
+
+        Returns:
+            The trimmed binary mask.
+        """
+        assert mask.dtype == bool, "mask must be a binary mask."
+
+        labeled_connected_components, num_labels = label(mask, structure=np.ones((3, 3), dtype=bool))
+
+        for label_id in range(1, num_labels + 1):
+            connected_component_mask = labeled_connected_components == label_id
+
+            if np.sum(connected_component_mask) < min_size:
+                mask[connected_component_mask] = False
+
+        return mask
 
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
@@ -352,7 +386,6 @@ class EarthImageSimulator:
         present_regions = np.unique(mgrs_regions[mgrs_regions != None])
 
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
-        valid_mask = np.zeros(CameraModel.RESOLUTION, dtype=bool)
         for region in present_regions:
             geotiff_data = self.cache.load_geotiff_data(region)
             if geotiff_data is None:
@@ -368,12 +401,18 @@ class EarthImageSimulator:
             )
 
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
-            region_image, region_valid_mask = geotiff_data.query_pixel_colors(lat_lon[region_mask])
+            region_image = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
-            image[region_mask] = region_image
-            valid_mask[region_mask] |= region_valid_mask
+            image[region_mask, :] = region_image
 
-        # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
+        if self.inpaint_blue_marble:
+            inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
+
+            # avoid inpainting very small connected components of pixels since we want to avoid overwriting data that
+            # just happens to consist of zeros by chance, despite being valid data
+            inpaint_mask = EarthImageSimulator.trim_small_connected_components(inpaint_mask)
+
+            image[inpaint_mask, :] = query_blue_marble_pixel_colors(lat_lon[inpaint_mask, :], self.blue_marble_month)
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
