@@ -1,99 +1,479 @@
 """
-Region Classification Module
+Image Classification Module using EfficientNet.
 
-This module defines the RegionClassifier class, which leverages a pretrained EfficientNet model to classify
-images based on geographic regions. The classifier is tailored to recognize specific regions by adjusting the
-final layer to match the number of target classes and loading custom model weights. Main functionalities
-include image preprocessing and the execution of classification, providing class probabilities for each
-recognized region.
-
-
-Author: Eddie
-Date: [Creation or Last Update Date]
+This module defines the `RegionClassifier` class for training, 
+evaluating, and validating an image classification model.  
+It leverages EfficientNet-B0 as the backbone, supports logging with Weights & Biases (wandb),  
+and provides utilities for dataset preparation, training, and performance evaluation.
 """
 
 import os
-from time import perf_counter
-from typing import List
+import random
+import time
+from collections import defaultdict
+from io import BytesIO
+from typing import List, Optional
 
-import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
+import wandb
+from VisionTrainingGround.RCnet.src.data_loader import CustomImageDataset
+from efficientnet_pytorch import EfficientNet
+from matplotlib.colors import hsv_to_rgb
 from PIL import Image
-from torch import nn
+from plotter import Plotter
+from sklearn.manifold import TSNE
+from torch import nn, optim
+from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
-
-from utils.config_utils import load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
+from time import perf_counter
+from utils.config_utils import load_config
+import cv2
 
 
 class RegionClassifier:
     """
-    A class to classify MGRS regions in images using a pretrained EfficientNet model.
+    A deep learning-based multi-label image classifier using EfficientNet.
+
+    This class provides methods for preparing datasets, training, validation,
+    evaluation, and saving/loading models. It integrates with Weights & Biases (wandb)
+    for logging and visualization.
+
+    Attributes:
+        device (torch.device): The device (CPU or GPU) on which the model runs.
+        train_loader (DataLoader): DataLoader for training dataset.
+        test_loader (DataLoader): DataLoader for testing dataset.
+        val_loader (DataLoader): DataLoader for validation dataset.
+        model (torch.nn.Module): The deep learning model for classification.
+        plotter (Plotter): Utility for plotting training loss.
+        save_plot_flag (bool): Flag to determine whether to save training loss plots.
+        save_plot_path (str): Path to save the loss plot.
+
+    Methods:
+        _prepare_data(data_path):
+            Loads and preprocesses the dataset into DataLoaders.
+
+        _initialize_model():
+            Initializes the EfficientNet-B0 model with a modified classifier layer.
+
+        train(epochs=10, learning_rate=1e-3):
+            Trains the model and logs loss/accuracy using wandb.
+
+        validate():
+            Evaluates model performance on the validation dataset.
+
+        evaluate(output_file="RCnet/results/evaluation_results.txt"):
+            Evaluates the model on the test dataset and logs results.
+
+        save_model(path="model.pth"):
+            Saves the trained model's weights.
+
+        load_model(path="model.pth"):
+            Loads a saved model's weights and sets it to evaluation mode.
     """
 
-    NUM_CLASSES = 16
-    CONFIDENCE_THRESHOLD = 0.55
-    DOWNSAMPLED_SIZE = (224, 224)
-    IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
-    IMAGE_NET_STD = [0.229, 0.224, 0.225]
-    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../models/rc"))
-    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, "model.pth")
+    def __init__(
+        self,
+        data_path: Optional[str] = None,
+        selected_classes: Optional[List[str]] = None,
+        save_plot_flag: bool = False,
+        save_plot_path: Optional[str] = None,
+        is_training: Optional[bool] = True,
+        confidence_threshold: Optional[int] = 0.5
+    ) -> None:
+        """
+        Initializes the RegionClassifier.
 
-    def __init__(self):
-        Logger.log("INFO", "Initializing RegionClassifier.")
+        Args:
+            data_path (str): Path to the dataset.
+            selected_classes (list): List of selected classes for the multi-label classification.
+            save_plot_flag (bool): Whether to save training loss plots.
+            save_plot_path (str): Path to save the loss plot.
+        """
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.is_training = is_training
+        self.regions = selected_classes
+        self.data_path = data_path
+        self.confidence_threshold = confidence_threshold
+        
+        if self.is_training:
+            self._prepare_data(data_path, selected_classes)
+        else:
+            self.l
+        self.model = EfficientNet.from_pretrained("efficientnet-b0")
 
-        try:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model = ClassifierEfficient().to(self.device)
+        # Replace the classifier layer
+        num_ftrs = self.model._fc.in_features
+        self.model._fc = nn.Linear(num_ftrs, len(self.regions))  # Output for each class
 
-            # Load Custom model weights
-            self.model.load_state_dict(
-                torch.load(RegionClassifier.MODEL_WEIGHTS_PATH, map_location=self.device)
-            )
-            self.model.eval()
-            Logger.log("INFO", "Model loaded successfully.")
+        self.model = self.model.to(self.device)
+        self.plotter = Plotter()
+        self.save_plot_flag = save_plot_flag
+        self.save_plot_path = save_plot_path
 
-        except Exception as e:
-            Logger.log("ERROR", f"Failed to load model: {e}")
+    def _get_regions_from_dataset(self):
+        """
+        Extracts region classes from the dataset directory structure.
+        
+        This function reads subdirectories in the training data path to determine
+        available region classes. It sets and returns the list of regions in
+        sorted order.
+        
+        Returns:
+            list: Sorted list of region names found in the training dataset.
+        """
+
+        if self.regions == None:
+            self.regions = sorted(os.listdir(self.data_path + "/train"))
+            print("Warning: Using all available classes for training!") 
+        print(f"{len(self.regions)} Regions: ", self.regions)
+
+    def _get_regions_from_config(self):
+        """
+        Loads region classes from the configuration file.
+        
+        This function reads the region IDs from the configuration file under the
+        vision.salient_mgrs_region_ids key. It validates that there are no duplicate
+        regions in the configuration. Used primarily during evaluation mode.
+        
+        Returns:
+            list: List of region IDs as specified in the configuration.
+            
+        Raises:
+            Exception: If there's an error loading the configuration or if
+                    duplicate regions are detected.
+        """
+
+        if self.regions == None:
+            try:
+                config = load_config()
+                self.regions = config["vision"]["salient_mgrs_region_ids"]
+                assert(len(self.regions)==len(set(self.regions)), "Duplicate Regions Present")
+            except Exception as e:
+                Logger.log("ERROR", f"Configuration error: {e}")
             raise
+        print(f"{len(self.regions)} Regions: ", self.regions)
 
-        # Define the preprocessing
-        self.transforms = transforms.Compose(
+    def _prepare_data(self) -> None:
+        """
+        Prepares the dataset by applying transformations and loading it into DataLoaders.
+
+        Args:
+            data_path (str): Path to the dataset directory.
+            selected_classes (list): List of salient regions for classification.
+        """
+
+        # Define transforms for training and testing sets
+        self.train_transform = transforms.Compose(
             [
-                transforms.Resize(RegionClassifier.DOWNSAMPLED_SIZE),
+                transforms.Resize((224, 224)),
+                # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
+                transforms.RandomRotation(10),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=RegionClassifier.IMAGE_NET_MEAN, std=RegionClassifier.IMAGE_NET_STD
-                ),
+                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
+                # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
             ]
         )
 
-        self.region_ids = RegionClassifier.load_region_ids()
+        self.val_transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
+                transforms.RandomRotation(10),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
+                transforms.ToTensor(),
+                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
+                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+            ]
+        )
 
-    @staticmethod
-    def load_region_ids() -> List[str]:
+        self.inference_transforms = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+        # Load datasets with appropriate transforms
+        train_dataset = CustomImageDataset(
+            root_dir=self.data_path + "/train", selected_classes=self.regions, transform=self.train_transform
+        )
+        test_dataset = CustomImageDataset(
+            root_dir=self.data_path + "/test", selected_classes=self.regions, transform=self.val_transform
+        )
+        val_dataset = CustomImageDataset(
+            root_dir=self.data_path + "/val", selected_classes=self.regions, transform=self.val_transform
+        )
+
+        # Create DataLoader objects for training and testing sets
+        self.train_loader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
+        self.test_loader = DataLoader(dataset=test_dataset, batch_size=16, shuffle=False)
+        self.val_loader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=True)
+        print("Init Dataloaders")
+
+    def train(self, epochs: int = 10, learning_rate: float = 1e-3) -> None:
         """
-        Load region IDs from the configuration file.
+        Trains the image classifier using EfficientNet-B0 and logs progress using wandb.
+
+        Args:
+            epochs (int): Number of training epochs. Default is 10.
+            learning_rate (float): Learning rate for optimization. Default is 1e-3.
+        """
+        wandb.init(
+            project="RCnet",
+            config={
+                "mode": "train",
+                "epochs": epochs,
+                "learning_rate": learning_rate,
+                "architecture": "EfficientNet-b0",
+                "dataset": "Sentinel",
+            },
+        )
+
+        criterion = nn.BCEWithLogitsLoss()  # BCE loss for multi-label classification
+        optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+
+        for epoch in range(epochs):
+            epoch_loss = 0.0  # Initialize epoch loss
+            # pylint: disable=unused-variable
+            for batch_idx, (data, targets) in enumerate(self.train_loader):
+                data = data.to(self.device)
+                targets = targets.to(
+                    self.device
+                ).float()  # Ensure targets are float for BCEWithLogits
+                scores = self.model(data)
+                loss = criterion(scores, targets)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                wandb.log({"batch_loss": loss.item()})
+                epoch_loss += loss.item() * data.size(0)  # Accumulate batch loss
+
+                # Log file names and class labels during training
+                # with open('RCnet/results/training_results.txt', 'a') as f:
+                #     for img_name, label in self.train_loader.dataset.files:
+                #         f.write(f"{img_name}\t{label}\n")
+
+            epoch_loss /= len(self.train_loader.dataset)  # Compute average batch loss
+            print(f"Epoch [{epoch+1}/{epochs}], Avg. Loss: {epoch_loss:.4f}")
+            wandb.log({"epoch": epoch, "loss": epoch_loss})
+            self.plotter.update_loss(epoch_loss)
+
+            if epoch % 2 == 0:
+                self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
+                self.validate()
+            if epoch == epochs - 1:
+                test_accuracy = self.evaluate()
+                wandb.log({"test_accuracy": test_accuracy})
+
+        if self.save_plot_flag:
+            self.plotter.save_plot(self.save_plot_path)
+            wandb.log({"loss_vs_epoch": wandb.Image(self.save_plot_path)})
+
+    def save_model(self, path: str = "model.pth") -> None:
+        """
+        Saves the trained model to the specified path.
+
+        Args:
+            path (str): Path to save the model file.
+        """
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(self.model.state_dict(), path)
+
+    def load_model(self, path: str = "model.pth") -> None:
+        """
+        Loads the trained model from the specified path.
+
+        Args:
+            path (str): Path to the saved model file.
+        """
+        self.model.load_state_dict(torch.load(path, weights_only=True))
+        self.model.eval()
+
+    def validate(self) -> float:
+        """
+        Evaluates model performance on the validation dataset.
 
         Returns:
-            A list of region IDs.
+            float: Validation F1 score in percentage.
         """
-        try:
-            config = load_config()
-            region_ids = config["vision"]["salient_mgrs_region_ids"]
-            assert (
-                len(region_ids) == RegionClassifier.NUM_CLASSES
-            ), "Incorrect number of region IDs."
-            assert (
-                len(set(region_ids)) == RegionClassifier.NUM_CLASSES
-            ), "Duplicate region IDs detected."
-            return region_ids
-        except Exception as e:
-            Logger.log("ERROR", f"Configuration error: {e}")
-            raise
+        self.model.eval()  # Set the model to evaluation mode
+        
+        true_positives = 0
+        false_positives = 0
+        false_negatives = 0
+        
+        with torch.no_grad():  # No gradient is needed for validation
+            for images, labels in self.val_loader:  # Use the validation data loader
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+                outputs = self.model(images)
+                predictions = torch.sigmoid(outputs) > self.confidence_threshold  # Sigmoid + thresholding for multi-label
+                
+                # Calculate multi-label metrics
+                true_positives += (predictions * labels).sum().item()
+                false_positives += (predictions * (1 - labels)).sum().item()
+                false_negatives += ((1 - predictions) * labels).sum().item()
+        
+        precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+        recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        
+        # Log metrics
+        wandb.log({
+            "validation_f1_score": f1_score * 100,
+            "validation_precision": precision * 100,
+            "validation_recall": recall * 100
+        })
+        
+        print(f"Validation F1 Score: {f1_score * 100:.2f}%")
+        print(f"Validation Precision: {precision * 100:.2f}%")
+        print(f"Validation Recall: {recall * 100:.2f}%")
+        
+        return f1_score * 100  # Return F1 score as percentage
 
+    # pylint: disable=too-many-locals
+    def evaluate(self, output_file: str = "RCnet/results/evaluation_results.txt") -> float:
+        """
+        Evaluates the model on the test dataset and logs results.
+
+        Args:
+            output_file (str): File path to save evaluation results.
+
+        Returns:
+            float: Test accuracy in percentage.
+        """
+        if wandb.run is None:
+            wandb.init(
+                project="RCnet",
+                config={
+                    "mode": "eval",
+                    "architecture": "EfficientNet-b0",
+                    "dataset": "Sentinel",
+                },
+            )
+
+        self.model.eval()
+        all_features = []
+        all_labels = []
+        class_correct = {i: 0 for i in range(40)}  # Assuming 40 classes
+        class_total = {i: 0 for i in range(40)}
+
+        class_images = {i: [] for i in range(40)}  # Store images per class
+        tot_time = 0
+        with torch.no_grad():
+            for batch in self.test_loader:
+                images, labels = batch
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+                start_time = time.time()
+                outputs = self.model(images)
+                end_time = time.time()
+                probabilities = torch.sigmoid(outputs)
+                predicted = (probabilities > self.confidence_threshold).float()  # Multi-label thresholding
+                tot_time += end_time - start_time
+                # Store features and labels for t-SNE
+                all_features.append(outputs.cpu().numpy())
+                all_labels.append(labels.cpu().numpy())
+
+                # Group images by their predicted classes
+                for i in range(images.size(0)):
+                    predicted_classes = [j for j, val in enumerate(predicted[i]) if val == 1]
+                    for pred_class in predicted_classes:
+                        class_images[pred_class].append(images[i].cpu())
+
+                # For sample-wise accuracy (exact matches)
+                exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
+                sample_accuracy = 100 * exact_matches / labels.size(0)
+
+                # For label-wise metrics
+                true_positives = (predicted * labels).sum().item()
+                false_positives = (predicted * (1 - labels)).sum().item()
+                false_negatives = ((1 - predicted) * labels).sum().item()
+
+                precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+                recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+                f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+                # Calculate exact match ratio (all labels correct for each sample)
+                exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
+                exact_match_ratio = exact_matches / labels.size(0)
+
+                # Compute per-class accuracy
+                for class_idx in range(labels.size(1)):  # Iterate over classes
+                    class_labels = labels[:, class_idx]
+                    class_preds = predicted[:, class_idx]
+
+                    class_correct[class_idx] += (class_labels * class_preds).sum().item()
+                    class_total[class_idx] += class_labels.sum().item()
+
+            # Convert collected features and labels to NumPy for t-SNE
+            all_features = np.concatenate(all_features, axis=0)
+            all_labels = np.concatenate(all_labels, axis=0)
+
+            # Log images per class
+            for class_id, image_list in class_images.items():
+                if len(image_list) > 0:
+                    image_grid = torch.stack(image_list, dim=0)
+                    class_name = self.regions[class_id]
+                    wandb.log(
+                        {
+                            f"class_{class_name}_images": wandb.Image(
+                                image_grid, caption=f"Class {class_name} predictions"
+                            )
+                        }
+                    )
+
+            # Compute class-wise accuracies
+            class_accuracies = {
+                self.regions[class_idx]: (
+                    (100 * class_correct[class_idx] / class_total[class_idx])
+                    if class_total[class_idx] > 0
+                    else 0
+                )
+                for class_idx in class_correct
+            }
+
+            # Plot bar chart for class-wise accuracies
+            plt.figure(figsize=(12, 6))
+            plt.bar(class_accuracies.keys(), class_accuracies.values(), color="blue")
+            plt.xlabel("Class Index")
+            plt.ylabel("Accuracy (%)")
+            plt.title("Class-wise Accuracies")
+            plt.xticks(
+                ticks=range(len(self.regions)), labels=self.regions, rotation=90
+            )  # Assuming 40 classes
+            plt.ylim(0, 100)  # Accuracy range 0-100%
+
+            # Save the figure and log to wandb
+            plot_path = "RCnet/results/class_wise_accuracies.png"
+            plt.savefig(plot_path)
+            plt.close()
+            wandb.log({"class_wise_accuracies_plot": wandb.Image(plot_path)})
+
+            # Log overall accuracy and per-class accuracies
+            wandb.log({
+                    "overall_f1_score": f1_score * 100,
+                    "precision": precision * 100,
+                    "recall": recall * 100,
+                    "exact_match_ratio": exact_match_ratio * 100,
+                    **{f"{k}_accuracy": v for k, v in class_accuracies.items()},
+                })
+
+            print(f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
+            print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
+            print(f"Total Inf time:{tot_time}")
+
+            return f1_score * 100
+        
     def classify_region(self, frame_obj: Frame) -> List[str]:
         """
         Classify the regions present in the given frame.
@@ -107,16 +487,16 @@ class RegionClassifier:
         )
         try:
             img = Image.fromarray(cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2RGB))
-            img = self.transforms(img).unsqueeze(0).to(self.device)
+            img = self.inference_transforms(img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
                 start_time = perf_counter()
                 probabilities = self.model(img)
                 inference_time = perf_counter() - start_time
 
-                predicted = (probabilities > RegionClassifier.CONFIDENCE_THRESHOLD).float()
+                predicted = (probabilities > self.confidence_threshold).float()
                 predicted_indices = predicted.nonzero(as_tuple=True)[1]
-                predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
+                predicted_region_ids = [self.regions[idx] for idx in predicted_indices]
 
         except Exception as e:
             Logger.log("ERROR", f"Classification process failed: {e}")
@@ -127,33 +507,3 @@ class RegionClassifier:
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
         )
         Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
-        return predicted_region_ids
-
-
-class ClassifierEfficient(nn.Module):
-    """
-    A custom classifier using the EfficientNet model.
-    """
-
-    def __init__(self):
-        super().__init__()
-        # Using new weights system
-        # This uses the most up-to-date weights
-        weights = EfficientNet_B0_Weights.DEFAULT
-        self.efficientnet = efficientnet_b0(weights=weights)
-        for param in self.efficientnet.features[:3].parameters():
-            param.requires_grad = False
-        num_features = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier[1] = nn.Linear(num_features, RegionClassifier.NUM_CLASSES)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the classifier.
-
-        :param x: The input tensor, representing an image.
-        :return: The output tensor, representing a probability between 0 and 1 for each salient MGRS region.
-        """
-        x = self.efficientnet(x)
-        x = self.sigmoid(x)
-        return x
