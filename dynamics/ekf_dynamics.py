@@ -3,7 +3,9 @@ Functions for implementing EKF dynamics extending the orbital dynamics.
 """
 
 import numpy as np
-from brahe import R_EARTH, Epoch
+from brahe import Epoch
+
+# pylint: disable=import-error
 
 # pylint: disable=import-error
 from dynamics.drag_dynamics import (
@@ -19,7 +21,6 @@ from dynamics.orbital_dynamics import Dynamics
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
-
 
 class EKFDynamics(Dynamics):
     """
