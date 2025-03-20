@@ -1,17 +1,35 @@
 import os
 import requests
 from itertools import product
+import argparse
 
 from requests.exceptions import ChunkedEncodingError
 from tqdm import tqdm
 from time import sleep
 
 
-OUTPUT_DIR = os.path.join(__file__, "../blue_marble")
 BASE_URL = "https://eoimages.gsfc.nasa.gov/images/imagerecords"
 DATASET_IDS_BY_MONTH = ["73938", "73967", "73992", "74017", "74042", "76487", "74092", "74117", "74142", "74167", "74192", "74218"]
 MONTH_NAMES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 RESOLUTION = "3x21600x21600"
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command line arguments.
+
+    :return: The parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Download the entire Blue Marble Next Generation dataset, at the highest resolution."
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=os.path.join(__file__, "../blue_marble"),
+        help="The directory to save the downloaded images to.",
+    )
+    return parser.parse_args()
 
 
 def download_image(url: str, output_path: str, max_retries=100) -> None:
@@ -61,14 +79,20 @@ def main():
     """
     Script entry point.
     """
+    args = parse_args()
+    os.makedirs(args.output_dir, exist_ok=True)
+
     for i, (month_name, dataset_id) in enumerate(zip(MONTH_NAMES, DATASET_IDS_BY_MONTH)):
-        month_dir = os.path.join(OUTPUT_DIR, month_name)
+        month_dir = os.path.join(args.output_dir, month_name)
         os.makedirs(month_dir, exist_ok=True)
+
         dataset_section_id = dataset_id[:2] + "000"
         for letter, number in product("ABCD", range(1, 3)):
-            url = f"{BASE_URL}/{dataset_section_id}/{dataset_id}/world.2004{(i + 1):02d}.{RESOLUTION}.{letter}{number}.png"
+            image_section_id = f"{letter}{number}"
+            url = f"{BASE_URL}/{dataset_section_id}/{dataset_id}/world.2004{(i + 1):02d}.{RESOLUTION}.{image_section_id}.png"
             output_path = os.path.join(month_dir, f"{letter}{number}.png")
-            print(f"Downloading: {url}")
+
+            print(f"Downloading: {month_name} {image_section_id}")
             download_image(url, output_path)
 
 
