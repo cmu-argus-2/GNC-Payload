@@ -46,7 +46,10 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     """
 
     # Technically we need to take the partial derivative of the density with respect to the position as well
-    # since the Harris-Priester model is a function of the position and the velocity. 
+    # since the Harris-Priester model is a function of the position and the velocity.
+    # However, since that function is not easily differentiable, we cannot compute the jacobian analytically.
+    # Since the groundtruth dynamics doesn't require this function anyways, I would ignore this problem for now.
+
     v_norm = np.linalg.norm(x[3:6])
 
     if np.isclose(v_norm, 0):
