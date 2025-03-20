@@ -5,7 +5,10 @@ Unit tests for the plotting_utils.py module.
 import brahe
 import numpy as np
 from brahe import Epoch
-from utils.orbit_utils import get_sso_orbit_state
+from orbit_utils import get_sso_orbit_state
+
+from dynamics.orbital_dynamics import Dynamics
+from orbit_determination.test_nonlinear_least_squares import load_config
 from utils.brahe_utils import increment_epoch
 from utils.earth_utils import ecef_to_lat_lon
 from utils.plotting_utils import plot_ground_track
@@ -29,7 +32,7 @@ def test_plot_ground_track():
     ecef_positions = np.zeros((N, 3))
     ecef_positions[0, :] = brahe.rECItoECEF(starting_epoch) @ state[:3]
     for i in range(0, N - 1):
-        state = f(state, dt)
+        state = Dynamics.f(state, dt)
         epoch = increment_epoch(epoch, dt)
         ecef_positions[i + 1, :] = brahe.rECItoECEF(epoch) @ state[:3]
 

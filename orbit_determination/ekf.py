@@ -1,6 +1,5 @@
 """ Extended Kalman Filter for orbit determination """
 
-import math
 from typing import Any, Tuple
 
 import brahe
@@ -8,17 +7,18 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import quaternion
+from brahe import Epoch
 
-from dynamics.orbital_dynamics import f_full, f_full_jac
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
-from utils.math_utils import R, left_q, rot_2_q  # right_q
+from utils.math_utils import R, left_q, rot_2_q, Drp2q, G  # right_q
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
+# pylint: disable=too-many-locals
 
 
 class EKF:
@@ -32,14 +32,14 @@ class EKF:
         v: np.ndarray,
         q: Any,  # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
         # a_b: np.ndarray,
-        # w_b: np.ndarray,
+        w_b: np.ndarray,
         P: np.ndarray,
         Q: np.ndarray,
-        R_vec: np.ndarray,
         dt: float,
-        w: np.ndarray,
         config: dict,
-        data_manager: ODSimulationDataManager,
+        ua: np.ndarray,
+        ekf_dynamics: Dynamics,
+        gyro_bias_scale: float,
     ) -> None:
         """
         Initialize the EKF
@@ -49,21 +49,17 @@ class EKF:
         :param q: Initial attitude quaternion with shape (4,) where the scalar component is first.
             Note: The quaternion is of type numpy.quaternion, not np.ndarray and assumed to be normalized
         # :param a_b: Initial accelerometer bias with shape (3,)
-        # :param w_b: Initial angular velocity bias with shape (3,)
+        :param w_b: Initial angular velocity bias with shape (3,)
         :param P: Initial covariance with shape (9, 9)
         :param Q: Process noise covariance with shape (16, 16)
-        :param R_vec: Measurement noise covariance with shape depending on the number of landmarks
         :param dt: The amount of time between each time step.
-        :param w: The angular velocity of the satellite with shape (3,)
         :param config: The configuration dictionary.
-        :param data_manager: The ODSimulationDataManager object containing the simulation data.
+        :param ua: The unmodeled acceleration with shape (3,)
+        :param ekf_dynamics: The Dynamics object used to calculate the dynamics of the system.
+        :param gyro_bias_scale: The scale factor for the gyro bias.
 
         :return: None
 
-        Note on R_vec matrix dimensionality: As the number of landmarks observed will change between
-        individual time steps, the R matrix needs to be constructed at each time step where the vision
-        pipeline is used. The dimensionality of the matrix is 3n x 3n where n is the number of landmarks
-        observed.
         """
 
         self.r_m = r
@@ -76,30 +72,31 @@ class EKF:
         self.q_p = q
 
         # self.a_b = a_b
-        # self.w_b = w_b
+        self.w_b = w_b
+        self.gyro_bias_scale = gyro_bias_scale
 
-        # Scale the attitude Covariance
-        P[6:9, 6:9] *= (1e-9,)
+        self.ua = ua
 
         self.P_m = P
         self.P_p = P
 
         self.Q = Q
-        self.R = R_vec
+        self.R = np.zeros((3, 3))
         self.dt = dt
 
         self.cond_threshold = 1e15
         self.H = np.append(np.zeros((1, 3)), np.eye(3), axis=0)
         self.config = config
-        self.data_manager = data_manager
+        self.ekf_dynamics = ekf_dynamics
 
-    def predict(self, u: np.ndarray) -> None:
+    def predict(self, u: np.ndarray, epoch: Epoch = None) -> None:
         """
         Predict the next prior state. This corresponds to the prior update step in the EKF algorithm.
         Using Zac Manchester's formulation as defined in his inertial filter examples notebook
         https://github.com/RoboticExplorationLab/inertial-filter-examples
 
         :param u: IMU measurements consisting of angular velocity and linear acceleration with shape (6,)
+        :param epoch: The epoch at which the prediction is made. If None is passed, no epoch is used.
 
         :return: None
         """
@@ -107,30 +104,36 @@ class EKF:
         # TODO: Use IMU measurements and update quaternion estimate
 
         w = u[0:3]  # angular velocity measurement from IMU
-        # self.r_p = self.r_m + self.dt * self.v_m
-        # self.q_p = self.q_m * quaternion.from_rotation_vector(0.5 * self.dt * wf)
-        # self.v_p = self.v_m + self.dt * (-GM_EARTH / np.linalg.norm(self.r_m) ** 3) * self.r_m
 
-        x = np.concatenate([self.r_m, self.v_m])
-        A_pos = f_full_jac(
-            x=x, config=self.config, latest_epoch=self.data_manager.latest_epoch, dt=self.dt
-        )
-        x_new = f_full(
-            x=x, config=self.config, latest_epoch=self.data_manager.latest_epoch, dt=self.dt
-        )
+        x = np.concatenate([self.r_m, self.v_m, self.ua])
+        A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt, epoch=epoch)
+        x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(self.dt * w)
+            quaternion.from_rotation_vector(self.dt * (w - self.w_b / self.gyro_bias_scale))
         )
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
 
-        # A_att = self.H.T @ left_q(self.q_p).T @ left_q(self.q_m) @ right_q(quaternion.as_float_array(
-        # quaternion.from_rotation_vector(self.w))) @ self.H
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
+        dqdq = quaternion.as_rotation_matrix(
+            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b / self.gyro_bias_scale))
+        )
+        dqdw = (
+            -1
+            * self.dt
+            * G(self.q_p).T
+            @ left_q(self.q_m)
+            @ Drp2q(self.dt * (w - self.w_b / self.gyro_bias_scale))
+        )
 
-        A = np.block([[A_pos, np.zeros((6, 3))], [np.zeros((3, 6)), A_att]])
+        A = np.block(
+            [
+                [A_pos, np.zeros((9, 6))],
+                [np.zeros((3, 9)), dqdq, dqdw],
+                [np.zeros((3, 12)), np.eye(3)],
+            ]
+        )
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -148,6 +151,7 @@ class EKF:
         z: Tuple[np.ndarray, np.ndarray],
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
+        epoch: Epoch,
         num_iter: int = 1,
     ) -> None:
         """
@@ -158,6 +162,7 @@ class EKF:
         landmark positions in ECI coordinates, both with shape (N, 3)
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: The names of the cameras that took the measurements.
+        :param epoch: The epoch at which the measurement is made. Epoch must be provided for ecef-eci transformation!
         :param num_iter: Number of iterations of the update steps to perform. Default is 1.
 
         :return: None
@@ -180,27 +185,30 @@ class EKF:
             return
 
         # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([1e-5] * z0.shape[0])
+        self.R = np.diag([1e-2] * z0.shape[0])
 
         x_p = jnp.array(
             np.concatenate(
                 [
                     self.r_p,
                     self.v_p,
+                    self.ua,
                     quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
+                    self.w_b,
                 ]
             )
         )
         # Iterated Update
         for i in range(num_iter):
 
-            h = self.h_est(z1, camera_model_manager, measurement_camera_names, x_p)
-            H = self.h_jac(z1, camera_model_manager, measurement_camera_names, x_p)
+            h = self.h_est(z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch)
+            H = self.h_jac(z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch)
             S = H @ self.P_p @ H.T + self.R
 
             # Check for ill-conditioned matrix and add regularization if necessary
             if i == 0:
                 cond = np.linalg.cond(S)
+                print(cond)
                 if cond > self.cond_threshold:
                     S += np.eye(S.shape[0]) * 1e-6
                     print("Ill-conditioned matrix detected. Regularization applied.")
@@ -211,17 +219,19 @@ class EKF:
 
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
+            self.ua = np.array(x_p[6:9]) + delta[6:9]
             self.q_m = quaternion.as_rotation_vector(
-                quaternion.from_rotation_vector(np.array(x_p[6:9]))
-                * quaternion.from_rotation_vector(delta[6:9])
+                quaternion.from_rotation_vector(np.array(x_p[9:12]))
+                * quaternion.from_rotation_vector(delta[9:12])
             )
+            self.w_b = np.array(x_p[12:15]) + delta[12:15]
 
             # Joseph form covariance update
             self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
                 np.eye(self.P_m.shape[0]) - K @ H
             ).T + K @ self.R @ K.T
 
-            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.q_m]))
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m, self.w_b]))
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
@@ -231,6 +241,7 @@ class EKF:
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
         x_p: jnp.ndarray,
+        epoch: Epoch,
     ) -> jnp.ndarray:
         """
         Calculate the Jacobian of the measurement model with respect to the state.
@@ -239,11 +250,12 @@ class EKF:
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of position, quaternion and velocity with shape (9,)
+        :param epoch: The epoch at which the measurement is made. Epoch must be provided for ecef-eci transformation!
 
         :return: The Jacobian of the measurement model with respect to the state.
         """
         jac = jax.jacobian(self.h_est, argnums=3)(
-            z, camera_model_manager, measurement_camera_names, x_p
+            z, camera_model_manager, measurement_camera_names, x_p, epoch=epoch
         )
 
         return jac
@@ -254,6 +266,7 @@ class EKF:
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
         x_p: jnp.ndarray,
+        epoch: Epoch,
     ) -> jnp.ndarray:
         """
         Generate an estimate from measurements made. Using the known locations of the landmarks, we can provide
@@ -264,6 +277,7 @@ class EKF:
         :param camera_model_manager: The camera model manager used to manage the cameras.
         :param measurement_camera_names: Array of names of the cameras that took each measurement.
         :param x_p: Prior state estimate consisting of [position, velocity, rotation_vector] with shape (9,)
+        :param epoch: The epoch at which the measurement is made. Epoch must be provided for ecef-eci transformation!
 
         :return: Estimate of the bearing vectors to all landmarks in the body frame with shape (N * 3, )
         """
@@ -271,8 +285,8 @@ class EKF:
 
         # Define rotation matrices
         # transform rotation_vector to rotation matrix via quaternion
-        eci_R_body = R(rot_2_q(x_p[6:9]))
-        ecef_R_eci = brahe.frames.rECItoECEF(self.data_manager.latest_epoch)
+        eci_R_body = R(rot_2_q(x_p[9:12]))
+        ecef_R_eci = brahe.frames.rECItoECEF(epc=epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 
         # Transform landmarks and position from ECI to ECEF
