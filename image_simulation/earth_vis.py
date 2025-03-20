@@ -24,6 +24,7 @@ from utils.earth_utils import (
     get_MGRS_grid,
 )
 from vision_inference.frame import Frame
+from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 
 
 @dataclass
@@ -244,14 +245,24 @@ class EarthImageSimulator:
     Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
     """
 
-    def __init__(self, geotiff_cache: GeoTIFFCache | None = None):
+    def __init__(
+            self,
+            geotiff_cache: GeoTIFFCache | None = None,
+            inpaint_blue_marble: bool = True,
+            blue_marble_month: str | None = None
+    ):
         """
         Initialize the Earth image simulator.
 
         Parameters:
             geotiff_cache: The GeoTIFFCache to use. If None, a default GeoTIFFCache will be created.
+            inpaint_blue_marble: Whether to inpaint from the Blue Marble dataset for Earth pixels with no valid data.
+            blue_marble_month: The month of the Blue Marble dataset to use. If None, a random month will be chosen for
+                               each simulated image, possibly resulting in worse performance due to increased file I/O.
         """
         self.cache = geotiff_cache if geotiff_cache is not None else GeoTIFFCache()
+        self.inpaint_blue_marble = inpaint_blue_marble
+        self.blue_marble_month = blue_marble_month
 
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
@@ -304,7 +315,9 @@ class EarthImageSimulator:
 
             image[region_mask, :] = region_image
 
-        # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
+        if self.inpaint_blue_marble:
+            inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
+            image[inpaint_mask, :] = query_blue_marble_pixel_colors(lat_lon[inpaint_mask, :], self.blue_marble_month)
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
