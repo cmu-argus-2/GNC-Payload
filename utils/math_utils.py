@@ -106,3 +106,25 @@ def right_q(q: np.ndarray) -> np.ndarray:
             [q[3], q[2], -q[1], q[0]],
         ]
     )
+
+def Drp2q(phi: np.ndarray) -> np.ndarray:
+    """
+    Compute the derivative of the rotation vector to quaternion mapping.
+    Args:
+        phi (np.ndarray): The rotation vector.
+    Returns:
+        np.ndarray: The derivative of the rotation vector to quaternion mapping.
+    """
+    theta = np.linalg.norm(phi) 
+    term1 = -0.5 * np.sin(theta/2) * phi.T / theta
+    term2 = 0.5 * np.cos(theta/2) * np.outer(phi/theta,phi/theta) + np.sin(theta/2) * (np.eye(3)/theta - np.outer(phi,phi)/theta**3)
+
+    return np.block([[term1], [term2]])
+
+
+def G(q: np.ndarray) -> np.ndarray:
+    """
+    Helper function
+    """
+    H = np.concatenate([[np.zeros(3)], np.eye(3)], axis=0)
+    return left_q(q) @ H

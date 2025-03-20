@@ -11,7 +11,7 @@ from brahe import Epoch
 
 from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
-from utils.math_utils import R, left_q, rot_2_q  # right_q
+from utils.math_utils import R, left_q, rot_2_q, Drp2q, G  # right_q
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -32,13 +32,14 @@ class EKF:
         v: np.ndarray,
         q: Any,  # Should be of type numpy.quaternion but mypy doesn't seem to recognise it.
         # a_b: np.ndarray,
-        # w_b: np.ndarray,
+        w_b: np.ndarray,
         P: np.ndarray,
         Q: np.ndarray,
         dt: float,
         config: dict,
         ua: np.ndarray,
         ekf_dynamics: Dynamics,
+        gyro_bias_scale: float,
     ) -> None:
         """
         Initialize the EKF
@@ -48,13 +49,14 @@ class EKF:
         :param q: Initial attitude quaternion with shape (4,) where the scalar component is first.
             Note: The quaternion is of type numpy.quaternion, not np.ndarray and assumed to be normalized
         # :param a_b: Initial accelerometer bias with shape (3,)
-        # :param w_b: Initial angular velocity bias with shape (3,)
+        :param w_b: Initial angular velocity bias with shape (3,)
         :param P: Initial covariance with shape (9, 9)
         :param Q: Process noise covariance with shape (16, 16)
         :param dt: The amount of time between each time step.
         :param config: The configuration dictionary.
         :param ua: The unmodeled acceleration with shape (3,)
         :param ekf_dynamics: The Dynamics object used to calculate the dynamics of the system.
+        :param gyro_bias_scale: The scale factor for the gyro bias.
 
         :return: None
 
@@ -70,16 +72,10 @@ class EKF:
         self.q_p = q
 
         # self.a_b = a_b
-        # self.w_b = w_b
+        self.w_b = w_b
+        self.gyro_bias_scale = gyro_bias_scale
 
         self.ua = ua
-
-        # Scale the velocity Covariance
-        P[3:6, 3:6] *= 1e-3
-        # Scale the unmodelled acceleration Covariance
-        P[6:9, 6:9] *= 1e-5
-        # Scale the attitude Covariance
-        P[9:12, 9:12] *= 1e-9
 
         self.P_m = P
         self.P_p = P
@@ -114,16 +110,30 @@ class EKF:
         x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
 
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(self.dt * w)
+            quaternion.from_rotation_vector(self.dt * (w - self.w_b / self.gyro_bias_scale))
         )
 
         self.r_p = x_new[0:3]
         self.v_p = x_new[3:6]
-        self.ua = x_new[6:9]
 
-        A_att = quaternion.as_rotation_matrix(quaternion.from_rotation_vector(-1 * self.dt * w))
+        dqdq = quaternion.as_rotation_matrix(
+            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b / self.gyro_bias_scale))
+        )
+        dqdw = (
+            -1
+            * self.dt
+            * G(self.q_p).T
+            @ left_q(self.q_m)
+            @ Drp2q(self.dt * (w - self.w_b / self.gyro_bias_scale))
+        )
 
-        A = np.block([[A_pos, np.zeros((9, 3))], [np.zeros((3, 9)), A_att]])
+        A = np.block(
+            [
+                [A_pos, np.zeros((9, 6))],
+                [np.zeros((3, 9)), dqdq, dqdw],
+                [np.zeros((3, 12)), np.eye(3)],
+            ]
+        )
 
         self.P_p = A @ self.P_m @ A.T + self.Q
 
@@ -175,7 +185,7 @@ class EKF:
             return
 
         # Let R take the dimensionality of the number of measurements
-        self.R = np.diag([1e-5] * z0.shape[0])
+        self.R = np.diag([1e-2] * z0.shape[0])
 
         x_p = jnp.array(
             np.concatenate(
@@ -184,6 +194,7 @@ class EKF:
                     self.v_p,
                     self.ua,
                     quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
+                    self.w_b,
                 ]
             )
         )
@@ -197,6 +208,7 @@ class EKF:
             # Check for ill-conditioned matrix and add regularization if necessary
             if i == 0:
                 cond = np.linalg.cond(S)
+                print(cond)
                 if cond > self.cond_threshold:
                     S += np.eye(S.shape[0]) * 1e-6
                     print("Ill-conditioned matrix detected. Regularization applied.")
@@ -207,17 +219,19 @@ class EKF:
 
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
+            self.ua = np.array(x_p[6:9]) + delta[6:9]
             self.q_m = quaternion.as_rotation_vector(
                 quaternion.from_rotation_vector(np.array(x_p[9:12]))
                 * quaternion.from_rotation_vector(delta[9:12])
             )
+            self.w_b = np.array(x_p[12:15]) + delta[12:15]
 
             # Joseph form covariance update
             self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
                 np.eye(self.P_m.shape[0]) - K @ H
             ).T + K @ self.R @ K.T
 
-            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m]))
+            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m, self.w_b]))
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
