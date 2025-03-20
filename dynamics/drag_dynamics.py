@@ -103,7 +103,6 @@ def da_dest_drag_derivative(x: np.ndarray, drag_const: float) -> np.ndarray:
 def dadrag_dr_partial(x: np.ndarray, d_est: float, drag_const: float) -> np.ndarray:
     """
     Compute the partial derivative of the drag acceleration with respect to position.
-
     :param x: Vector consisting of position and velocity ([m, m/s])
     :param d_est: Drag scalar estimate term
     :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
@@ -126,7 +125,6 @@ def dadrag_dr_partial(x: np.ndarray, d_est: float, drag_const: float) -> np.ndar
 def dadrag_dv_partial(x: np.ndarray, d_est: float, drag_const: float) -> np.ndarray:
     """
     Compute the partial derivative of the drag acceleration with respect to velocity.
-
     :param x: Vector consisting of position and velocity ([m, m/s])
     :param d_est: Drag scalar estimate term
     :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
