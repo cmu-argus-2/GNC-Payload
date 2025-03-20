@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
-from typing import Tuple, ClassVar
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,8 +38,6 @@ class GeoTIFFData:
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
 
-    OCEAN_DATA_DIR: ClassVar[str] = os.path.join(__file__, "../ocean_data/")
-
     image_path: str
     image_data: np.ndarray
     transform: Affine
@@ -63,18 +61,6 @@ class GeoTIFFData:
         image_data = np.moveaxis(image_data, 0, -1)
         inverse_transform = ~transform
         return GeoTIFFData(file_path, image_data, inverse_transform)
-
-    @staticmethod
-    def load_random_ocean_data() -> "GeoTIFFData":
-        """
-        Get the GeoTIFFData for a sample ocean data file.
-
-        Returns:
-            GeoTIFFData: The GeoTIFFData for the ocean data.
-        """
-        ocean_data_path = np.random.choice(os.listdir(GeoTIFFData.OCEAN_DATA_DIR))
-        ocean_data = GeoTIFFData.load(ocean_data_path)
-        return ocean_data
 
     @property
     def num_channels(self) -> int:
@@ -163,18 +149,12 @@ class GeoTIFFCache:
 
     FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
 
-    def __init__(
-        self,
-        geotiff_folder: str | None = None,
-        use_ocean_imagery: bool = True,
-        max_cache_size: int | None = 58,
-    ):
+    def __init__(self, geotiff_folder: str | None = None, max_cache_size: int | None = 58):
         """
         Initialize the GeoTIFF cache.
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
-            use_ocean_imagery: Whether to return GeoTiIFFData objects containing ocean data for regions without data.
             max_cache_size: Maximum number of regions to maintain in the cache.
                             Set to 0 to disable caching. Set to None for unlimited size.
                             The default value was chosen via compute_max_visible_regions in test_earth_vis.py.
@@ -185,7 +165,6 @@ class GeoTIFFCache:
             else GeoTIFFCache.get_default_geotiff_folder()
         )
         GeoTIFFCache.validate_salient_region_data_exists(self.geotiff_folder)
-        self.use_ocean_imagery = use_ocean_imagery
 
         # Dynamically wrap the member function with an LRU cache
         # This also ensures that each instance has its own cache and prevents the need to call hash(self) inside the
@@ -244,22 +223,12 @@ class GeoTIFFCache:
         :param region: The MGRS region to load data for.
         :return: A GeoTIFFData object, or None if there is no data for the specified region.
         """
-        # TODO: the lru_cache for load_geotiff_data may contain duplicate image data data for different ocean regions
-        #       (although they'll have different transforms). We probably want to avoid this, possibly by using a
-        #       custom cache implementation.
-        def fallback_loader() -> GeoTIFFData | None:
-            if not self.use_ocean_imagery:
-                return None
-            ocean_data = GeoTIFFData.load_random_ocean_data()
-            ocean_data.remap_to_mgrs_region(region)
-            return ocean_data
-
         region_folder = os.path.join(self.geotiff_folder, region)
         if not os.path.exists(region_folder):
-            return fallback_loader()
+            return None
         region_files = os.listdir(region_folder)
         if len(region_files) == 0:
-            return fallback_loader()
+            return None
 
         selected_file = np.random.choice(region_files)
         file_path = os.path.join(region_folder, selected_file)
@@ -338,6 +307,8 @@ class EarthImageSimulator:
 
             image[region_mask] = region_image
             valid_mask[region_mask] |= region_valid_mask
+
+        # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
