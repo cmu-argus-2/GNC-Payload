@@ -108,7 +108,7 @@ class GeoTIFFData:
             f=max_lat * scale_y,
         )
 
-    def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
@@ -116,9 +116,7 @@ class GeoTIFFData:
         (red, green, blue).
 
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
-        :return: A Tuple containing:
-                 - A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
-                 - A numpy array of shape lat_lon.shape[:-1] indicating which output pixels contain valid data.
+        :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
         """
         assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
 
@@ -136,7 +134,7 @@ class GeoTIFFData:
         image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
         image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
-        return image_flat.reshape(*shape_prefix, num_channels), valid_mask.reshape(shape_prefix)
+        return image_flat.reshape(*shape_prefix, num_channels)
 
 
 class GeoTIFFCache:
@@ -287,7 +285,6 @@ class EarthImageSimulator:
         present_regions = np.unique(mgrs_regions[mgrs_regions != None])
 
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
-        valid_mask = np.zeros(CameraModel.RESOLUTION, dtype=bool)
         for region in present_regions:
             geotiff_data = self.cache.load_geotiff_data(region)
             if geotiff_data is None:
@@ -303,10 +300,9 @@ class EarthImageSimulator:
             )
 
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
-            region_image, region_valid_mask = geotiff_data.query_pixel_colors(lat_lon[region_mask])
+            region_image = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
-            image[region_mask] = region_image
-            valid_mask[region_mask] |= region_valid_mask
+            image[region_mask, :] = region_image
 
         # TODO: Use ocean imagery for pixels that do not belong to any MGRS region
 
