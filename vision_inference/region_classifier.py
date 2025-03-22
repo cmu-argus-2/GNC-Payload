@@ -166,7 +166,7 @@ class ClassifierEfficient(nn.Module):
             param.requires_grad = False
         num_features = self.efficientnet.classifier[1].in_features
         self.efficientnet.classifier[1] = nn.Linear(num_features, num_classes)
-        # self.sigmoid = nn.Sigmoid()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
