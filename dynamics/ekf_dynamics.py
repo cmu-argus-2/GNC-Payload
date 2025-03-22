@@ -6,7 +6,6 @@ import numpy as np
 from brahe import Epoch
 
 # pylint: disable=import-error
-
 from dynamics.drag_dynamics import (
     da_dest_drag_derivative,
     dadrag_dr_partial,
@@ -15,10 +14,12 @@ from dynamics.drag_dynamics import (
 )
 from dynamics.orbital_dynamics import Dynamics
 
+
 # pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
+
 
 class EKFDynamics(Dynamics):
     """

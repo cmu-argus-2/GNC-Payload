@@ -41,20 +41,52 @@ def third_body_jacobian(r_sat: np.ndarray, r_body: np.ndarray, mu: float) -> np.
 
 
 def sun_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
+    """
+    Computes the sun gravity acceleration.
+
+    :param r_sat: state position of satellite
+    :param epoch: epoch for which to compute the sun position
+
+    :return: sun gravity acceleration
+    """
     r_sun = brahe.ephemerides.sun_position(epc=epoch)
     return third_body_acceleration(r_sat=r_sat, r_body=r_sun, mu=GM_SUN)
 
 
 def sun_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
+    """
+    Computes the Jacobian of the sun gravity acceleration.
+
+    :param r_sat: state position of satellite
+    :param epoch: epoch for which to compute the sun position
+
+    :return: Jacobian of the sun gravity acceleration
+    """
     r_sun = brahe.ephemerides.sun_position(epc=epoch)
     return third_body_jacobian(r_sat=r_sat, r_body=r_sun, mu=GM_SUN)
 
 
 def moon_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
+    """
+    Computes the moon gravity acceleration.
+
+    :param r_sat: state position of satellite
+    :param epoch: epoch for which to compute the moon position
+
+    :return: moon gravity acceleration
+    """
     r_moon = brahe.ephemerides.moon_position(epc=epoch)
     return third_body_acceleration(r_sat=r_sat, r_body=r_moon, mu=GM_MOON)
 
 
 def moon_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
+    """
+    Computes the Jacobian of the moon gravity acceleration.
+
+    :param r_sat: state position of satellite
+    :param epoch: epoch for which to compute the moon position
+
+    :return: Jacobian of the moon gravity acceleration
+    """
     r_moon = brahe.ephemerides.moon_position(epc=epoch)
     return third_body_jacobian(r_sat=r_sat, r_body=r_moon, mu=GM_MOON)

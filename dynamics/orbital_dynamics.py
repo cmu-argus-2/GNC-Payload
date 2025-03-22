@@ -72,6 +72,11 @@ class Dynamics:
             / config["satellite"]["mass"]
         )
 
+        if self.use_drag or self.use_sun_grav or self.use_moon_grav:
+            self.require_epoch = True
+        else:
+            self.require_epoch = False
+
     @staticmethod
     def state_derivative(x: np.ndarray) -> np.ndarray:
         """
@@ -305,7 +310,7 @@ class Dynamics:
         """
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
-            if (self.use_drag or self.use_moon_grav or self.use_sun_grav)
+            if self.require_epoch
             else self.perturbed_state_derivative
         )
         return Dynamics.RK4(x=x, func=func, dt=dt)
@@ -324,12 +329,12 @@ class Dynamics:
 
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
-            if (self.use_drag or self.use_moon_grav or self.use_sun_grav)
+            if self.require_epoch
             else self.perturbed_state_derivative
         )
         func_jac = (
             partial(self.perturbed_state_derivative_jac, epoch=epoch)
-            if (self.use_drag or self.use_moon_grav or self.use_sun_grav)
+            if self.require_epoch
             else self.perturbed_state_derivative_jac
         )
         return Dynamics.RK4_jac(

@@ -42,6 +42,12 @@ def j3_dynamics(r: jnp.ndarray) -> jnp.ndarray:
 
 
 def j3_jacobian_auto(r: jnp.ndarray) -> jnp.ndarray:
+    """
+    Compute the Jacobian of the J3 perturbation dynamics using autodiff.
+
+    :param r: position vector [x, y, z]
+    :return: Jacobian matrix of shape (3, 3)
+    """
     jac = jax.jacobian(j3_dynamics)(r)
     return jac
 
@@ -71,6 +77,12 @@ def j4_dynamics(r: jnp.ndarray) -> jnp.ndarray:
 
 
 def j4_jacobian_auto(r: jnp.ndarray) -> jnp.ndarray:
+    """
+    Compute the Jacobian of the J4 perturbation dynamics using autodiff.
+
+    :param r: position vector [x, y, z]
+    :return: Jacobian matrix of shape (3, 3)
+    """
     jac = jax.jacobian(j4_dynamics)(r)
     return jac
 
@@ -80,7 +92,6 @@ def j2_dynamics(r: jnp.ndarray) -> jnp.ndarray:
     Provide the J2 perturbation dynamics
 
     :param r: position vector
-
     :return: The applied force resulting from J2 perturbation dynamics
     """
     r_norm = jnp.linalg.norm(r)
@@ -94,6 +105,12 @@ def j2_dynamics(r: jnp.ndarray) -> jnp.ndarray:
 
 
 def j2_jacobian_auto(r: jnp.ndarray) -> jnp.ndarray:
+    """
+    Compute the Jacobian of the J2 perturbation dynamics using autodiff.
+
+    :param r: position vector [x, y, z]
+    :return: Jacobian matrix of shape (3, 3)
+    """
     jac = jax.jacobian(j2_dynamics)(r)
     return jac
 
