@@ -14,17 +14,14 @@ def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     Computes the drag acceleration.
 
     :param x: state vector
-
     :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
     :param latest_epoch: latest epoch for which to compute the density parameter
 
     :return: drag acceleration
     """
 
-
     density = density_harris_priester(x=x, epoch=latest_epoch)
     v_norm = np.linalg.norm(x[3:6])
-
 
     if np.isclose(v_norm, 0):
         a_drag = np.zeros(3)
@@ -34,19 +31,16 @@ def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     return a_drag
 
 
-
 def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.ndarray:
     """
     Compute the drag acceleration jacobian.
 
     :param x: state vector
-
     :param drag_const: Drag constant in m^2/kg, calculated as -0.5 * CD * AREA / MASS
     :param latest_epoch: latest epoch for which to compute the density parameter
 
     :return: drag acceleration jacobian
     """
-
 
     v_norm = np.linalg.norm(x[3:6])
 
@@ -54,7 +48,6 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
         return np.zeros((3, 3))
 
     density = density_harris_priester(x=x, epoch=latest_epoch)
-
 
     da_drag_dv = density * drag_const * ((np.eye(3) * v_norm) - np.outer(x[3:6], x[3:6]) / v_norm)
 
