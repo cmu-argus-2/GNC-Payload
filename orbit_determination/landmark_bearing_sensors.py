@@ -16,7 +16,7 @@ from scipy.spatial.transform import Rotation
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModel
 from utils.config_utils import load_config
-from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
+from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.frame import Frame
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.ml_pipeline import MLPipeline
@@ -65,9 +65,6 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         self.max_measurements = max_measurements
         self.fov = fov
         self.cos_fov = np.cos(fov)
-
-        # Scaling of the noise in measurement
-        self.scale = np.sqrt(0.0005)
 
     def sample_bearing_unit_vectors(self, camera_model: CameraModel) -> np.ndarray:
         """
@@ -167,9 +164,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
 
             assert np.allclose(true_bearing_unit_vector_eci, eci_R_body @ bearing_unit_vector_body)
 
-        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body, self.scale)
-
-        return bearing_unit_vectors_body_noisy, landmark_positions_eci
+        return bearing_unit_vectors_body, landmark_positions_eci
 
 
 class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
@@ -183,9 +178,6 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         self.fov = fov
         self.cos_fov_on_2 = np.cos(fov / 2)
         self.region_landmarks_ecef = GroundTruthLandmarkBearingSensor.load_region_landmark_ecef()
-        
-        # Scaling of the noise in measurement
-        self.scale = np.sqrt(0.0005)
 
     @staticmethod
     def load_region_landmark_ecef() -> dict[str, np.ndarray]:
@@ -248,9 +240,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         visible_landmarks_eci = (ecef_R_eci.T @ visible_landmarks_ecef.T).T
 
         bearing_unit_vectors_body = (ecef_R_body.T @ bearing_unit_vectors_ecef[is_visible, :].T).T
-        bearing_unit_vectors_body_noisy = noisy_bearing_measurement(bearing_unit_vectors_body, self.scale)
-
-        return bearing_unit_vectors_body_noisy, visible_landmarks_eci
+        return bearing_unit_vectors_body, visible_landmarks_eci
 
 
 class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):

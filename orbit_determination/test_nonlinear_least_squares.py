@@ -2,6 +2,7 @@
 Test the nonlinear least squares orbit determination algorithm.
 """
 
+import os
 import pickle
 from time import perf_counter, time
 
@@ -22,7 +23,7 @@ from orbit_determination.landmark_bearing_sensors import (
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
-from utils.brahe_utils import load_brahe_data_files_if_needed
+from utils.brahe_utils import load_brahe_data_files
 from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
@@ -141,5 +142,5 @@ def test_od() -> None:
 
 if __name__ == "__main__":
     np.random.seed(69420)
-    load_brahe_data_files_if_needed()
+    load_brahe_data_files()
     test_od()

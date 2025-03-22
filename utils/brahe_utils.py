@@ -7,8 +7,6 @@ import os
 import brahe
 from brahe.epoch import Epoch
 
-from utils.config_utils import load_config
-
 
 def increment_epoch(epoch: Epoch, dt: float) -> Epoch:
     """
@@ -31,14 +29,3 @@ def load_brahe_data_files() -> None:
     # pylint: disable=bare-except
     except Exception as e:
         print(f"One or the other files always errors out. Not a problem though. Exception: {e}")
-
-
-def load_brahe_data_files_if_needed() -> None:
-    """
-    Load up-to-date brahe files if they are needed.
-    """
-    config = load_config()
-    try:
-        _ = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
-    except Exception:
-        load_brahe_data_files()
