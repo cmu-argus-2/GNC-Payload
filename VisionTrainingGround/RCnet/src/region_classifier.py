@@ -19,7 +19,6 @@ import numpy as np
 import torch
 import wandb
 from data_loader import CustomImageDataset
-
 from plotter import Plotter
 from sklearn.manifold import TSNE
 from torch import nn, optim
@@ -131,8 +130,8 @@ class RegionClassifier(BaseRegionClassifier):
                 transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
                 # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-                # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
             ]
         )
 
@@ -144,10 +143,8 @@ class RegionClassifier(BaseRegionClassifier):
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
                 transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
-
-                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-
-                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
             ]
         )
 
@@ -191,7 +188,8 @@ class RegionClassifier(BaseRegionClassifier):
             },
         )
 
-        criterion = nn.BCEWithLogitsLoss()  # BCE loss for multi-label classification
+        # CHANGED: Use BCE loss instead of BCEWithLogitsLoss since model already applies sigmoid
+        criterion = nn.BCELoss()  # BCE loss for multi-label classification
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         for epoch in range(epochs):
@@ -199,10 +197,8 @@ class RegionClassifier(BaseRegionClassifier):
             # pylint: disable=unused-variable
             for batch_idx, (data, targets) in enumerate(self.train_loader):
                 data = data.to(self.device)
-                targets = targets.to(
-                    self.device
-                ).float()  # Ensure targets are float for BCEWithLogits
-                scores = self.model(data)
+                targets = targets.to(self.device).float()  # Ensure targets are float for BCE
+                scores = self.model(data)  # Model already applies sigmoid
                 loss = criterion(scores, targets)
                 optimizer.zero_grad()
                 loss.backward()
@@ -270,8 +266,9 @@ class RegionClassifier(BaseRegionClassifier):
             for images, labels in self.val_loader:  # Use the validation data loader
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-                outputs = self.model(images)
-                predictions = torch.sigmoid(outputs) > 0.5  # Sigmoid + thresholding for multi-label
+                outputs = self.model(images)  # Model already applies sigmoid
+                # CHANGED: No need to apply sigmoid again
+                predictions = outputs > 0.5  # Direct thresholding for multi-label
 
                 # Calculate multi-label metrics
                 true_positives += (predictions & labels.bool()).sum().item()
@@ -333,7 +330,6 @@ class RegionClassifier(BaseRegionClassifier):
         class_total = {i: 0 for i in range(len(self.regions))}
 
         class_images = {i: [] for i in range(len(self.regions))}  # Store images per class
-
         tot_time = 0
         with torch.no_grad():
             for batch in self.test_loader:
@@ -341,10 +337,11 @@ class RegionClassifier(BaseRegionClassifier):
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 start_time = time.time()
-                outputs = self.model(images)
+                outputs = self.model(images)  # Model already applies sigmoid
                 end_time = time.time()
-                probabilities = torch.sigmoid(outputs)
-                predicted = (probabilities > 0.5).float()  # Multi-label thresholding
+
+                # CHANGED: No need to handle probabilities separately, outputs are already probabilities
+                predicted = outputs > 0.5  # Direct thresholding for multi-label (keep as boolean)
                 tot_time += end_time - start_time
 
                 # Store features and labels for t-SNE
@@ -353,19 +350,21 @@ class RegionClassifier(BaseRegionClassifier):
 
                 # Group images by their predicted classes
                 for i in range(images.size(0)):
-                    predicted_classes = [j for j, val in enumerate(predicted[i]) if val == 1]
+                    predicted_classes = [j for j, val in enumerate(predicted[i]) if val]
                     for pred_class in predicted_classes:
                         if pred_class < len(class_images):
                             class_images[pred_class].append(images[i].cpu())
 
                 # For sample-wise accuracy (exact matches)
-                exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
+                exact_matches = (
+                    ((predicted == labels.bool()).sum(dim=1) == labels.size(1)).sum().item()
+                )
                 sample_accuracy = 100 * exact_matches / labels.size(0)
 
                 # For label-wise metrics
-                true_positives = (predicted.bool() & labels.bool()).sum().item()
-                false_positives = (predicted.bool() & ~labels.bool()).sum().item()
-                false_negatives = (~predicted.bool() & labels.bool()).sum().item()
+                true_positives = (predicted & labels.bool()).sum().item()
+                false_positives = (predicted & ~labels.bool()).sum().item()
+                false_negatives = (~predicted & labels.bool()).sum().item()
 
                 precision = (
                     true_positives / (true_positives + false_positives)
@@ -382,16 +381,18 @@ class RegionClassifier(BaseRegionClassifier):
                 )
 
                 # Calculate exact match ratio (all labels correct for each sample)
-                exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
+                exact_matches = (
+                    ((predicted == labels.bool()).sum(dim=1) == labels.size(1)).sum().item()
+                )
                 exact_match_ratio = exact_matches / labels.size(0)
-
 
                 # Compute per-class accuracy
                 for class_idx in range(labels.size(1)):  # Iterate over classes
-                    class_labels = labels[:, class_idx]
+                    class_labels = labels[:, class_idx].bool()
                     class_preds = predicted[:, class_idx]
 
-                    class_correct[class_idx] += (class_labels * class_preds).sum().item()
+                    # CHANGED: Use boolean operations instead of float
+                    class_correct[class_idx] += (class_labels & class_preds).sum().item()
                     class_total[class_idx] += class_labels.sum().item()
 
             # Convert collected features and labels to NumPy for t-SNE
@@ -401,21 +402,22 @@ class RegionClassifier(BaseRegionClassifier):
             # Log images per class
             for class_id, image_list in class_images.items():
                 if len(image_list) > 0:
-                    image_grid = torch.stack(image_list, dim=0)
-                    class_name = self.regions[class_id]
-
-                    wandb.log(
-                        {
-                            f"class_{class_name}_images": wandb.Image(
-                                image_grid, caption=f"Class {class_name} predictions"
-                            )
-                        }
-                    )
+                    # CHANGED: Only take up to 16 images to avoid memory issues
+                    sample_images = image_list[: min(16, len(image_list))]
+                    if sample_images:
+                        image_grid = torch.stack(sample_images, dim=0)
+                        class_name = self.regions[class_id]
+                        wandb.log(
+                            {
+                                f"class_{class_name}_images": wandb.Image(
+                                    image_grid, caption=f"Class {class_name} predictions"
+                                )
+                            }
+                        )
 
             # Compute class-wise accuracies
             class_accuracies = {
                 self.regions[class_idx]: (
-
                     (100 * class_correct[class_idx] / class_total[class_idx])
                     if class_total[class_idx] > 0
                     else 0
@@ -431,14 +433,12 @@ class RegionClassifier(BaseRegionClassifier):
             plt.title("Class-wise Accuracies")
             plt.xticks(
                 ticks=range(len(self.regions)), labels=self.regions, rotation=90
-
             )  # Assuming 40 classes
             plt.ylim(0, 100)  # Accuracy range 0-100%
 
             # Save the figure and log to wandb
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             plot_path = os.path.join(os.path.dirname(output_file), "class_wise_accuracies.png")
-
             plt.savefig(plot_path)
             plt.close()
             wandb.log({"class_wise_accuracies_plot": wandb.Image(plot_path)})
@@ -450,7 +450,6 @@ class RegionClassifier(BaseRegionClassifier):
                     "precision": precision * 100,
                     "recall": recall * 100,
                     "exact_match_ratio": exact_match_ratio * 100,
-
                     **{f"{k}_accuracy": v for k, v in class_accuracies.items()},
                 }
             )
@@ -460,4 +459,3 @@ class RegionClassifier(BaseRegionClassifier):
             print(f"Total Inf time:{tot_time}")
 
             return f1_score * 100
-
