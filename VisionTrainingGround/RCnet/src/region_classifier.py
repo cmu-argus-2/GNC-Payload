@@ -19,6 +19,7 @@ import numpy as np
 import torch
 import wandb
 from data_loader import CustomImageDataset
+
 from plotter import Plotter
 from sklearn.manifold import TSNE
 from torch import nn, optim
@@ -143,6 +144,9 @@ class RegionClassifier(BaseRegionClassifier):
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
                 transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
+
+                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
+
                 transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
             ]
         )
@@ -244,7 +248,9 @@ class RegionClassifier(BaseRegionClassifier):
         Args:
             path (str): Path to the saved model file.
         """
-        self.model.load_state_dict(torch.load(path, weights_only=False))
+
+        self.model.load_state_dict(torch.load(path, weights_only=True))
+
         self.model.eval()
 
     def validate(self) -> float:
@@ -327,6 +333,7 @@ class RegionClassifier(BaseRegionClassifier):
         class_total = {i: 0 for i in range(len(self.regions))}
 
         class_images = {i: [] for i in range(len(self.regions))}  # Store images per class
+
         tot_time = 0
         with torch.no_grad():
             for batch in self.test_loader:
@@ -378,6 +385,7 @@ class RegionClassifier(BaseRegionClassifier):
                 exact_matches = ((predicted == labels).sum(dim=1) == labels.size(1)).sum().item()
                 exact_match_ratio = exact_matches / labels.size(0)
 
+
                 # Compute per-class accuracy
                 for class_idx in range(labels.size(1)):  # Iterate over classes
                     class_labels = labels[:, class_idx]
@@ -395,6 +403,7 @@ class RegionClassifier(BaseRegionClassifier):
                 if len(image_list) > 0:
                     image_grid = torch.stack(image_list, dim=0)
                     class_name = self.regions[class_id]
+
                     wandb.log(
                         {
                             f"class_{class_name}_images": wandb.Image(
@@ -406,6 +415,7 @@ class RegionClassifier(BaseRegionClassifier):
             # Compute class-wise accuracies
             class_accuracies = {
                 self.regions[class_idx]: (
+
                     (100 * class_correct[class_idx] / class_total[class_idx])
                     if class_total[class_idx] > 0
                     else 0
@@ -421,12 +431,14 @@ class RegionClassifier(BaseRegionClassifier):
             plt.title("Class-wise Accuracies")
             plt.xticks(
                 ticks=range(len(self.regions)), labels=self.regions, rotation=90
+
             )  # Assuming 40 classes
             plt.ylim(0, 100)  # Accuracy range 0-100%
 
             # Save the figure and log to wandb
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             plot_path = os.path.join(os.path.dirname(output_file), "class_wise_accuracies.png")
+
             plt.savefig(plot_path)
             plt.close()
             wandb.log({"class_wise_accuracies_plot": wandb.Image(plot_path)})
@@ -438,6 +450,7 @@ class RegionClassifier(BaseRegionClassifier):
                     "precision": precision * 100,
                     "recall": recall * 100,
                     "exact_match_ratio": exact_match_ratio * 100,
+
                     **{f"{k}_accuracy": v for k, v in class_accuracies.items()},
                 }
             )
@@ -447,3 +460,4 @@ class RegionClassifier(BaseRegionClassifier):
             print(f"Total Inf time:{tot_time}")
 
             return f1_score * 100
+

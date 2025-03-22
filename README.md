@@ -49,6 +49,7 @@ After activating your environment, do the following to install the necessary mod
 pip install -e .
 ```
 
+
 ## Pre-Commit Hook 
 A pre-commit hook can be set up to run pylint and black formatter.
 

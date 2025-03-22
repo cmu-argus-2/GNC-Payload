@@ -7,7 +7,8 @@ import numpy as np
 from brahe import Epoch
 
 # pylint: disable=import-error
-from dynamics.j2_dynamics import j2_derivative, j2_jacobian_auto
+
+from dynamics.j2_dynamics import j2_jacobian_manual, j2_jacobian_auto
 from utils.config_utils import load_config
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state
 
@@ -28,8 +29,10 @@ def test_j2_dynamics() -> None:
 
         state = get_sso_orbit_state(starting_epoch, rand_lat, rand_lon, rand_alt, northwards=True)
 
+        # state = state / 1e3 # Convert from m to km and m/s to km/s
+
         auto_diff_result = j2_jacobian_auto(state[:3])
-        manual_result = j2_derivative(state[:3])
+        manual_result = j2_jacobian_manual(state[:3])
 
         # Check if the results of the two computations are close enough
         assert np.allclose(
