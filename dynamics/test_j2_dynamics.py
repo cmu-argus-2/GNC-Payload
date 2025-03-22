@@ -7,7 +7,6 @@ import numpy as np
 from brahe import Epoch
 
 # pylint: disable=import-error
-
 from dynamics.j2_dynamics import j2_jacobian_manual, j2_jacobian_auto
 from utils.config_utils import load_config
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state
@@ -28,7 +27,6 @@ def test_j2_dynamics() -> None:
         rand_lon = np.random.uniform(-180, 180)
 
         state = get_sso_orbit_state(starting_epoch, rand_lat, rand_lon, rand_alt, northwards=True)
-
         # state = state / 1e3 # Convert from m to km and m/s to km/s
 
         auto_diff_result = j2_jacobian_auto(state[:3])
