@@ -13,8 +13,9 @@ This script will generate/overwrite the following contents in the training direc
 import argparse
 import os
 from functools import partial
-from itertools import product, starmap
+from itertools import product
 from multiprocessing import Pool, cpu_count
+from tqdm import tqdm
 
 import cv2
 import numpy as np
@@ -207,6 +208,7 @@ def main() -> None:
     """
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
+    total_images = len(regions) * args.num_images
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in regions:
@@ -227,9 +229,22 @@ def main() -> None:
     file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
     if args.num_processes > 1:
         with Pool(args.num_processes) as pool:
-            pool.starmap(func, product(regions, file_prefixes_generator))
+            results_generator = pool.imap_unordered(
+                lambda params: func(*params),
+                product(
+                    regions,
+                    file_prefixes_generator,
+                ),
+                chunksize=50,
+            )
+
+            # We don't care about the return values, just exhaust the generator for the progress bar
+            list(tqdm(results_generator, total=total_images))
     else:
-        starmap(func, product(regions, file_prefixes_generator))
+        for region, file_prefix in tqdm(
+            product(regions, file_prefixes_generator), total=total_images
+        ):
+            func(region, file_prefix)
 
 
 if __name__ == "__main__":
