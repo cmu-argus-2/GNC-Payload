@@ -66,7 +66,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--lat_lon_buffer", type=float, default=0.0, help="Extra buffer in lat/lon for each region."
+        "--lat_lon_buffer",
+        type=float,
+        default=0.0,
+        help="Extra buffer in lat/lon for each region, in degrees."
     )
     parser.add_argument(
         "--num_images", type=int, default=1000, help="Number of images to generate per region."
