@@ -213,7 +213,7 @@ def main() -> None:
         region_dir: str = os.path.join(training_dir, region)
         if not setup_region_directory(region_dir, args.overwrite):
             print(
-                f"Output directory {args.output_dir} could not be emptied. Set --overwrite to clear any existing data."
+                f"Output directory {region_dir} could not be emptied. Set --overwrite to clear any existing data."
             )
             return
 
