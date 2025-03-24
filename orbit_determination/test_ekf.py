@@ -11,6 +11,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -222,9 +226,9 @@ def run_simulation() -> None:
         )
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
-
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
+
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
         if t % 120 == 0 and is_over_daytime(
             data_manager.latest_epoch, data_manager.latest_state[:3]
