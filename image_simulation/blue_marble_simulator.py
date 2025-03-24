@@ -16,6 +16,8 @@ import numpy as np
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
+# disable the PIL image size limit
+Image.MAX_IMAGE_PIXELS = None
 
 MONTH_NAMES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 IMG_LAT_BOUNDS = {
