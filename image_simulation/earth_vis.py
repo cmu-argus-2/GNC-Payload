@@ -37,10 +37,11 @@ class GeoTIFFData:
     Attributes:
         image_path: The path to the GeoTIFF file.
         image_data: The image data contained in the GeoTIFF file.
-        transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (longitudes, latitudes)
+        transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (latitudes, longitudes)
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
 
+    SWAP_INPUTS_AFFINE: ClassVar[Affine] = Affine(a=0, b=1, c=0, d=1, e=0, f=0)
     SUPPORTED_DTYPES: ClassVar[Tuple[type, ...]] = (np.uint8, np.float32)
     EPSG_4326_CRS: ClassVar[CRS] = CRS.from_epsg(4326)
 
@@ -69,7 +70,7 @@ class GeoTIFFData:
                     f"an unsupported coordinate reference system: {src.crs}"
                 )
             image_data = src.read()
-            transform = src.transform
+            transform: Affine = src.transform
 
         if image_data.dtype not in GeoTIFFData.SUPPORTED_DTYPES:
             raise ValueError(
@@ -79,8 +80,13 @@ class GeoTIFFData:
 
         # convert from (channels, height, width) to (height, width, channels)
         image_data = np.moveaxis(image_data, 0, -1)
-        inverse_transform = ~transform
-        return GeoTIFFData(file_path, image_data, inverse_transform)
+
+        # switch from (u, v) -> (lon, lat) to (lon, lat) -> (u, v)
+        transform = ~transform
+        # switch from (lon, lat) -> (u, v) to (lat, lon) -> (u, v)
+        transform = transform * GeoTIFFData.SWAP_INPUTS_AFFINE
+
+        return GeoTIFFData(file_path, image_data, transform)
 
     def save(self) -> None:
         """
@@ -88,7 +94,7 @@ class GeoTIFFData:
         Note that this will overwrite any existing file at that location.
 
         Note that this assumes that self.transform maps to pixel coordinates from the EPSG:4326 coordinate reference
-        system, which corresponds to (longitude, latitude) coordinates in degrees using the WGS 84 ellipsoid.
+        system, which corresponds to (latitude, longitude) coordinates in degrees using the WGS 84 ellipsoid.
         """
         assert self.dtype in GeoTIFFData.SUPPORTED_DTYPES, (
             f"Unsupported data type {self.dtype}. Supported data types are: "
@@ -98,7 +104,11 @@ class GeoTIFFData:
 
         # convert from (height, width, channels) to (channels, height, width)
         image_data = np.moveaxis(self.image_data, -1, 0)
-        inverse_transform = ~self.transform
+
+        # switch from (lat, lon) -> (u, v) to (lon, lat) -> (u, v)
+        transform = self.transform * GeoTIFFData.SWAP_INPUTS_AFFINE
+        # switch from (lon, lat) -> (u, v) to (u, v) -> (lon, lat)
+        transform = ~transform
 
         metadata = {
             "driver": "GTiff",
@@ -107,7 +117,7 @@ class GeoTIFFData:
             "count": num_channels,
             "dtype": self.dtype,
             "crs": GeoTIFFData.EPSG_4326_CRS,
-            "transform": inverse_transform,
+            "transform": transform,
         }
         with rasterio.open(self.image_path, "w", **metadata) as dst:
             dst.write(image_data)
@@ -144,16 +154,16 @@ class GeoTIFFData:
         scale_x = width / (max_lon - min_lon)
         scale_y = height / (max_lat - min_lat)
 
-        # maps (lon, lat) to (u, v) (i.e. width, height)
+        # maps (lat, lon) to (u, v) (i.e. width, height)
         self.transform = Affine(
             # don't flip the x-axis since increasing u corresponds to increasing longitude
-            a=scale_x,
-            b=0,
+            a=0,
+            b=scale_x,
             # choose offset such that min_lon maps to u=0
             c=-min_lon * scale_x,
-            d=0,
             # flip the y-axis since increasing v corresponds to decreasing latitude
-            e=-scale_y,
+            d=-scale_y,
+            e=0,
             # choose offset such that max_lat maps to v=0
             f=max_lat * scale_y,
         )
@@ -175,9 +185,9 @@ class GeoTIFFData:
         assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
 
         shape_prefix = lat_lon.shape[:-1]
-        lat_flat, lon_flat = lat_lon.reshape(-1, 2).T
+        lat_lon = lat_lon.reshape(-1, 2)
 
-        us, vs = self.transform * (lon_flat, lat_flat)
+        us, vs = self.transform * tuple(lat_lon.T)
         us = np.floor(us).astype(int).reshape(shape_prefix)
         vs = np.floor(vs).astype(int).reshape(shape_prefix)
 
