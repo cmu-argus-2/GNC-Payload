@@ -165,7 +165,7 @@ def generate_training_image(
     lon = np.clip(lon, -180, 180)
     altitude = nominal_altitude + np.random.uniform(-altitude_variation, altitude_variation)
 
-    ecef_position = lat_lon_to_ecef(lat, lon)
+    ecef_position = lat_lon_to_ecef(np.array([lat, lon]))
     ecef_position /= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
     ecef_velocity = np.array([0, 0, 1])
 
