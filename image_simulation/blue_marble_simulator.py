@@ -75,17 +75,17 @@ def get_blue_marble_img(
         min_u = width * (min_lon - img_min_lon) / (img_max_lon - img_min_lon)
         max_u = width * (max_lon - img_min_lon) / (img_max_lon - img_min_lon)
         # Note that min_v corresponds to max_lat and max_v corresponds to min_lat
-        min_v = height * (max_lat - img_min_lat) / (img_max_lat - img_min_lat)
-        max_v = height * (min_lat - img_min_lat) / (img_max_lat - img_min_lat)
+        # Also since the vertical axis is flipped, the coordinates are measured from img_max_lat instead of img_min_lat
+        min_v = height * (img_max_lat - max_lat) / (img_max_lat - img_min_lat)
+        max_v = height * (img_max_lat - min_lat) / (img_max_lat - img_min_lat)
 
         # round to integer pixel coordinates
         min_u = int(np.floor(min_u))
         max_u = int(np.ceil(max_u))
         min_v = int(np.floor(min_v))
         max_v = int(np.ceil(max_v))
-        # Note that min_lat corresponds to max_v and max_lat corresponds to min_v
-        min_lat = img_min_lat + (max_v / height) * (img_max_lat - img_min_lat)
-        max_lat = img_min_lat + (min_v / height) * (img_max_lat - img_min_lat)
+        min_lat = img_max_lat - (max_v / height) * (img_max_lat - img_min_lat)
+        max_lat = img_max_lat - (min_v / height) * (img_max_lat - img_min_lat)
         min_lon = img_min_lon + (min_u / width) * (img_max_lon - img_min_lon)
         max_lon = img_min_lon + (max_u / width) * (img_max_lon - img_min_lon)
 
