@@ -83,7 +83,7 @@ class GeoTIFFData:
         """
         return self.image_data.dtype
 
-    def query_pixel_colors(self, lat_lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
@@ -91,9 +91,7 @@ class GeoTIFFData:
         (red, green, blue).
 
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
-        :return: A Tuple containing:
-                 - A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
-                 - A numpy array of shape lat_lon.shape[:-1] indicating which output pixels contain valid data.
+        :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
         """
         assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
 
@@ -111,7 +109,7 @@ class GeoTIFFData:
         image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
         image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
 
-        return image_flat.reshape(*shape_prefix, num_channels), valid_mask.reshape(shape_prefix)
+        return image_flat.reshape(*shape_prefix, num_channels)
 
 
 class GeoTIFFCache:
