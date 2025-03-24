@@ -186,10 +186,13 @@ class GeoTIFFData:
         lat_lon = lat_lon.reshape(-1, 2)
 
         us, vs = self.transform * tuple(lat_lon.T)
-        us = np.floor(us).astype(int).reshape(shape_prefix)
-        vs = np.floor(vs).astype(int).reshape(shape_prefix)
 
         height, width, _ = self.image_data.shape
+        us = np.rint(us).astype(int).reshape(shape_prefix)
+        vs = np.rint(vs).astype(int).reshape(shape_prefix)
+        us[us == width] = width - 1
+        vs[vs == height] = height - 1
+
         valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
         return us, vs, valid_mask
 
