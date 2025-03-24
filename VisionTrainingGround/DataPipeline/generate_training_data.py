@@ -246,7 +246,9 @@ def main() -> None:
                     regions,
                     file_prefixes_generator,
                 ),
-                chunksize=50,
+                # Use a chunksize of 1 to ensure that the progress bar updates after each image
+                # Interprocess communication overhead should be negligible compared to generating images regardless
+                chunksize=1,
             )
 
             # We don't care about the return values, just exhaust the generator for the progress bar
