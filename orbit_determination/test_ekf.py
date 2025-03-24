@@ -98,7 +98,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 45  # s
+    config["mission"]["duration"] = 3 * 90 * 60  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -177,7 +177,7 @@ def run_simulation() -> None:
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
