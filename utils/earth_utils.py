@@ -140,7 +140,60 @@ def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
     return np.column_stack([x_plus_dir, y_plus_dir, z_plus_dir])
 
 
+def intersect_ellipsoid(
+    ray_directions: np.ndarray,
+    satellite_position: np.ndarray,
+    a: float = 6378137.0,
+    b: float = 6356752.314245,
+) -> np.ndarray:
+    """
+    Vectorized computation of ray intersections with the WGS84 ellipsoid.
+
+    Parameters:
+        ray_directions: A numpy array of shape (..., 3) containing ray directions.
+        satellite_position: Satellite position in ECEF as a numpy array of shape (3,).
+        a: Semi-major axis of the WGS84 ellipsoid (meters).
+        b: Semi-minor axis of the WGS84 ellipsoid (meters).
+
+    Returns:
+        The resulting intersection points as a numpy array of shape (..., 3), or NaN for rays that miss.
+    """
+    assert ray_directions.shape[-1] == 3, "ray_directions must have shape (..., 3)"
+    assert np.allclose(np.linalg.norm(ray_directions, axis=-1), 1), "ray_dirs must be normalized"
+
+    ray_directions_flat = ray_directions.reshape(-1, 3)
+
+    aab_squared = np.array([a, a, b]) ** 2
+    A = np.sum(ray_directions_flat**2 / aab_squared, axis=1)
+    B = 2 * ray_directions_flat @ (satellite_position / aab_squared)
+    C = np.sum(satellite_position**2 / aab_squared) - 1
+    discriminant = B**2 - 4 * A * C
+
+    # Initialize intersection points as NaN
+    intersection_points_flat = np.full_like(ray_directions_flat, np.nan)
+
+    valid_mask = discriminant >= 0
+    if np.any(valid_mask):
+        # Compute roots of the quadratic equation
+        sqrt_discriminant = np.sqrt(discriminant[valid_mask])
+        t1 = (-B[valid_mask] - sqrt_discriminant) / (2 * A[valid_mask])
+        t2 = (-B[valid_mask] + sqrt_discriminant) / (2 * A[valid_mask])
+
+        # Choose the smallest positive t
+        t = np.where((t1 > 0) & ((t1 < t2) | (t2 <= 0)), t1, t2)
+        t = np.where(t > 0, t, np.nan)  # Filter out negative t values
+
+        # Calculate intersection points
+        valid_ray_directions = ray_directions_flat[valid_mask]
+        intersection_points_flat[valid_mask] = (
+            t[:, None] * valid_ray_directions + satellite_position
+        )
+
+    return intersection_points_flat.reshape(ray_directions.shape)
+
+
 # Define MGRS latitude bands and UTM exceptions
+# TODO: consolidate functionality between this and the get_MGRS_grid function
 mgrs_latitude_bands = [
     {"name": "C", "min_lat": -80, "max_lat": -72},
     {"name": "D", "min_lat": -72, "max_lat": -64},
@@ -173,18 +226,22 @@ mgrs_utm_exceptions = [
 ]
 
 
-def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
+def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     """
-    Vectorized computation of MGRS regions for given latitude and longitude arrays.
+    Vectorized computation of MGRS region identifiers for given latitude and longitude coordinates.
 
     Parameters:
-        latitudes (np.ndarray): 1D or 2D array of latitudes in degrees.
-        longitudes (np.ndarray): 1D or 2D array of longitudes in degrees.
+        lat_lon: A numpy array of shape (..., 2) containing latitudes and longitudes in degrees. May contain np.nan.
 
     Returns:
-        np.ndarray: Array of MGRS region identifiers (same shape as input).
+        A numpy array of MGRS region identifiers with shape lat_lon.shape[:-1], unless lat_lon.shape == (2,) in which
+        case the output will be shape (1,). Output elements will be None if either the latitude or longitude is np.nan,
+        or if the coordinates correspond to polar regions that are not covered by the MGRS.
     """
-    assert latitudes.shape == longitudes.shape, "latitudes and longitudes must have the same shape"
+    assert lat_lon.shape[-1] == 2, "Input must have shape (..., 2)"
+    if len(lat_lon.shape) == 1:
+        # Special case for single lat/lon pair
+        return calculate_mgrs_zones(lat_lon[np.newaxis, :])[0, :]
 
     # Create lookup tables for vectorized latitude band calculation
     latitude_band_names = np.array([band["name"] for band in mgrs_latitude_bands])
@@ -192,21 +249,24 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
         [[band["min_lat"], band["max_lat"]] for band in mgrs_latitude_bands]
     )
 
-    # Flatten lat/lon for processing
-    valid_indices = ~np.isnan(latitudes) & ~np.isnan(longitudes)
-    lat_flat = latitudes[valid_indices]
-    lon_flat = longitudes[valid_indices]
+    # Filter out invalid coordinates and flatten
+    valid_indices = (
+        np.all(~np.isnan(lat_lon), axis=-1) & (lat_lon[..., 0] >= -80) & (lat_lon[..., 0] < 84)
+    )
+    lat_flat, lon_flat = lat_lon[valid_indices, :].T
 
     # Determine latitude bands
-    lat_bands = np.full(lat_flat.shape, None, dtype=object)
-    for i, (min_lat, max_lat) in enumerate(latitude_band_edges):
+    lat_bands = np.empty(len(lat_flat), dtype=str)
+    seen_mask = np.zeros(len(lat_flat), dtype=bool)
+    for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
-        lat_bands[mask] = latitude_band_names[i]
+        lat_bands[mask] = name
+        assert ~np.any(seen_mask & mask)
+        seen_mask |= mask
+    assert np.all(seen_mask)
 
     # Determine UTM zones (default calculation)
     utm_zones = ((lon_flat + 180) // 6 + 1).astype(int)
-
-    # Apply UTM exceptions
     for exception in mgrs_utm_exceptions:
         mask = (
             (lon_flat >= exception["min_lon"])
@@ -214,16 +274,10 @@ def calculate_mgrs_zones(latitudes: np.ndarray, longitudes: np.ndarray) -> np.nd
             & np.isin(lat_bands, exception["bands"])
         )
         utm_zones[mask] = exception["zone"]
+    utm_zones = utm_zones.astype(str)
 
-    # Combine UTM zones and latitude bands
-    mgrs_regions_flat = np.array(
-        [f"{zone}{band}" if band is not None else None for zone, band in zip(utm_zones, lat_bands)]
-    )
-
-    # Reshape to match input lat/lon shape
-    mgrs_regions = np.full(latitudes.shape, None, dtype=object)
-    mgrs_regions[valid_indices] = mgrs_regions_flat
-
+    mgrs_regions = np.full(valid_indices.shape, None, dtype=object)
+    mgrs_regions[valid_indices] = np.char.add(utm_zones, lat_bands)
     return mgrs_regions
 
 
@@ -234,7 +288,7 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     Note that keys corresponding to single digit region identifiers have a leading zero (e.g. "01C").
 
     Returns:
-        A dictionary mapping MGRS region identifiers to corresponding longitude and latitude ranges.
+        A dictionary mapping MGRS region identifiers to a tuple containing (min_lon, min_lat, max_lon, max_lat).
     """
     LON_STEP = 6
     LAT_STEP = 8

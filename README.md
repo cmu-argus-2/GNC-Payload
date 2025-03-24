@@ -40,8 +40,11 @@ Copy `user_config.example.yaml` to `user_config.yaml` and fill in the necessary 
 ```
 cp user_config.example.yaml user_config.yaml
 ```
-## Downloading Vision Models to run Vision Inference
-The trained models and CSV files are stored on the Argus CubeSat Google Drive ([here](https://drive.google.com/drive/folders/1vgICB7FE5D_y5Cdk25nwwWwlerpyez-7?usp=drive_link)). Download, unzip, and move them into ```GNC-Payload/vision_inference```
+
+### Downloading Vision Models to run Vision Inference
+The trained models and CSV files are stored on the Argus CubeSat Google Drive ([here](https://drive.google.com/drive/folders/1vgICB7FE5D_y5Cdk25nwwWwlerpyez-7)).
+Download the desired version and unzip it to the desired location.
+Update the `models_directory` field in your `user_config.yaml` file accordingly.
 
 ### Installing utils as a package
 After activating your environment, do the following to install the necessary modules as editable packages:

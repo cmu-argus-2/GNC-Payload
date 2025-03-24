@@ -1,0 +1,397 @@
+"""
+Prepares the training data for the specified MGRS regions for training YOLO models.
+
+This script expects to find the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - 00000.png
+    - 00000_lat_lon.npy
+    - ...
+    - bounding_boxes.csv
+
+This scipy will generate/overwrite the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - /LD_training
+      - dataset.yaml
+      - /train
+        - /images
+          - 00000.png (symlink)
+          - ...
+        - /labels
+          - 00000.txt
+          - ...
+      - /test
+        - ...
+      - /val
+        - ...
+"""
+
+import argparse
+import os
+from functools import partial
+from multiprocessing import Pool, cpu_count
+from typing import List
+
+import cv2
+import numpy as np
+import yaml
+
+from utils.config_utils import USER_CONFIG_PATH, load_config
+from utils.earth_utils import lat_lon_to_ecef
+from vision_inference.landmark_detector import LandmarkDetector
+from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
+from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
+
+LD_TRAINING_DIR_NAME = "LD_training"
+YOLO_CONFIG_FILE_NAME = "dataset.yaml"
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+
+    :return: The parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Prepares the training data for the specified MGRS regions for training YOLO models."
+    )
+
+    parser.add_argument(
+        "--regions",
+        type=str,
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions for which to prepare training data for training YOLO models.",
+    )
+    parser.add_argument(
+        "--skip_regions",
+        type=str,
+        nargs="+",
+        default=[],
+        help="MGRS regions to skip. This takes precedence over --regions.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Whether to overwrite the output directory if it exists.",
+    )
+    parser.add_argument(
+        "--num_processes",
+        type=int,
+        default=int(0.8 * cpu_count()),
+        help="Number of processes to use to prepare training data for training YOLO models"
+        "in parallel across the specified regions.",
+    )
+
+    parser.add_argument(
+        "--test_fraction",
+        type=float,
+        default=0.2,
+        help="Fraction of images to use for testing.",
+    )
+    parser.add_argument(
+        "--val_fraction",
+        type=float,
+        default=0.1,
+        help="Fraction of images to use for validation.",
+    )
+    return parser.parse_args()
+
+
+def setup_LD_training_directory(LD_training_dir: str, overwrite: bool) -> bool:
+    """
+    Create the LD_training directory if it does not exist, or clear the output files that will be replaced if overwrite
+    is True.
+
+    :param LD_training_dir: The path to the LD_training directory.
+    :param overwrite: Whether to overwrite the output files if they exist.
+    :return: True if LD_training is now a directory that doesn't contain any of the output files that would be replaced,
+             False otherwise.
+    """
+    if not os.path.exists(LD_training_dir):
+        os.makedirs(LD_training_dir)
+
+    if not os.path.isdir(LD_training_dir):
+        if not overwrite:
+            return False
+        os.remove(LD_training_dir)
+        os.makedirs(LD_training_dir)
+
+    yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
+    if os.path.exists(yolo_config_path):
+        if not overwrite:
+            return False
+        os.remove(yolo_config_path)
+
+    for split_dir_name in ["train", "test", "val"]:
+        split_dir = os.path.join(LD_training_dir, split_dir_name)
+        os.makedirs(split_dir, exist_ok=True)
+
+        for data_dir_name, conflicting_suffix in [("images", ".png"), ("labels", ".txt")]:
+            data_dir = os.path.join(split_dir, data_dir_name)
+            os.makedirs(data_dir, exist_ok=True)
+
+            conflicting_file_names = [
+                file_name
+                for file_name in os.listdir(data_dir)
+                if file_name.endswith(conflicting_suffix)
+            ]
+            if len(conflicting_file_names) == 0:
+                continue
+
+            if not overwrite:
+                return False
+            for conflicting_file_name in conflicting_file_names:
+                os.remove(os.path.join(data_dir, conflicting_file_name))
+
+    return True
+
+
+def get_valid_bounding_boxes(
+    image: np.ndarray,
+    closest_us: np.ndarray,
+    closest_vs: np.ndarray,
+    minimum_data_threshold: float = 0.5,
+) -> np.ndarray:
+    """
+    Compute a boolean mask indicating which bounding boxes are considered valid and should be used for training.
+
+    A bounding box is considered valid if none of the four corners' closest pixels are on the boundary of the image and
+    the fraction of the bounding box containing nonzero data is above the specified threshold.
+
+    :param image: The image to check the bounding boxes against.
+    :param closest_us: A numpy array of shape (N, 4) containing the u-coordinates of the closest pixel to the top left,
+                       top right, bottom left, and bottom right corners of the bounding box, respectively.
+    :param closest_vs: A numpy array of shape (N, 4) containing the v-coordinates of the closest pixel to the top left,
+                       top right, bottom left, and bottom right corners of the bounding box, respectively.
+    :param minimum_data_threshold: The minimum fraction of the bounding box that must contain nonzero data for it to be
+                                   considered valid. Must be in the range [0, 1].
+    :return: A boolean numpy array of shape (N,) indicating which bounding boxes are valid.
+    """
+    assert image.ndim == 3, f"Expected image to have 3 dimensions, but got {image.ndim}."
+    assert (
+        closest_us.shape == closest_vs.shape
+    ), f"Expected closest_us and closest_vs to have the same shape, but got {closest_us.shape} and {closest_vs.shape}."
+    assert (
+        closest_us.ndim == 2
+    ), f"Expected closest_us and closest_vs to have 2 dimensions, but got {closest_us.ndim}."
+    assert (
+        closest_us.shape[1] == 4
+    ), f"Expected closest_us and closest_vs to have 4 columns, but got {closest_us.shape[1]}."
+
+    # reject any bounding boxes that have a corner whose closest pixel is on the boundary of the image
+    height, width = image.shape[:2]
+    valid_bounding_boxes = np.all(
+        (closest_us > 0) & (closest_us < width - 1) & (closest_vs > 0) & (closest_vs < height - 1),
+        axis=1,
+    )
+
+    has_data = np.any(image > 0, axis=2)
+    for i in range(len(valid_bounding_boxes)):
+        if not valid_bounding_boxes[i]:
+            continue
+
+        # since the bounding box corners are mapped from lat/lon to pixel coordinates, they could form any quadrilateral
+        # cv2.fillPoly does not support numpy arrays with dtype=bool, so we need to use uint8 instead
+        quadrilateral_mask = np.zeros(has_data.shape, dtype=np.uint8)
+        cv2.fillPoly(
+            quadrilateral_mask,
+            # OpenCV expects the vertices to be in the form (num_polygons, num_points, 2)
+            np.column_stack((closest_us[i, :], closest_vs[i, :]))[np.newaxis, ...],
+            color=1,
+        )
+        quadrilateral_mask = quadrilateral_mask.astype(bool)
+
+        if (
+            np.sum(has_data[quadrilateral_mask]) / np.sum(quadrilateral_mask)
+            < minimum_data_threshold
+        ):
+            valid_bounding_boxes[i] = False
+
+    return valid_bounding_boxes
+
+
+def generate_yolo_labels(
+    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str]
+) -> int:
+    """
+    Generate YOLO labels in the form of .txt files for each image in the input directory.
+
+    Each .txt file contains one line for each bounding box that is entirely contained within the image.
+    The line is formatted as follows, with all coordinates normalized to the range [0, 1]:
+    <class_id> <u_center> <v_center> <box_width> <box_height>
+
+    :param region_id: The MGRS region ID to generate YOLO label files for.
+    :param file_prefixes: The common prefixes of the PNG and lat/lon .npy files to process.
+    :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
+    :return: The number of classes in the dataset.
+    """
+    assert len(file_prefixes) == len(
+        yolo_label_paths
+    ), "file_prefixes and yolo_label_paths must be the same length."
+
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region_id)
+    bounding_boxes_lat_lon = LandmarkDetector.load_ground_truth(
+        os.path.join(training_dir, LandmarkDetector.get_LD_ground_truth_relative_path(region_id))
+    )
+    num_classes = bounding_boxes_lat_lon.shape[0]
+
+    top_left_lat_lon = bounding_boxes_lat_lon[:, 2:4]
+    bottom_right_lat_lon = bounding_boxes_lat_lon[:, 4:6]
+    top_right_lat_lon = np.column_stack((top_left_lat_lon[:, 0], bottom_right_lat_lon[:, 1]))
+    bottom_left_lat_lon = np.column_stack((bottom_right_lat_lon[:, 0], top_left_lat_lon[:, 1]))
+
+    stacked_corners_lat_lon = np.stack(
+        (top_left_lat_lon, top_right_lat_lon, bottom_left_lat_lon, bottom_right_lat_lon), axis=0
+    )
+    stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
+
+    # TODO: upgrade workflow to parallelize this loop with multiprocessing
+    for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
+        image_path = os.path.join(region_dir, file_prefix + ".png")
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        height, width = image.shape[:2]
+
+        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
+        assert (
+            lat_lon.shape[:2] == image.shape[:2]
+        ), f"Lat/lon shape {lat_lon.shape} does not match image shape {image.shape} for {file_prefix}."
+        assert (
+            lat_lon.shape[2] == 2
+        ), f"Expected lat/lon shape to have 2 channels, but got {lat_lon.shape[2]}."
+        pixel_coordinates_ecef = lat_lon_to_ecef(lat_lon).reshape(-1, 3)
+
+        x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[:, 0])
+        y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[:, 1])
+        z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[:, 2])
+        # surprisingly row_stack is actually faster than column_stack here, probably because of the overhead in
+        # creating the stacked array (https://chatgpt.com/share/67ce49e5-e1c8-800c-b931-b3862d7d299f)
+        distances = np.linalg.norm(np.row_stack((x_distances, y_distances, z_distances)), axis=0)
+        assert distances.shape == (4 * num_classes, height * width)
+
+        closest_pixel_indices = np.argmin(distances, axis=1)
+        closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
+        closest_us = closest_us.reshape(num_classes, 4)
+        closest_vs = closest_vs.reshape(num_classes, 4)
+
+        valid_bounding_boxes = get_valid_bounding_boxes(image, closest_us, closest_vs)
+        closest_us = closest_us[valid_bounding_boxes, :]
+        closest_vs = closest_vs[valid_bounding_boxes, :]
+        class_ids = np.arange(num_classes)[valid_bounding_boxes]
+
+        # widen bounding boxes to the smallest axis-aligned bounding box that contains all 4 corners
+        min_us = np.min(closest_us, axis=1)
+        max_us = np.max(closest_us, axis=1)
+        min_vs = np.min(closest_vs, axis=1)
+        max_vs = np.max(closest_vs, axis=1)
+
+        # convert to YOLO format
+        u_center = (min_us + max_us) / (2 * width)
+        v_center = (min_vs + max_vs) / (2 * height)
+        box_width = (max_us - min_us) / width
+        box_height = (max_vs - min_vs) / height
+
+        with open(yolo_label_path, "w") as yolo_label_file:
+            for class_id, u, v, w, h in zip(class_ids, u_center, v_center, box_width, box_height):
+                yolo_label_file.write(f"{class_id} {u} {v} {w} {h}\n")
+
+    return num_classes
+
+
+def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fraction: float) -> None:
+    """
+    Prepare YOLO training data for the specified MGRS region.
+    This includes performing a train/test/val split, creating symlinks to the image files, generating the YOLO label
+    .txt files, and creating a dataset.yaml file.
+    All the resulting files are written to the LD_training directory within the specified region's directory.
+
+    :param region_id: The MGRS region ID to prepare the YOLO training data for.
+    :param test_fraction: The fraction of images to use for testing. Must be in the range [0, 1].
+    :param val_fraction: The fraction of images to use for validation. Must be in the range [0, 1].
+    """
+    train_fraction = 1 - test_fraction - val_fraction
+    assert 0 <= train_fraction <= 1, "test_fraction + val_fraction must be less than or equal to 1."
+    assert 0 <= test_fraction <= 1, "test_fraction must be in the range [0, 1]."
+    assert 0 <= val_fraction <= 1, "val_fraction must be in the range [0, 1]."
+
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region_id)
+    LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
+    file_prefixes = get_common_file_name_prefixes(region_dir)
+    if len(file_prefixes) == 0:
+        raise ValueError("No matching PNG and lat/lon files found.")
+
+    num_files = len(file_prefixes)
+    train_cutoff = int(num_files * train_fraction)
+    test_cutoff = int(num_files * (train_fraction + test_fraction))
+
+    all_indices = np.arange(num_files)
+    np.random.shuffle(all_indices)
+    train_indices = all_indices[:train_cutoff]
+    test_indices = all_indices[train_cutoff:test_cutoff]
+    val_indices = all_indices[test_cutoff:]
+
+    yolo_label_paths = np.full(num_files, "", dtype=str)
+    for split_indices, split_dir_name in zip(
+        [train_indices, test_indices, val_indices], ["train", "test", "val"]
+    ):
+        split_dir = os.path.join(LD_training_dir, split_dir_name)
+        images_dir = os.path.join(split_dir, "images")
+        labels_dir = os.path.join(split_dir, "labels")
+
+        for i in split_indices:
+            file_prefix = file_prefixes[i]
+            os.symlink(
+                os.path.join(region_dir, f"{file_prefix}.png"),
+                os.path.join(images_dir, f"{file_prefix}.png"),
+            )
+            yolo_label_paths[i] = os.path.join(labels_dir, f"{file_prefix}.txt")
+
+    yolo_label_paths = yolo_label_paths.tolist()
+    assert "" not in yolo_label_paths
+    num_classes = generate_yolo_labels(region_dir, file_prefixes, yolo_label_paths)
+
+    yolo_config = {
+        "path": os.path.abspath(LD_training_dir),
+        "train": "train/images",
+        "val": "val/images",
+        "test": "test/images",
+        "nc": num_classes,
+        "names": [str(i) for i in range(num_classes)],
+    }
+
+    yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
+    with open(yolo_config_path, "w", encoding="utf-8") as yolo_config_file:
+        yaml.dump(yolo_config, yolo_config_file, default_flow_style=False)
+
+
+def main():
+    args = parse_args()
+    regions = list(set(args.regions) - set(args.skip_regions))
+
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    for region in regions:
+        LD_training_dir: str = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
+        if not setup_LD_training_directory(LD_training_dir, args.overwrite):
+            print(
+                f"Output directory {LD_training_dir} could not be emptied. Set --overwrite to clear any existing data."
+            )
+            return
+
+    func = partial(
+        prepare_yolo_data_for_region,
+        test_fraction=args.test_fraction,
+        val_fraction=args.val_fraction,
+    )
+    if args.num_processes > 1:
+        with Pool(args.num_processes) as pool:
+            pool.map(func, regions)
+    else:
+        map(func, regions)
+
+
+if __name__ == "__main__":
+    main()
