@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
-from typing import Tuple
+from typing import ClassVar, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,9 +35,10 @@ class GeoTIFFData:
     Attributes:
         image_path: The path to the GeoTIFF file.
         image_data: The image data contained in the GeoTIFF file.
-        transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (longitudes, latitudes)
+        transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (latitudes, longitudes)
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
+    SWAP_INPUTS_AFFINE: ClassVar[Affine] = Affine(a=0, b=1, c=0, d=1, e=0, f=0)
 
     image_path: str
     image_data: np.ndarray
@@ -56,12 +57,17 @@ class GeoTIFFData:
         """
         with rasterio.open(file_path) as src:
             image_data = src.read()
-            transform = src.transform
+            transform: Affine = src.transform
 
         # convert from (channels, height, width) to (height, width, channels)
         image_data = np.moveaxis(image_data, 0, -1)
-        inverse_transform = ~transform
-        return GeoTIFFData(file_path, image_data, inverse_transform)
+
+        # switch from (u, v) -> (lon, lat) to (lon, lat) -> (u, v)
+        transform = ~transform
+        # switch from (lon, lat) -> (u, v) to (lat, lon) -> (u, v)
+        transform = transform * GeoTIFFData.SWAP_INPUTS_AFFINE
+
+        return GeoTIFFData(file_path, image_data, transform)
 
     @property
     def num_channels(self) -> int:
@@ -96,9 +102,9 @@ class GeoTIFFData:
         assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
 
         shape_prefix = lat_lon.shape[:-1]
-        lat_flat, lon_flat = lat_lon.reshape(-1, 2).T
+        lat_lon = lat_lon.reshape(-1, 2)
 
-        us, vs = self.transform * (lon_flat, lat_flat)
+        us, vs = self.transform * tuple(lat_lon.T)
         us = np.floor(us).astype(int)
         vs = np.floor(vs).astype(int)
 
