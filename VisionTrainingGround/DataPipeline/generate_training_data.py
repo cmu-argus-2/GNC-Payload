@@ -205,6 +205,10 @@ def generate_training_image(
     np.save(os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
 
 
+def unpack_and_call(func, args):
+    return func(*args)
+
+
 def main() -> None:
     """
     Generate training data using the EarthImageSimulator.
@@ -231,9 +235,13 @@ def main() -> None:
     )
     file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
     if args.num_processes > 1:
+        func = partial(
+            unpack_and_call,
+            func,
+        )
         with Pool(args.num_processes) as pool:
             results_generator = pool.imap_unordered(
-                lambda params: func(*params),
+                func,
                 product(
                     regions,
                     file_prefixes_generator,
