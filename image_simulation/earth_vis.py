@@ -151,21 +151,19 @@ class GeoTIFFData:
         """
         height, width, _ = self.image_data.shape
         min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
-        scale_x = width / (max_lon - min_lon)
-        scale_y = height / (max_lat - min_lat)
+        scale_u = width / (max_lon - min_lon)
+        scale_v = height / (max_lat - min_lat)
 
         # maps (lat, lon) to (u, v) (i.e. width, height)
         self.transform = Affine(
-            # don't flip the x-axis since increasing u corresponds to increasing longitude
+            # u = a * lat + b * lon + c, lon = min_lon -> u = 0, lon = max_lon -> u = width
             a=0,
-            b=scale_x,
-            # choose offset such that min_lon maps to u=0
-            c=-min_lon * scale_x,
-            # flip the y-axis since increasing v corresponds to decreasing latitude
-            d=-scale_y,
+            b=scale_u,
+            c=-min_lon * scale_u,
+            # v = d * lat + e * lon + f, lat = min_lat -> v = height, lat = max_lat -> v = 0
+            d=-scale_v,
             e=0,
-            # choose offset such that max_lat maps to v=0
-            f=max_lat * scale_y,
+            f=max_lat * scale_v,
         )
 
     def get_pixel_coordinates(
