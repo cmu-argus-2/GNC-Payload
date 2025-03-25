@@ -10,12 +10,15 @@ This script requires the following arguments:
     --name: Name of the experiment
 
 The script will generate a ground truth trajectory of the spacecraft using the dynamics model and save this 
-the experiment in the output directory.
+the experiment in the output directory. It will store the spacecraft's position and velocity in trajectory_gt.npy,
+the spacecraft's attitude in attitude_gt.npy and a boolean specifying whether the spacecraft is currently on the 
+day (True) or night (False) side of the Earth.
 
 - /output_dir
     - /experiment_name
         - trajectory_gt.npy
         - attitude_gt.npy
+        - daytime.npy
 """
 
 import argparse
@@ -29,7 +32,7 @@ from brahe.epoch import Epoch
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.config_utils import load_config
-from utils.orbit_utils import get_sso_orbit_state
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 
 def generate_trajectory(args) -> None:
@@ -46,6 +49,7 @@ def generate_trajectory(args) -> None:
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))
+    daytime = []
 
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
@@ -53,6 +57,7 @@ def generate_trajectory(args) -> None:
         starting_epoch, args.lat, args.lon, args.altitude, northwards=True
     )
     inital_rot = np.eye(3)
+    daytime.append(1 if is_over_daytime(starting_epoch, initial_state[0:3]) else 0)
     data_manager.push_next_state(initial_state, inital_rot)
 
     w = np.array(args.angular_velocity)
@@ -74,17 +79,22 @@ def generate_trajectory(args) -> None:
         )
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
+        daytime.append(1 if is_over_daytime(data_manager.latest_epoch, state[0:3]) else 0)
+
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
     # Save the trajectory and attitude data
     trajectory = data_manager.states
     attitude = data_manager.eci_Rs_body
+    daytime = np.array(daytime)
+
     if not os.path.exists(f"output_dir/{args.name}"):
         print(f"Directory output_dir/{args.name} does not exist.")
         os.makedirs(f"output_dir/{args.name}")
         print(f"Created directory output_dir/{args.name}")
     np.save(f"output_dir/{args.name}/trajectory_gt.npy", trajectory)
     np.save(f"output_dir/{args.name}/attitude_gt.npy", attitude)
+    np.save(f"output_dir/{args.name}/daytime_gt.npy", daytime)
 
 
 if __name__ == "__main__":
