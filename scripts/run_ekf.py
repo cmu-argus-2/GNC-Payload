@@ -6,6 +6,7 @@ This script requires the following arguments:
     --mission_duration: Duration of the spacecraft mission for which we are generating the trajectory [s]
     --name: Name of the experiment
     --angular_velocity: Angular velocity of the spacecraft [rad/s]
+    --meas_rate: Rate at which measurements are taken
 
 The script expects to find the following contents in the output directory:
 - /output_dir
@@ -170,7 +171,7 @@ def run_simulation(args) -> None:
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
         data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
 
-        if t % 120 == 0 and is_over_daytime(
+        if t % args.meas_rate == 0 and is_over_daytime(
             data_manager.latest_epoch, data_manager.latest_state[:3]
         ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
@@ -247,6 +248,13 @@ if __name__ == "__main__":
         type=list,
         default=[0, 0, np.pi / 18],
         help="Angular velocity of the spacecraft [rad/s]",
+    )
+    parser.add_argument(
+        "--meas_rate",
+        type=float,
+        default=120,
+        help="The rate at which measurements are supposed to be taken. 120 means that a measurement"
+        "is taken every 120 timesteps",
     )
 
     args = parser.parse_args()
