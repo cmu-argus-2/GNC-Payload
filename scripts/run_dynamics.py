@@ -12,13 +12,13 @@ This script requires the following arguments:
 The script will generate a ground truth trajectory of the spacecraft using the dynamics model and save this 
 the experiment in the output directory. It will store the spacecraft's position and velocity in trajectory_gt.npy,
 the spacecraft's attitude in attitude_gt.npy and a boolean specifying whether the spacecraft is currently on the 
-day (True) or night (False) side of the Earth.
+day (1) or night (0) side of the earth.
 
 - /output_dir
     - /experiment_name
         - trajectory_gt.npy
         - attitude_gt.npy
-        - daytime.npy
+        - daytime_gt.npy
 """
 
 import argparse
