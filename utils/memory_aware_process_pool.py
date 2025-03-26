@@ -43,7 +43,7 @@ class MemoryAwareProcessPool:
         self.result_queue = Queue()
 
         # shared array mapping worker processes to the job ID they are currently working on
-        self.worker_job_ids: SynchronizedArray[int] = Array("i", [-1] * self.num_workers)
+        self.worker_job_ids: SynchronizedArray = Array("i", [-1] * self.num_workers)
 
         self.worker_processes = [
             self.make_new_worker_process(worker_id) for worker_id in range(self.num_workers)
@@ -67,7 +67,7 @@ class MemoryAwareProcessPool:
         worker_id: int,
         job_queue: Queue,
         result_queue: Queue,
-        worker_job_ids: SynchronizedArray[int],
+        worker_job_ids: SynchronizedArray,
     ) -> None:
         """
         The main function for each worker process. The worker will continuously get jobs from the job queue and execute
