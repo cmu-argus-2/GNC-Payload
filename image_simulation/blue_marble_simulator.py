@@ -84,28 +84,31 @@ def get_blue_marble_img(
         max_u = int(np.ceil(max_u))
         min_v = int(np.floor(min_v))
         max_v = int(np.ceil(max_v))
-        min_lat = img_max_lat - (max_v / height) * (img_max_lat - img_min_lat)
-        max_lat = img_max_lat - (min_v / height) * (img_max_lat - img_min_lat)
-        min_lon = img_min_lon + (min_u / width) * (img_max_lon - img_min_lon)
-        max_lon = img_min_lon + (max_u / width) * (img_max_lon - img_min_lon)
 
-        scale_u = (max_u - min_u) / (max_lon - min_lon)
-        scale_v = (max_v - min_v) / (max_lat - min_lat)
+        roi = np.array(img.crop((min_u, min_v, max_u, max_v)))
 
-        # maps (lat, lon) to (u, v) (i.e. width, height)
-        transform = Affine(
-            # u = a * lat + b * lon + c, lon = min_lon -> u = 0, lon = max_lon -> u = max_u - min_u
-            a=0,
-            b=scale_u,
-            c=-scale_u * min_lon,
-            # v = d * lat + e * lon + f, lat = min_lat -> v = max_v - min_v, lat = max_lat -> v = 0
-            d=-scale_v,
-            e=0,
-            f=scale_v * max_lat,
-        )
+    # recompute bounds based on rounded pixel coordinates
+    min_lat = img_max_lat - (max_v / height) * (img_max_lat - img_min_lat)
+    max_lat = img_max_lat - (min_v / height) * (img_max_lat - img_min_lat)
+    min_lon = img_min_lon + (min_u / width) * (img_max_lon - img_min_lon)
+    max_lon = img_min_lon + (max_u / width) * (img_max_lon - img_min_lon)
 
-        roi = img.crop((min_u, min_v, max_u, max_v))
-        return np.array(roi), transform
+    scale_u = (max_u - min_u) / (max_lon - min_lon)
+    scale_v = (max_v - min_v) / (max_lat - min_lat)
+
+    # maps (lat, lon) to (u, v) (i.e. width, height)
+    transform = Affine(
+        # u = a * lat + b * lon + c, lon = min_lon -> u = 0, lon = max_lon -> u = max_u - min_u
+        a=0,
+        b=scale_u,
+        c=-scale_u * min_lon,
+        # v = d * lat + e * lon + f, lat = min_lat -> v = max_v - min_v, lat = max_lat -> v = 0
+        d=-scale_v,
+        e=0,
+        f=scale_v * max_lat,
+    )
+
+    return roi, transform
 
 
 def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None) -> np.ndarray:
