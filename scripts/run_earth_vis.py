@@ -14,10 +14,8 @@ The script requires as input the spacecraft trajectory and attitude, which are g
 The script will generate the following contents in the output directory:
 - /output_dir
     - /experiment_name
-        - image_0.png
-        - image_1.png
-        - ...
-        - image_n.png
+        -/images
+            - img<timestamp>.npy
 """
 
 # TODO: Consider what a good naming scheme for these images is.
@@ -29,7 +27,6 @@ import numpy as np
 
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModelManager
-from utils.config_utils import load_config
 
 
 def image_vis(args) -> None:
@@ -56,12 +53,18 @@ def image_vis(args) -> None:
     attitude_gt = np.load(f"output_dir/{args.name}/attitude_gt.npy")
     daytime_gt = np.load(f"output_dir/{args.name}/daytime_gt.npy")
 
+    if not os.path.exists(f"output_dir/{args.name}/images"):
+        os.makedirs(f"output_dir/{args.name}/images")
+
     for i, state in enumerate(trajectory_gt):
         # Only run the earth image visualizer if it's a measurement step and it's daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 img = earth_image_sim.simulate_image(state[0:3], attitude_gt[i], camera_model_manager[camera_name])
                 #TODO: Store the image
+                print(img.timestamp)
+                store_str = f"img_{img.timestamp}_{camera_name}"
+                np.save(f"output_dir/{args.name}/images/{store_str}.npy", img.image)
 
 
     # Load trajectory, attitude and day/night time from .npy (check that it exists)
