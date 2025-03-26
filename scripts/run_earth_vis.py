@@ -15,13 +15,12 @@ The script will generate the following contents in the output directory:
 - /output_dir
     - /experiment_name
         -/images
-            - img<timestamp>.npy
+            - img<starting_timestamp>_<camera_name>.npy
 """
 
-# TODO: Consider what a good naming scheme for these images is.
-
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
+from datetime import datetime
 
 import numpy as np
 
@@ -34,13 +33,11 @@ def image_vis(args) -> None:
     Visualize earth for a set of positions and attitudes using all available cameras.
     :param: args
     """
-    # TODO: Check what the correct/necessary approaches regarding geotiff_caches and blue marble set are
     earth_image_sim = EarthImageSimulator(
         geotiff_cache=None, inpaint_blue_marble=False, blue_marble_month=None
     )
     camera_model_manager = CameraModelManager()
 
-    # TODO
     if (
         not os.path.exists(f"output_dir/{args.name}/trajectory_gt.npy")
         or not os.path.exists(f"output_dir/{args.name}/attitude_gt.npy")
@@ -59,19 +56,14 @@ def image_vis(args) -> None:
     for i, state in enumerate(trajectory_gt):
         # Only run the earth image visualizer if it's a measurement step and it's daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
+            curr_time = datetime.now()
             for camera_name in CameraModelManager.CAMERA_NAMES:
-                img = earth_image_sim.simulate_image(state[0:3], attitude_gt[i], camera_model_manager[camera_name])
-                #TODO: Store the image
+                img = earth_image_sim.simulate_image(
+                    state[0:3], attitude_gt[i], camera_model_manager[camera_name]
+                )
                 print(img.timestamp)
-                store_str = f"img_{img.timestamp}_{camera_name}"
+                store_str = f"img_{curr_time}_{camera_name}"
                 np.save(f"output_dir/{args.name}/images/{store_str}.npy", img.image)
-
-
-    # Load trajectory, attitude and day/night time from .npy (check that it exists)
-    # Generate images for a set timestep range (every 120, should probably parameterize and add to filter as well).
-    # Generate an image for every camera (use the camera model manager class for this)
-
-    # Store images with timestamp as name?
 
 
 if __name__ == "__main__":
