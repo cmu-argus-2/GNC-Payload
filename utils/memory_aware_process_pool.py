@@ -163,6 +163,32 @@ class MemoryAwareProcessPool:
         # mapping for jobs that are currently being processed
         job_ids_to_request_ids: dict[int, int] = {}
 
+        def terminate_process() -> bool:
+            """
+            Terminates the worker process with the largest job ID to free up memory.
+            If no jobs are in progress, this function does nothing.
+
+            The rationale is that the worker process with the largest job ID has been running for the least amount of
+            time, so it is the most likely to be able to be terminated without losing much progress.
+
+            :return: True if a process was terminated, False otherwise.
+            """
+            with self.worker_job_ids.get_lock():
+                worker_id: int = np.argmax(list(self.worker_job_ids))
+                job_id = self.worker_job_ids[worker_id]
+                if job_id == -1:
+                    return False
+
+                self.worker_processes[worker_id].terminate()
+                self.worker_processes[worker_id].join()
+
+            # these operations have no potential for race conditions, so they don't need to be in the with block
+            del job_ids_to_request_ids[job_id]
+            self.worker_job_ids[worker_id] = -1
+            self.worker_processes[worker_id] = self.make_new_worker_process(worker_id)
+            self.worker_processes[worker_id].start()
+            return True
+
         pbar = (
             tqdm(total=num_jobs, desc="Processing requests", unit="request")
             if display_progress_bar
@@ -171,8 +197,6 @@ class MemoryAwareProcessPool:
 
         with pbar:
             while not np.all(completed_requests):
-                sleep(self.poll_interval)
-
                 while not self.result_queue.empty():
                     job_id, success, result = self.result_queue.get()
                     request_id = job_ids_to_request_ids[job_id]
@@ -202,22 +226,8 @@ class MemoryAwareProcessPool:
                         next_job_id += 1
 
                 elif memory_usage_percentage > self.high_memory_usage_threshold:
-                    with self.worker_job_ids.get_lock():
-                        # terminate the worker process with the largest job ID, since it has been running for the least
-                        # amount of time
-                        worker_id: int = np.argmax(list(self.worker_job_ids))
-                        job_id = self.worker_job_ids[worker_id]
-                        if job_id == -1:
-                            # no jobs are in progress, so there's nothing we can do to free up memory
-                            continue
+                    terminate_process()
 
-                        self.worker_processes[worker_id].terminate()
-                        self.worker_processes[worker_id].join()
-
-                    # these operations have no potential for race conditions, so they don't need to be in the with block
-                    del job_ids_to_request_ids[job_id]
-                    self.worker_job_ids[worker_id] = -1
-                    self.worker_processes[worker_id] = self.make_new_worker_process(worker_id)
-                    self.worker_processes[worker_id].start()
+                sleep(self.poll_interval)
 
         return successful_requests, request_results
