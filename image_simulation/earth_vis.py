@@ -136,7 +136,7 @@ class GeoTIFFCache:
             if geotiff_folder is not None
             else GeoTIFFCache.get_default_geotiff_folder()
         )
-        GeoTIFFCache.validate_region_folders_exist(self.geotiff_folder)
+        GeoTIFFCache.validate_salient_region_data_exists(self.geotiff_folder)
 
         # Dynamically wrap the member function with an LRU cache
         # This also ensures that each instance has its own cache and prevents the need to call hash(self) inside the
@@ -158,28 +158,31 @@ class GeoTIFFCache:
         return GeoTIFFCache.FALLBACK_GEOTIFF_FOLDER
 
     @staticmethod
-    def validate_region_folders_exist(geotiff_folder: str) -> None:
+    def validate_salient_region_data_exists(geotiff_folder: str) -> None:
         """
-        Check if all salient region folders exist in the specified GeoTIFF folder.
+        Check if all salient region folders exist in the specified GeoTIFF folder and are not empty.
 
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
 
         Raises:
-            FileNotFoundError: If one or more region folders are not found.
+            FileNotFoundError: If one or more region folders are not found or are empty.
         """
         salient_region_ids = load_config()["vision"]["salient_mgrs_region_ids"]
 
-        all_region_folders_exist = True
+        all_regions_have_data = True
         for region in salient_region_ids:
             region_folder = os.path.join(geotiff_folder, region)
             if not os.path.exists(region_folder):
                 print(f"WARNING: Region folder '{region_folder}' not found.")
-                all_region_folders_exist = False
-        if all_region_folders_exist:
-            print("All salient region folders found!")
+                all_regions_have_data = False
+            if len(os.listdir(region_folder)) == 0:
+                print(f"WARNING: Region folder '{region_folder}' is empty.")
+                all_regions_have_data = False
+        if all_regions_have_data:
+            print("All salient region folders found and contain data.")
         else:
-            raise FileNotFoundError("One or more region folders not found.")
+            raise FileNotFoundError("One or more region folders not found or empty.")
 
     def load_geotiff_data(self, region: str) -> GeoTIFFData | None:
         """
