@@ -126,10 +126,6 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
 
     shape_prefix = lat_lon.shape[:-1]
     lat_lon = lat_lon.reshape(-1, 2)
-    query_min_lat, query_min_lon = np.min(lat_lon, axis=0)
-    query_max_lat, query_max_lon = np.max(lat_lon, axis=0)
-    assert query_min_lat >= -90 and query_max_lat <= 90, "Latitude out of bounds."
-    assert query_min_lon >= -180 and query_max_lon <= 180, "Longitude out of bounds."
 
     img_letters = np.full(lat_lon.shape[0], "", dtype=str)
     for letter in "ABCD":
@@ -142,17 +138,24 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
 
     pixel_colors = np.zeros((lat_lon.shape[0], 3), dtype=np.uint8)
     for img_name in set(img_names):
+        img_lat_lon = lat_lon[img_names == img_name, :]
+        img_query_min_lat, img_query_min_lon = np.min(img_lat_lon, axis=0)
+        img_query_max_lat, img_query_max_lon = np.max(img_lat_lon, axis=0)
+
+        img_min_lat, img_max_lat = IMG_LAT_BOUNDS[img_name[1]]
+        img_min_lon, img_max_lon = IMG_LON_BOUNDS[img_name[0]]
+        assert img_query_min_lat >= img_min_lat and img_query_max_lat <= img_max_lat, "Latitude out of bounds."
+        assert img_query_min_lon >= img_min_lon and img_query_max_lon <= img_max_lon, "Longitude out of bounds."
+
         img, transform = get_blue_marble_img(
             month,
             img_name,
-            (query_min_lat, query_max_lat, query_min_lon, query_max_lon),
+            (img_query_min_lat, img_query_max_lat, img_query_min_lon, img_query_max_lon),
         )
         assert img.dtype == pixel_colors.dtype, "Image dtype does not match pixel_colors dtype."
         height, width = img.shape[:2]
 
-        img_lat_lon = lat_lon[img_names == img_name, :]
         us, vs = transform * tuple(img_lat_lon.T)
-
         us = np.rint(us).astype(int)
         vs = np.rint(vs).astype(int)
         us[us == width] = width - 1
