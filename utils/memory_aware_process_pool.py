@@ -1,12 +1,12 @@
+from contextlib import nullcontext
 from multiprocessing import Array, Process, Queue
 from multiprocessing.sharedctypes import SynchronizedArray
-from time import sleep
+from time import perf_counter, sleep
 from typing import Callable, List, ParamSpec, Tuple, TypeVar
 
 import numpy as np
 import psutil
 from tqdm import tqdm
-from contextlib import nullcontext
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -200,10 +200,11 @@ class MemoryAwareProcessPool:
             open(output_log_path, "w") if output_log_path is not None else nullcontext()
         )
 
+        start_time = perf_counter()
         with pbar, output_log_file:
             if output_log_file is not None:
                 output_log_file.write(
-                    "Memory usage percentage,Number of results received,Started job,Terminated process\n"
+                    "Time elapsed,Memory usage percentage,Number of results received,Started job,Terminated process\n"
                 )
 
             while not np.all(completed_requests):
@@ -247,7 +248,7 @@ class MemoryAwareProcessPool:
 
                 if output_log_path is not None:
                     output_log_file.write(
-                        f"{memory_usage_percentage},{num_results_received},"
+                        f"{perf_counter() - start_time},{memory_usage_percentage},{num_results_received},"
                         f"{int(started_job)},{int(terminated_process)}\n"
                     )
 
