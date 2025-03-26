@@ -14,13 +14,13 @@ import argparse
 import os
 from functools import partial
 from itertools import product
-from multiprocessing import Pool, cpu_count
-from tqdm import tqdm
+from multiprocessing import cpu_count
 
 import cv2
 import numpy as np
 from brahe.constants import R_EARTH
 from scipy.spatial.transform import Rotation
+from tqdm import tqdm
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
@@ -61,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num_processes",
         type=int,
-        default=int(0.8 * cpu_count()),
+        default=int(0.5 * cpu_count()),
         help="Number of processes to use for generating training data in parallel.",
     )
 
