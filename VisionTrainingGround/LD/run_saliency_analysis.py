@@ -169,7 +169,7 @@ def generate_saliency_map(
             img_saliency_map.dtype == region_saliency_map.dtype
         ), f"Expected saliency map to have dtype {region_saliency_map.dtype}, but got {img_saliency_map.dtype}."
 
-        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
+        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))["lat_lon"]
         assert (
             lat_lon.shape[:2] == image.shape[:2]
         ), f"Lat/lon shape {lat_lon.shape[:2]} does not match image shape {image.shape[:2]}."

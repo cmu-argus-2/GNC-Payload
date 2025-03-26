@@ -255,7 +255,7 @@ def generate_yolo_labels(
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         height, width = image.shape[:2]
 
-        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))
+        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))["lat_lon"]
         assert (
             lat_lon.shape[:2] == image.shape[:2]
         ), f"Lat/lon shape {lat_lon.shape} does not match image shape {image.shape} for {file_prefix}."
