@@ -84,28 +84,31 @@ def get_blue_marble_img(
         max_u = int(np.ceil(max_u))
         min_v = int(np.floor(min_v))
         max_v = int(np.ceil(max_v))
-        min_lat = img_max_lat - (max_v / height) * (img_max_lat - img_min_lat)
-        max_lat = img_max_lat - (min_v / height) * (img_max_lat - img_min_lat)
-        min_lon = img_min_lon + (min_u / width) * (img_max_lon - img_min_lon)
-        max_lon = img_min_lon + (max_u / width) * (img_max_lon - img_min_lon)
 
-        scale_u = (max_u - min_u) / (max_lon - min_lon)
-        scale_v = (max_v - min_v) / (max_lat - min_lat)
+        roi = np.array(img.crop((min_u, min_v, max_u, max_v)))
 
-        # maps (lat, lon) to (u, v) (i.e. width, height)
-        transform = Affine(
-            # u = a * lat + b * lon + c, lon = min_lon -> u = 0, lon = max_lon -> u = max_u - min_u
-            a=0,
-            b=scale_u,
-            c=-scale_u * min_lon,
-            # v = d * lat + e * lon + f, lat = min_lat -> v = max_v - min_v, lat = max_lat -> v = 0
-            d=-scale_v,
-            e=0,
-            f=scale_v * max_lat,
-        )
+    # recompute bounds based on rounded pixel coordinates
+    min_lat = img_max_lat - (max_v / height) * (img_max_lat - img_min_lat)
+    max_lat = img_max_lat - (min_v / height) * (img_max_lat - img_min_lat)
+    min_lon = img_min_lon + (min_u / width) * (img_max_lon - img_min_lon)
+    max_lon = img_min_lon + (max_u / width) * (img_max_lon - img_min_lon)
 
-        roi = img.crop((min_u, min_v, max_u, max_v))
-        return np.array(roi), transform
+    scale_u = (max_u - min_u) / (max_lon - min_lon)
+    scale_v = (max_v - min_v) / (max_lat - min_lat)
+
+    # maps (lat, lon) to (u, v) (i.e. width, height)
+    transform = Affine(
+        # u = a * lat + b * lon + c, lon = min_lon -> u = 0, lon = max_lon -> u = max_u - min_u
+        a=0,
+        b=scale_u,
+        c=-scale_u * min_lon,
+        # v = d * lat + e * lon + f, lat = min_lat -> v = max_v - min_v, lat = max_lat -> v = 0
+        d=-scale_v,
+        e=0,
+        f=scale_v * max_lat,
+    )
+
+    return roi, transform
 
 
 def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None) -> np.ndarray:
@@ -126,10 +129,6 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
 
     shape_prefix = lat_lon.shape[:-1]
     lat_lon = lat_lon.reshape(-1, 2)
-    query_min_lat, query_min_lon = np.min(lat_lon, axis=0)
-    query_max_lat, query_max_lon = np.max(lat_lon, axis=0)
-    assert query_min_lat >= -90 and query_max_lat <= 90, "Latitude out of bounds."
-    assert query_min_lon >= -180 and query_max_lon <= 180, "Longitude out of bounds."
 
     img_letters = np.full(lat_lon.shape[0], "", dtype=str)
     for letter in "ABCD":
@@ -142,17 +141,24 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
 
     pixel_colors = np.zeros((lat_lon.shape[0], 3), dtype=np.uint8)
     for img_name in set(img_names):
+        img_lat_lon = lat_lon[img_names == img_name, :]
+        img_query_min_lat, img_query_min_lon = np.min(img_lat_lon, axis=0)
+        img_query_max_lat, img_query_max_lon = np.max(img_lat_lon, axis=0)
+
+        img_min_lat, img_max_lat = IMG_LAT_BOUNDS[img_name[1]]
+        img_min_lon, img_max_lon = IMG_LON_BOUNDS[img_name[0]]
+        assert img_query_min_lat >= img_min_lat and img_query_max_lat <= img_max_lat, "Latitude out of bounds."
+        assert img_query_min_lon >= img_min_lon and img_query_max_lon <= img_max_lon, "Longitude out of bounds."
+
         img, transform = get_blue_marble_img(
             month,
             img_name,
-            (query_min_lat, query_max_lat, query_min_lon, query_max_lon),
+            (img_query_min_lat, img_query_max_lat, img_query_min_lon, img_query_max_lon),
         )
         assert img.dtype == pixel_colors.dtype, "Image dtype does not match pixel_colors dtype."
         height, width = img.shape[:2]
 
-        img_lat_lon = lat_lon[img_names == img_name, :]
         us, vs = transform * tuple(img_lat_lon.T)
-
         us = np.rint(us).astype(int)
         vs = np.rint(vs).astype(int)
         us[us == width] = width - 1
