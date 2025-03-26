@@ -201,10 +201,6 @@ def generate_training_image(
     np.save(os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
 
 
-def unpack_and_call(func, args):
-    return func(*args)
-
-
 def main() -> None:
     """
     Generate training data using the EarthImageSimulator.
