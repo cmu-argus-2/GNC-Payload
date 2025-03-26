@@ -56,9 +56,9 @@ def generate_trajectory(args) -> None:
     initial_state = get_sso_orbit_state(
         starting_epoch, args.lat, args.lon, args.altitude, northwards=True
     )
-    inital_rot = np.eye(3)
+    initial_rot = np.eye(3)
     daytime.append(1 if is_over_daytime(starting_epoch, initial_state[0:3]) else 0)
-    data_manager.push_next_state(initial_state, inital_rot)
+    data_manager.push_next_state(initial_state, initial_rot)
 
     w = np.array(args.angular_velocity)
 

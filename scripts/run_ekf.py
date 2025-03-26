@@ -251,7 +251,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--meas_rate",
-        type=float,
+        type=int,
         default=120,
         help="The rate at which measurements are supposed to be taken. 120 means that a measurement"
         "is taken every 120 timesteps",
