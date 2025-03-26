@@ -365,10 +365,10 @@ class EarthImageSimulator:
 
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
-    ) -> Tuple[Frame, np.ndarray, np.ndarray]:
+    ) -> Tuple[Frame, np.ndarray]:
         """
         Simulate an Earth image given the satellite position, attitude, and camera model.
-        This method also returns the MGRS regions and latitudes/longitudes for each pixel.
+        This method also returns the latitudes and longitudes for each pixel.
 
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
@@ -378,8 +378,6 @@ class EarthImageSimulator:
         Returns:
             A Tuple containing:
             - The simulated Frame object.
-            - A numpy array of shape CameraModel.RESOLUTION containing the MGRS regions for each pixel,
-              or None if the pixel does not correspond to any MGRS region.
             - A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
               pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
@@ -425,7 +423,6 @@ class EarthImageSimulator:
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
-            mgrs_regions,
             lat_lon,
         )
 
@@ -443,7 +440,7 @@ class EarthImageSimulator:
         Returns:
             The simulated Frame object.
         """
-        frame, *_ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
+        frame, _ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
         return frame
 
     def display_image(self, image):
