@@ -8,7 +8,6 @@ from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 from affine import Affine
@@ -302,14 +301,3 @@ class EarthImageSimulator:
         """
         frame, *_ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
         return frame
-
-    def display_image(self, image):
-        """
-        Display the simulated image.
-
-        Parameters:
-            image (np.ndarray): Simulated RGB image.
-        """
-        plt.imshow(image)
-        plt.axis("off")
-        plt.show()

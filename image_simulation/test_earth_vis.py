@@ -1,5 +1,6 @@
 from time import perf_counter
 
+from matplotlib import pyplot as plt
 import numpy as np
 from brahe.constants import R_EARTH
 from scipy.spatial.transform import Rotation
@@ -99,7 +100,9 @@ def simulate_image(
 
     print(f"Simulated image is {'blank' if np.all(simulated_image == 0) else 'not blank'}")
     if display_image:
-        simulator.display_image(simulated_image)
+        plt.imshow(simulated_image)
+        plt.axis("off")
+        plt.show()
 
 
 if __name__ == "__main__":
