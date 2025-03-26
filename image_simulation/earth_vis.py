@@ -8,7 +8,6 @@ from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import label
 import rasterio
@@ -281,9 +280,7 @@ class GeoTIFFCache:
             if len(os.listdir(region_folder)) == 0:
                 print(f"WARNING: Region folder '{region_folder}' is empty.")
                 all_regions_have_data = False
-        if all_regions_have_data:
-            print("All salient region folders found and contain data.")
-        else:
+        if not all_regions_have_data:
             raise FileNotFoundError("One or more region folders not found or empty.")
 
     def load_geotiff_data(self, region: str) -> GeoTIFFData | None:
@@ -448,14 +445,3 @@ class EarthImageSimulator:
         """
         frame, _ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
         return frame
-
-    def display_image(self, image):
-        """
-        Display the simulated image.
-
-        Parameters:
-            image (np.ndarray): Simulated RGB image.
-        """
-        plt.imshow(image)
-        plt.axis("off")
-        plt.show()

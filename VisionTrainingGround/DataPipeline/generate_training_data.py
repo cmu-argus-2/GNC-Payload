@@ -28,7 +28,7 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.memory_aware_process_pool import MemoryAwareProcessPool
 
-LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npy"
+LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
 
 
 def parse_args() -> argparse.Namespace:
@@ -198,7 +198,9 @@ def generate_training_image(
         os.path.join(region_dir, f"{file_prefix}.png"),
         cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
     )
-    np.save(os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
+    np.savez_compressed(
+        os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon=lat_lon
+    )
 
 
 def main() -> None:
