@@ -142,6 +142,7 @@ class MemoryAwareProcessPool:
         func: Callable[P, R],
         requests: List[P.args],
         display_progress_bar: bool = True,
+        output_log_path: str | None = None,
     ) -> Tuple[np.ndarray, List[R | Exception]]:
         """
         Apply a function to each set of arguments from the provided list, in parallel using the worker pool.
@@ -150,6 +151,7 @@ class MemoryAwareProcessPool:
         :param func: The function to apply. Must be pickleable.
         :param requests: A list where each element is an iterable of arguments to call the function with.
         :param display_progress_bar: Whether to display a progress bar.
+        :param output_log_path: The path to write the output log to. If None, no log will be written.
         :return: A tuple containing:
                  - A numpy array of dtype bool indicating whether each request finished without an exception.
                  - A list of result objects or exceptions from each request.
@@ -194,9 +196,22 @@ class MemoryAwareProcessPool:
             if display_progress_bar
             else nullcontext()
         )
+        output_log_file = (
+            open(output_log_path, "w") if output_log_path is not None else nullcontext()
+        )
 
-        with pbar:
+        with pbar, output_log_file:
+            if output_log_file is not None:
+                output_log_file.write(
+                    "Memory usage percentage,Number of results received,Started job,Terminated process\n"
+                )
+
             while not np.all(completed_requests):
+                # for logging
+                num_results_received = 0
+                started_job = False
+                terminated_process = False
+
                 while not self.result_queue.empty():
                     job_id, success, result = self.result_queue.get()
                     request_id = job_ids_to_request_ids[job_id]
@@ -206,6 +221,7 @@ class MemoryAwareProcessPool:
                     request_results[request_id] = result
                     del job_ids_to_request_ids[job_id]
 
+                    num_results_received += 1
                     if display_progress_bar:
                         pbar.update(1)
 
@@ -224,9 +240,16 @@ class MemoryAwareProcessPool:
                         self.job_queue.put((next_job_id, func, requests[request_id]))
                         job_ids_to_request_ids[next_job_id] = request_id
                         next_job_id += 1
+                        started_job = True
 
                 elif memory_usage_percentage > self.high_memory_usage_threshold:
-                    terminate_process()
+                    terminated_process = terminate_process()
+
+                if output_log_path is not None:
+                    output_log_file.write(
+                        f"{memory_usage_percentage},{num_results_received},"
+                        f"{int(started_job)},{int(terminated_process)}\n"
+                    )
 
                 sleep(self.poll_interval)
 
