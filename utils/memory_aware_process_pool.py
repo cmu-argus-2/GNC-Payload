@@ -1,6 +1,7 @@
+from contextlib import nullcontext
 from multiprocessing import Array, Process, Queue
 from multiprocessing.sharedctypes import SynchronizedArray
-from time import sleep
+from time import perf_counter, sleep
 from typing import Callable, List, ParamSpec, Tuple, TypeVar
 
 import numpy as np
@@ -137,7 +138,11 @@ class MemoryAwareProcessPool:
         )
 
     def map(
-        self, func: Callable[P, R], requests: List[P.args], progress_bar: bool = True
+        self,
+        func: Callable[P, R],
+        requests: List[P.args],
+        display_progress_bar: bool = True,
+        output_log_path: str | None = None,
     ) -> Tuple[np.ndarray, List[R | Exception]]:
         """
         Apply a function to each set of arguments from the provided list, in parallel using the worker pool.
@@ -145,7 +150,8 @@ class MemoryAwareProcessPool:
 
         :param func: The function to apply. Must be pickleable.
         :param requests: A list where each element is an iterable of arguments to call the function with.
-        :param progress_bar: Whether to display a progress bar.
+        :param display_progress_bar: Whether to display a progress bar.
+        :param output_log_path: The path to write the output log to. If None, no log will be written.
         :return: A tuple containing:
                  - A numpy array of dtype bool indicating whether each request finished without an exception.
                  - A list of result objects or exceptions from each request.
@@ -159,62 +165,93 @@ class MemoryAwareProcessPool:
         # mapping for jobs that are currently being processed
         job_ids_to_request_ids: dict[int, int] = {}
 
+        def terminate_process() -> bool:
+            """
+            Terminates the worker process with the largest job ID to free up memory.
+            If no jobs are in progress, this function does nothing.
+
+            The rationale is that the worker process with the largest job ID has been running for the least amount of
+            time, so it is the most likely to be able to be terminated without losing much progress.
+
+            :return: True if a process was terminated, False otherwise.
+            """
+            with self.worker_job_ids.get_lock():
+                worker_id: int = np.argmax(list(self.worker_job_ids))
+                job_id = self.worker_job_ids[worker_id]
+                if job_id == -1:
+                    return False
+
+                self.worker_processes[worker_id].terminate()
+                self.worker_processes[worker_id].join()
+
+            # these operations have no potential for race conditions, so they don't need to be in the with block
+            del job_ids_to_request_ids[job_id]
+            self.worker_job_ids[worker_id] = -1
+            self.worker_processes[worker_id] = self.make_new_worker_process(worker_id)
+            self.worker_processes[worker_id].start()
+            return True
+
         pbar = (
             tqdm(total=num_jobs, desc="Processing requests", unit="request")
-            if progress_bar
-            else None
+            if display_progress_bar
+            else nullcontext()
+        )
+        output_log_file = (
+            open(output_log_path, "w") if output_log_path is not None else nullcontext()
         )
 
-        while not np.all(completed_requests):
-            sleep(self.poll_interval)
+        start_time = perf_counter()
+        with pbar, output_log_file:
+            if output_log_file is not None:
+                output_log_file.write(
+                    "Time elapsed,Memory usage percentage,Number of results received,Started job,Terminated process\n"
+                )
 
-            while not self.result_queue.empty():
-                job_id, success, result = self.result_queue.get()
-                request_id = job_ids_to_request_ids[job_id]
+            while not np.all(completed_requests):
+                # for logging
+                num_results_received = 0
+                started_job = False
+                terminated_process = False
 
-                completed_requests[request_id] = True
-                successful_requests[request_id] = success
-                request_results[request_id] = result
-                del job_ids_to_request_ids[job_id]
+                while not self.result_queue.empty():
+                    job_id, success, result = self.result_queue.get()
+                    request_id = job_ids_to_request_ids[job_id]
 
-                if pbar is not None:
-                    pbar.update(1)
+                    completed_requests[request_id] = True
+                    successful_requests[request_id] = success
+                    request_results[request_id] = result
+                    del job_ids_to_request_ids[job_id]
 
-            memory_usage_percentage = MemoryAwareProcessPool.get_memory_usage_percentage()
+                    num_results_received += 1
+                    if display_progress_bar:
+                        pbar.update(1)
 
-            if memory_usage_percentage < self.low_memory_usage_threshold:
-                in_progress_requests = np.zeros(num_jobs, dtype=bool)
-                for request_id in job_ids_to_request_ids.values():
-                    in_progress_requests[request_id] = True
+                memory_usage_percentage = MemoryAwareProcessPool.get_memory_usage_percentage()
 
-                eligible_requests = np.logical_and(~completed_requests, ~in_progress_requests)
-                if np.any(eligible_requests):
-                    # get the first eligible request
-                    request_id = np.argmax(eligible_requests)
+                if memory_usage_percentage < self.low_memory_usage_threshold:
+                    in_progress_requests = np.zeros(num_jobs, dtype=bool)
+                    for request_id in job_ids_to_request_ids.values():
+                        in_progress_requests[request_id] = True
 
-                    self.job_queue.put((next_job_id, func, requests[request_id]))
-                    job_ids_to_request_ids[next_job_id] = request_id
-                    next_job_id += 1
+                    eligible_requests = np.logical_and(~completed_requests, ~in_progress_requests)
+                    if np.any(eligible_requests):
+                        # get the first eligible request
+                        request_id = np.argmax(eligible_requests)
 
-            elif memory_usage_percentage > self.high_memory_usage_threshold:
-                with self.worker_job_ids.get_lock():
-                    # terminate the worker process with the largest job ID, since it has been running for the least
-                    # amount of time
-                    worker_id: int = np.argmax(list(self.worker_job_ids))
-                    job_id = self.worker_job_ids[worker_id]
-                    if job_id == -1:
-                        # no workers are currently working on anything, so there's nothing we can do to free up memory
-                        continue
+                        self.job_queue.put((next_job_id, func, requests[request_id]))
+                        job_ids_to_request_ids[next_job_id] = request_id
+                        next_job_id += 1
+                        started_job = True
 
-                    self.worker_processes[worker_id].terminate()
-                    self.worker_processes[worker_id].join()
+                elif memory_usage_percentage > self.high_memory_usage_threshold:
+                    terminated_process = terminate_process()
 
-                # these operations have no potential for race conditions, so they don't need to be in the with block
-                del job_ids_to_request_ids[job_id]
-                self.worker_job_ids[worker_id] = -1
-                self.worker_processes[worker_id] = self.make_new_worker_process(worker_id)
-                self.worker_processes[worker_id].start()
+                if output_log_path is not None:
+                    output_log_file.write(
+                        f"{perf_counter() - start_time},{memory_usage_percentage},{num_results_received},"
+                        f"{int(started_job)},{int(terminated_process)}\n"
+                    )
 
-        if pbar is not None:
-            pbar.close()
+                sleep(self.poll_interval)
+
         return successful_requests, request_results
