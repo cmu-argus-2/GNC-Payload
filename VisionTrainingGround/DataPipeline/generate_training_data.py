@@ -28,7 +28,6 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.memory_aware_process_pool import MemoryAwareProcessPool
 
-MGRS_REGIONS_OUTPUT_FILE_SUFFIX = "_mgrs_regions.npy"
 LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npy"
 
 
@@ -114,7 +113,7 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
         os.makedirs(region_dir)
         return True
 
-    conflicting_suffixes = [".png", MGRS_REGIONS_OUTPUT_FILE_SUFFIX, LAT_LON_OUTPUT_FILE_SUFFIX]
+    conflicting_suffixes = [".png", LAT_LON_OUTPUT_FILE_SUFFIX]
     conflicting_file_names = [
         file_name
         for file_name in os.listdir(region_dir)
@@ -188,7 +187,7 @@ def generate_training_image(
     )
 
     image_simulator = EarthImageSimulator(GeoTIFFCache(max_cache_size=0))
-    frame, mgrs_regions, lat_lon = image_simulator.simulate_image_for_training(
+    frame, lat_lon = image_simulator.simulate_image_for_training(
         ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
     )
 
@@ -198,10 +197,6 @@ def generate_training_image(
     cv2.imwrite(
         os.path.join(region_dir, f"{file_prefix}.png"),
         cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
-    )
-    np.save(
-        os.path.join(region_dir, f"{file_prefix}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"),
-        mgrs_regions,
     )
     np.save(os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
 
