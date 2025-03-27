@@ -15,7 +15,7 @@ The script will generate the following contents in the output directory:
 - /output_dir
     - /experiment_name
         -/images
-            - img<starting_timestamp>_<camera_name>.npy
+            - img_<timestep>_<camera_name>.npy
 """
 
 import os
@@ -54,15 +54,14 @@ def image_vis(args) -> None:
         os.makedirs(f"output_dir/{args.name}/images")
 
     for i, state in enumerate(trajectory_gt):
-        # Only run the earth image visualizer if it's a measurement step and it's daytime
+        # Only run the earth image visualizer if it's a measurement step and daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
-            curr_time = datetime.now()
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 img = earth_image_sim.simulate_image(
                     state[0:3], attitude_gt[i], camera_model_manager[camera_name]
                 )
                 print(img.timestamp)
-                store_str = f"img_{curr_time}_{camera_name}"
+                store_str = f"img_{i}_{camera_name}"
                 np.save(f"output_dir/{args.name}/images/{store_str}.npy", img.image)
 
 
