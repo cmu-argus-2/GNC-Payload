@@ -72,10 +72,12 @@ class Dynamics:
             / config["satellite"]["mass"]
         )
 
-        if self.use_drag or self.use_sun_grav or self.use_moon_grav:
-            self.require_epoch = True
-        else:
-            self.require_epoch = False
+    @property
+    def require_epoch(self) -> bool:
+        """
+        :return: True if the configured perturbations require the current time epoch, False otherwise.
+        """
+        return self.use_drag or self.use_sun_grav or self.use_moon_grav
 
     @staticmethod
     def state_derivative(x: np.ndarray) -> np.ndarray:
