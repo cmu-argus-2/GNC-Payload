@@ -19,7 +19,7 @@ The script will generate the following contents in the output directory:
     - /experiment_name
         - ekf_state_data_.pkl
 
-The state data contains the following fields:
+The state data contains a dictionary with the following fields:
     - timestep: The time step
     - prior_position: The prior position estimate
     - prior_velocity: The prior velocity estimate
@@ -35,9 +35,9 @@ The state data contains the following fields:
 
 """
 
+import argparse
 import os
 import pickle
-from argparse import ArgumentParser
 from time import time
 
 import brahe
@@ -59,6 +59,48 @@ from utils.imu_utils import imu_init
 from utils.orbit_utils import is_over_daytime
 
 # pylint: disable=too-many-locals
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+    :return: The parsed arguments.
+    """
+    parser = argparse.ArgumentParser(description="Run the EKF simulation.")
+
+    parser.add_argument(
+        "--f",
+        type=float,
+        default=1,
+        help="Frequency of the spacecraft trajectory",
+    )
+    parser.add_argument(
+        "--mission_duration",
+        type=float,
+        default=2700,
+        help="Duration of the spacecraft mission for which we are generating the trajectory [s]",
+    )
+    parser.add_argument(
+        "--name",
+        type=str,
+        default="test",
+        help="Name of the experiment",
+    )
+    parser.add_argument(
+        "--angular_velocity",
+        type=list,
+        default=[0, 0, np.pi / 18],
+        help="Angular velocity of the spacecraft [rad/s]",
+    )
+    parser.add_argument(
+        "--meas_rate",
+        type=int,
+        default=120,
+        help="The rate at which measurements are supposed to be taken. 120 means that a measurement"
+        "is taken every 120 timesteps",
+    )
+
+    return parser.parse_args()
 
 
 def run_simulation(args) -> None:
@@ -223,41 +265,6 @@ def run_simulation(args) -> None:
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Run the EKF simulation.")
-
-    parser.add_argument(
-        "--f",
-        type=float,
-        default="1",
-        help="Frequency of the spacecraft trajectory",
-    )
-    parser.add_argument(
-        "--mission_duration",
-        type=float,
-        default="2700",
-        help="Duration of the spacecraft mission for which we are generating the trajectory [s]",
-    )
-    parser.add_argument(
-        "--name",
-        type=str,
-        default="test",
-        help="Name of the experiment",
-    )
-    parser.add_argument(
-        "--angular_velocity",
-        type=list,
-        default=[0, 0, np.pi / 18],
-        help="Angular velocity of the spacecraft [rad/s]",
-    )
-    parser.add_argument(
-        "--meas_rate",
-        type=int,
-        default=120,
-        help="The rate at which measurements are supposed to be taken. 120 means that a measurement"
-        "is taken every 120 timesteps",
-    )
-
-    args = parser.parse_args()
-
+    args = parse_args()
     load_brahe_data_files_if_needed()
     run_simulation(args)
