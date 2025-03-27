@@ -12,6 +12,10 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+import sys
+root = "/home/frederik/cmu/GNC-Payload"
+sys.path.append(root)
+
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
