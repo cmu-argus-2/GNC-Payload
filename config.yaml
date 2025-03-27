@@ -3,7 +3,7 @@
 satellite:
       # physical properties
       mass : 1.280689 # kg
-      area : 0.01 # face area m^2
+      area : 0.00000001 # face area km^2
       inertia : [[3.544e-3, -18.729157e-6, -5.246671e-6], [-18.729157e-6, 3.590e-3, 19.133916e-6], [-5.246671e-6, 19.133916e-6, 4.120e-3]]
       Cd : 2.2 # Drag coefficient
 
@@ -26,22 +26,22 @@ satellite:
                         "name": "x+",
                         # TODO: double check if the cameras are rotated by 180 degrees (i.e. we might get the images upside down as is)
                         "body_R_camera": [ [ 0,0,1 ], [ -1,0,0 ], [ 0,-1,0 ] ],  # rotation matrix representing a transformation from camera-frame to body-frame
-                        "t_body_to_camera": [ 0.05116, -0.000198, -0.02927 ],  # m, position of camera in the satellite's body frame
+                        "t_body_to_camera": [ 0.00005116, -0.000000198, -0.00002927 ],  # m, position of camera in the satellite's body frame
                   },
                   {
                         "name": "y+",
                         "body_R_camera": [ [ 1,0,0 ], [ 0,0,1 ], [ 0,-1,0 ] ],
-                        "t_body_to_camera": [ -0.00018, 0.051362, -0.02927 ],
+                        "t_body_to_camera": [ -0.00000018, 0.000051362, -0.00002927 ],
                   },
                   {
                         "name": "x-",
                         "body_R_camera": [ [ 0,0,-1 ], [ 1,0,0 ], [ 0,-1,0 ] ],
-                        "t_body_to_camera": [ -0.05214, 0.000022, -0.02927 ],
+                        "t_body_to_camera": [ -0.00005214, 0.000000022, -0.00002927 ],
                   },
                   {
                         "name": "y-",
                         "body_R_camera": [ [ -1,0,0 ], [ 0,0,-1 ], [ 0,-1,0 ] ],
-                        "t_body_to_camera": [ -0.00030, -0.051438, -0.02927 ],
+                        "t_body_to_camera": [ -0.00000030, -0.000051438, -0.00002927 ],
                   },
             ]
 

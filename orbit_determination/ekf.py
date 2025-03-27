@@ -171,7 +171,7 @@ class EKF:
         # Select a random fraction of the measurements to use to speed up computations
         mask = np.random.choice([True, False], size=z[0].shape[0], p=[0.04, 0.96])
         z0 = z[0][mask]
-        z1 = z[1][mask]
+        z1 =(z[1][mask]) / 1e3
 
         measurement_camera_names = measurement_camera_names[mask]
 

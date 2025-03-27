@@ -33,6 +33,7 @@ from dynamics.third_body_dynamics import (
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
 
+GM_EARTH = GM_EARTH / 1e9 # Convert to km^3/s^2
 
 class Dynamics:
     """
