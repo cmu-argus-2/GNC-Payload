@@ -53,9 +53,9 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
+from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
-from utils.imu_utils import imu_init
 from utils.orbit_utils import is_over_daytime
 
 # pylint: disable=too-many-locals
@@ -182,7 +182,7 @@ def run_simulation(args) -> None:
     )
 
     # Initialize IMU and EKF
-    imu = imu_init(dt)
+    imu = IMU.get_default_imu(dt)
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
