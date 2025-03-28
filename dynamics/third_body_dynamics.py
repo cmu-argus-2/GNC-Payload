@@ -7,6 +7,8 @@ import numpy as np
 from brahe import GM_MOON, GM_SUN
 from brahe.epoch import Epoch
 
+GM_MOON = GM_MOON / 1e9  # km^3/s^2
+GM_SUN = GM_SUN / 1e9  # km^3/s^2
 
 def third_body_acceleration(r_sat: np.ndarray, r_body: np.ndarray, mu: float) -> np.ndarray:
     """

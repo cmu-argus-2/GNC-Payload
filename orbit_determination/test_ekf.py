@@ -94,11 +94,11 @@ def run_simulation() -> None:
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
         config=config,
-        use_drag=False,
-        use_j2=False,
+        use_drag=True,
+        use_j2=True,
         use_j34=False,
-        use_sun_grav=False,
-        use_moon_grav=False,
+        use_sun_grav=True,
+        use_moon_grav=True,
     )
     ekf_dynamics = EKFDynamics(
         config=config,
@@ -235,7 +235,7 @@ def run_simulation() -> None:
     plt.plot(sigma_low, "r--")
     plt.legend(["x", "y", "z"])
     plt.xlabel("Time step")
-    plt.ylabel("Position error [m]")
+    plt.ylabel("Position error [km]")
     plt.title("EKF Position Error")
 
     plt.figure()
@@ -243,7 +243,7 @@ def run_simulation() -> None:
     plt.plot(vel_error)
     plt.legend(["x", "y", "z"])
     plt.xlabel("Time step")
-    plt.ylabel("Velocity error [m/s]")
+    plt.ylabel("Velocity error [km/s]")
     plt.title("EKF Velocity Error")
 
     plt.figure()
@@ -251,7 +251,7 @@ def run_simulation() -> None:
     plt.plot(ua_error)
     plt.legend(["x", "y", "z"])
     plt.xlabel("Time step")
-    plt.ylabel("Unmodelled acc error [m/s^2]")
+    plt.ylabel("Unmodelled acc error [km/s^2]")
     plt.title("EKF Unmodelled Acceleration")
 
     plt.figure()
