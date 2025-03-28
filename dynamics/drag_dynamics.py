@@ -64,7 +64,11 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
 
 def drag_scalar_estimate(x: np.ndarray, d_est: float, drag_const: float) -> np.ndarray:
     """
-    Compute the drag acceleration using a scalar drag estimate.
+    Compute the drag acceleration using a scalar drag estimate. 
+    The formulation is based on the formulation provided by Montebruc, and Gill in
+    Satellite Orbits: Models, Methods, and Applications in Chapter 3.5.1 page 86
+    The Upper Atmosphere Model. The model has been simplified to use a constant REF_HEIGHT
+    Rather than the density scale height calculation that is provided.
 
     :param x: Vector consisting of position and velocity ([m, m/s])
     :param dest: Drag scalar estimate term
