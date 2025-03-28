@@ -52,6 +52,9 @@ class RegionClassifier:
         Logger.log("INFO", "Initializing RegionClassifier.")
 
         # Set number of classes
+        assert num_classes == RegionClassifier.NUM_CLASSES or num_classes is None, (
+            f"Number of classes must match the default number of classes ({RegionClassifier.NUM_CLASSES}) or be None."
+        )
         self.num_classes = num_classes if num_classes is not None else RegionClassifier.NUM_CLASSES
         RegionClassifier.NUM_CLASSES = (
             self.num_classes
