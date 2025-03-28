@@ -1,7 +1,7 @@
 """
 Image Classification Module using EfficientNet.
 
-This module defines the `RegionClassifier` class for training, 
+This module defines the `TrainRegionClassifier` class for training, 
 evaluating, and validating an image classification model.  
 It leverages EfficientNet-B0 as the backbone, supports logging with Weights & Biases (wandb),  
 and provides utilities for dataset preparation, training, and performance evaluation.
@@ -28,7 +28,7 @@ from torchvision import transforms
 from vision_inference.region_classifier import RegionClassifier as BaseRegionClassifier
 
 
-class RegionClassifier(BaseRegionClassifier):
+class TrainRegionClassifier(BaseRegionClassifier):
     """
     A deep learning-based multi-label image classifier using EfficientNet.
 
@@ -77,7 +77,7 @@ class RegionClassifier(BaseRegionClassifier):
         save_plot_path: Optional[str] = None,
     ) -> None:
         """
-        Initializes the RegionClassifier for training.
+        Initializes the TrainRegionClassifier for training.
 
         Args:
             data_path (str): Path to the dataset.
@@ -107,7 +107,7 @@ class RegionClassifier(BaseRegionClassifier):
         if selected_classes is None:
             # Use all regions from configuration using the parent class's method
             try:
-                selected_classes = RegionClassifier.load_region_ids()
+                selected_classes = BaseRegionClassifier.load_region_ids()
                 print(f"Using {len(selected_classes)} regions from configuration")
             except Exception as e:
                 # Fallback to directory scanning if config loading fails
