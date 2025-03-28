@@ -11,10 +11,6 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
-import sys
-root = "/home/frederik/cmu/GNC-Payload"
-sys.path.append(root)
-
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -98,8 +94,8 @@ def run_simulation() -> None:
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
         config=config,
-        use_drag=True,
-        use_j2=True,
+        use_drag=False,
+        use_j2=False,
         use_j34=False,
         use_sun_grav=False,
         use_moon_grav=False,
@@ -123,7 +119,7 @@ def run_simulation() -> None:
         # error ranges are in meters and m/s
         r=initial_state[0:3] + np.random.normal(0, 1, 3),
         v=initial_state[3:6] + np.random.normal(0, 1e-2, 3),
-        ua=np.random.normal(0, 1e-6, 3) * ua_scale,
+        ua=np.random.normal(0, 1e-8, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,

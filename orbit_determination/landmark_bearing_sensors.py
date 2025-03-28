@@ -235,7 +235,7 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
         camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
 
         # TODO: optimize this by using the MGRS regions to filter out landmarks that are definitely not visible
-        all_landmarks_ecef = np.concatenate(list(self.region_landmarks_ecef.values()), axis=0)
+        all_landmarks_ecef = np.concatenate(list(self.region_landmarks_ecef.values()), axis=0) / 1e3
 
         is_same_hemisphere = all_landmarks_ecef @ camera_position_ecef > 0
         hemisphere_landmarks_ecef = all_landmarks_ecef[is_same_hemisphere, :]
