@@ -12,6 +12,7 @@ import numpy as np
 from scipy.ndimage import label
 import rasterio
 from affine import Affine
+from rasterio.crs import CRS
 
 from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -20,6 +21,7 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import (
     calculate_mgrs_zones,
     ecef_to_lat_lon,
+    get_MGRS_grid,
     intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
@@ -37,7 +39,10 @@ class GeoTIFFData:
         transform: The affine transformation matrix for the GeoTIFF file which maps a tuple of (latitudes, longitudes)
                    to a tuple of (us, vs) (i.e. pixel coordinates).
     """
+
     SWAP_INPUTS_AFFINE: ClassVar[Affine] = Affine(a=0, b=1, c=0, d=1, e=0, f=0)
+    SUPPORTED_DTYPES: ClassVar[Tuple[type, ...]] = (np.uint8, np.float32)
+    EPSG_4326_CRS: ClassVar[CRS] = CRS.from_epsg(4326)
 
     image_path: str
     image_data: np.ndarray
@@ -53,10 +58,24 @@ class GeoTIFFData:
 
         Returns:
             GeoTIFFData: The GeoTIFFData contained in the file.
+        Raises:
+            ValueError: If the GeoTIFF file contains a coordinate reference system other than GeoTIFFData.EPSG_4326_CRS,
+                        or if the data type of the image is not in GeoTIFFData.SUPPORTED_DTYPES.
         """
         with rasterio.open(file_path) as src:
+            if src.crs != GeoTIFFData.EPSG_4326_CRS:
+                raise ValueError(
+                    f"GeoTIFF file located at {file_path} contains "
+                    f"an unsupported coordinate reference system: {src.crs}"
+                )
             image_data = src.read()
             transform: Affine = src.transform
+
+        if image_data.dtype not in GeoTIFFData.SUPPORTED_DTYPES:
+            raise ValueError(
+                f"Unsupported data type {image_data.dtype}. Supported data types are: "
+                f"{', '.join(str(dtype) for dtype in GeoTIFFData.SUPPORTED_DTYPES)}."
+            )
 
         # convert from (channels, height, width) to (height, width, channels)
         image_data = np.moveaxis(image_data, 0, -1)
@@ -67,6 +86,40 @@ class GeoTIFFData:
         transform = transform * GeoTIFFData.SWAP_INPUTS_AFFINE
 
         return GeoTIFFData(file_path, image_data, transform)
+
+    def save(self) -> None:
+        """
+        Save the contents of this GeoTIFFData object to the underlying file specified by self.image_path.
+        Note that this will overwrite any existing file at that location.
+
+        Note that this assumes that self.transform maps to pixel coordinates from the EPSG:4326 coordinate reference
+        system, which corresponds to (latitude, longitude) coordinates in degrees using the WGS 84 ellipsoid.
+        """
+        assert self.dtype in GeoTIFFData.SUPPORTED_DTYPES, (
+            f"Unsupported data type {self.dtype}. Supported data types are: "
+            f"{', '.join(str(dtype) for dtype in GeoTIFFData.SUPPORTED_DTYPES)}."
+        )
+        height, width, num_channels = self.image_data.shape
+
+        # convert from (height, width, channels) to (channels, height, width)
+        image_data = np.moveaxis(self.image_data, -1, 0)
+
+        # switch from (lat, lon) -> (u, v) to (lon, lat) -> (u, v)
+        transform = self.transform * GeoTIFFData.SWAP_INPUTS_AFFINE
+        # switch from (lon, lat) -> (u, v) to (u, v) -> (lon, lat)
+        transform = ~transform
+
+        metadata = {
+            "driver": "GTiff",
+            "height": height,
+            "width": width,
+            "count": num_channels,
+            "dtype": self.dtype,
+            "crs": GeoTIFFData.EPSG_4326_CRS,
+            "transform": transform,
+        }
+        with rasterio.open(self.image_path, "w", **metadata) as dst:
+            dst.write(image_data)
 
     @property
     def num_channels(self) -> int:
@@ -88,6 +141,60 @@ class GeoTIFFData:
         """
         return self.image_data.dtype
 
+    def remap_to_mgrs_region(self, region_id: str) -> None:
+        """
+        Remap this GeoTIFFData to represent the specified MGRS region.
+        Note that this overwrites the current transform, which is loaded from the underlying GeoTIFF file by default.
+
+        :param region_id: The MGRS region ID to remap this GeoTIFFData to.
+        """
+        height, width, _ = self.image_data.shape
+        min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+        scale_u = width / (max_lon - min_lon)
+        scale_v = height / (max_lat - min_lat)
+
+        # maps (lat, lon) to (u, v) (i.e. width, height)
+        self.transform = Affine(
+            # u = a * lat + b * lon + c, lon = min_lon -> u = 0, lon = max_lon -> u = width
+            a=0,
+            b=scale_u,
+            c=-min_lon * scale_u,
+            # v = d * lat + e * lon + f, lat = min_lat -> v = height, lat = max_lat -> v = 0
+            d=-scale_v,
+            e=0,
+            f=max_lat * scale_v,
+        )
+
+    def get_pixel_coordinates(
+        self, lat_lon: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Get the pixel coordinates corresponding to the given latitudes and longitudes.
+        A mask is also returned to indicate which output pixel coordinates contain data that is in bounds.
+
+        :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
+        :return: A Tuple containing:
+                 - A numpy array of shape lat_lon.shape[:-1] containing the horizontal pixel coordinates, u.
+                 - A numpy array of shape lat_lon.shape[:-1] containing the vertical pixel coordinates, v.
+                 - A numpy array of shape lat_lon.shape[:-1] indicating which pixel coordinates contain data that is in
+                   bounds.
+        """
+        assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
+
+        shape_prefix = lat_lon.shape[:-1]
+        lat_lon = lat_lon.reshape(-1, 2)
+
+        us, vs = self.transform * tuple(lat_lon.T)
+
+        height, width, _ = self.image_data.shape
+        us = np.rint(us).astype(int).reshape(shape_prefix)
+        vs = np.rint(vs).astype(int).reshape(shape_prefix)
+        us[us == width] = width - 1
+        vs[vs == height] = height - 1
+
+        valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
+        return us, vs, valid_mask
+
     def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
@@ -98,23 +205,11 @@ class GeoTIFFData:
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
         :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
         """
-        assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
+        us, vs, valid_mask = self.get_pixel_coordinates(lat_lon)
 
-        shape_prefix = lat_lon.shape[:-1]
-        lat_lon = lat_lon.reshape(-1, 2)
-
-        us, vs = self.transform * tuple(lat_lon.T)
-        us = np.floor(us).astype(int)
-        vs = np.floor(vs).astype(int)
-
-        height, width, num_channels = self.image_data.shape
-        valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
-
-        num_pixels = np.prod(shape_prefix)
-        image_flat = np.zeros((num_pixels, num_channels), dtype=self.image_data.dtype)
-        image_flat[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
-
-        return image_flat.reshape(*shape_prefix, num_channels)
+        image = np.zeros(lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype)
+        image[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
+        return image
 
 
 class GeoTIFFCache:
@@ -269,10 +364,10 @@ class EarthImageSimulator:
 
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
-    ) -> Tuple[Frame, np.ndarray, np.ndarray]:
+    ) -> Tuple[Frame, np.ndarray]:
         """
         Simulate an Earth image given the satellite position, attitude, and camera model.
-        This method also returns the MGRS regions and latitudes/longitudes for each pixel.
+        This method also returns the latitudes and longitudes for each pixel.
 
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
@@ -282,8 +377,6 @@ class EarthImageSimulator:
         Returns:
             A Tuple containing:
             - The simulated Frame object.
-            - A numpy array of shape CameraModel.RESOLUTION containing the MGRS regions for each pixel,
-              or None if the pixel does not correspond to any MGRS region.
             - A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
               pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
@@ -331,7 +424,6 @@ class EarthImageSimulator:
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
-            mgrs_regions,
             lat_lon,
         )
 
@@ -349,5 +441,5 @@ class EarthImageSimulator:
         Returns:
             The simulated Frame object.
         """
-        frame, *_ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
+        frame, _ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
         return frame

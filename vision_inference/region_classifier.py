@@ -23,7 +23,7 @@ from torch import nn
 from torchvision import transforms
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
-from utils.config_utils import load_config
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -38,8 +38,7 @@ class RegionClassifier:
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
-    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../models/rc"))
-    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, "model.pth")
+    MODEL_WEIGHTS_RELATIVE_PATH = "rc_model_weights.pth"
 
     def __init__(self):
         Logger.log("INFO", "Initializing RegionClassifier.")
@@ -50,7 +49,7 @@ class RegionClassifier:
 
             # Load Custom model weights
             self.model.load_state_dict(
-                torch.load(RegionClassifier.MODEL_WEIGHTS_PATH, map_location=self.device)
+                torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
             )
             self.model.eval()
             Logger.log("INFO", "Model loaded successfully.")
@@ -71,6 +70,17 @@ class RegionClassifier:
         )
 
         self.region_ids = RegionClassifier.load_region_ids()
+
+    @staticmethod
+    def get_model_weights_path() -> str:
+        """
+        Get the path to the model weights file.
+
+        Returns:
+            The path to the model weights file.
+        """
+        models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
+        return os.path.join(models_dir, RegionClassifier.MODEL_WEIGHTS_RELATIVE_PATH)
 
     @staticmethod
     def load_region_ids() -> List[str]:
