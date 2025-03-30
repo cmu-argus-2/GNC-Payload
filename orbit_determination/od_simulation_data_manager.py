@@ -37,9 +37,15 @@ class ODSimulationDataManager:
     starting_epoch: Epoch
     dt: float
 
+    # ground truth data
     states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 6)))
     eci_Rs_body: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
+    gyro_biases: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
 
+    # IMU measurements
+    gyro_measurements: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+
+    # landark bearing measurements
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     measurement_camera_names: np.ndarray = field(default_factory=lambda: np.array([], dtype=str))
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
@@ -108,6 +114,16 @@ class ODSimulationDataManager:
         assert (
             self.states.shape[0] == self.eci_Rs_body.shape[0]
         ), "states and eci_Rs_body must have the same number of entries"
+        assert len(self.gyro_biases.shape) == 2, "gyro_biases must be a 2D array"
+        assert self.gyro_biases.shape[1] == 3, "gyro_biases must have shape (N, 3)"
+        assert (
+            self.states.shape[0] == self.gyro_biases.shape[0]
+        ), "states and gyro_biases must have the same number of entries"
+        assert len(self.gyro_measurements.shape) == 2, "gyro_measurements must be a 2D array"
+        assert self.gyro_measurements.shape[1] == 3, "gyro_measurements must have shape (N, 3)"
+        assert (
+            self.states.shape[0] == self.gyro_measurements.shape[0]
+        ), "states and gyro_measurements must have the same number of entries"
 
         assert len(self.measurement_indices.shape) == 1, "measurement_indices must be a 1D array"
         assert (
@@ -131,16 +147,26 @@ class ODSimulationDataManager:
             np.diff(self.measurement_indices) >= 0
         ), "measurement_indices must be non-strictly increasing"
 
-    def push_next_state(self, state: np.ndarray, eci_R_body: np.ndarray) -> None:
+    def push_next_state(
+        self,
+        state: np.ndarray,
+        eci_R_body: np.ndarray,
+        gyro_bias: np.ndarray,
+        gyro_measurement: np.ndarray,
+    ) -> None:
         """
         Append a new state to the simulation data.
 
         Args:
             state: A numpy array of shape (6,) containing the position and velocity of the satellite.
             eci_R_body: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
+            gyro_bias: A numpy array of shape (3,) containing the gyro bias.
+            gyro_measurement: A numpy array of shape (3,) containing the gyro measurement.
         """
         self.states = np.row_stack((self.states, state))
         self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body[np.newaxis, ...]), axis=0)
+        self.gyro_biases = np.row_stack((self.gyro_biases, gyro_bias))
+        self.gyro_measurements = np.row_stack((self.gyro_measurements, gyro_measurement))
 
         self.assert_invariants()
 
