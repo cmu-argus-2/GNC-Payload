@@ -11,7 +11,7 @@ from brahe import Epoch
 
 from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
-from utils.math_utils import R, left_q, rot_2_q, Drp2q, G  # right_q
+from utils.math_utils import Drp2q, G, R, left_q, rot_2_q  # right_q
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -76,6 +76,7 @@ class EKF:
         self.gyro_bias_scale = gyro_bias_scale
 
         self.ua = ua
+        self.drag_est = np.array([1])
 
         self.P_m = P
         self.P_p = P
@@ -105,7 +106,7 @@ class EKF:
 
         w = u[0:3]  # angular velocity measurement from IMU
 
-        x = np.concatenate([self.r_m, self.v_m, self.ua])
+        x = np.concatenate([self.r_m, self.v_m, self.ua, self.drag_est])
         A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt, epoch=epoch)
         x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
 
@@ -129,9 +130,9 @@ class EKF:
 
         A = np.block(
             [
-                [A_pos, np.zeros((9, 6))],
-                [np.zeros((3, 9)), dqdq, dqdw],
-                [np.zeros((3, 12)), np.eye(3)],
+                [A_pos, np.zeros((10, 6))],
+                [np.zeros((3, 10)), dqdq, dqdw],
+                [np.zeros((3, 13)), np.eye(3)],
             ]
         )
 
@@ -193,6 +194,7 @@ class EKF:
                     self.r_p,
                     self.v_p,
                     self.ua,
+                    self.drag_est,
                     quaternion.as_rotation_vector(quaternion.as_quat_array(self.q_p)),
                     self.w_b,
                 ]
@@ -220,18 +222,21 @@ class EKF:
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]
             self.ua = np.array(x_p[6:9]) + delta[6:9]
+            self.drag_est = np.array(x_p[9:10]) + delta[9:10]
             self.q_m = quaternion.as_rotation_vector(
-                quaternion.from_rotation_vector(np.array(x_p[9:12]))
-                * quaternion.from_rotation_vector(delta[9:12])
+                quaternion.from_rotation_vector(np.array(x_p[10:13]))
+                * quaternion.from_rotation_vector(delta[10:13])
             )
-            self.w_b = np.array(x_p[12:15]) + delta[12:15]
+            self.w_b = np.array(x_p[13:16]) + delta[13:16]
 
             # Joseph form covariance update
             self.P_m = (np.eye(self.P_m.shape[0]) - K @ H) @ self.P_p @ (
                 np.eye(self.P_m.shape[0]) - K @ H
             ).T + K @ self.R @ K.T
 
-            x_p = jnp.array(np.concatenate([self.r_m, self.v_m, self.ua, self.q_m, self.w_b]))
+            x_p = jnp.array(
+                np.concatenate([self.r_m, self.v_m, self.ua, self.drag_est, self.q_m, self.w_b])
+            )
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
@@ -285,7 +290,7 @@ class EKF:
 
         # Define rotation matrices
         # transform rotation_vector to rotation matrix via quaternion
-        eci_R_body = R(rot_2_q(x_p[9:12]))
+        eci_R_body = R(rot_2_q(x_p[10:13]))
         ecef_R_eci = brahe.frames.rECItoECEF(epc=epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 
