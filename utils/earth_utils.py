@@ -457,8 +457,12 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
         height = HP_LOWER_LIMIT
 
     # Sun right ascension, declination
-    ra_sun = math.atan(r_sun[1] / r_sun[0])
-    dec_sun = math.atan(r_sun[2] / np.sqrt(r_sun[0] ** 2 + r_sun[1] ** 2))
+    ra_sun = math.atan2(r_sun[1] , r_sun[0])
+    if ra_sun < 0:
+        # Adjust for negative angles to ensure ra_sun is in [0, 2*pi]
+        ra_sun += 2 * math.pi
+    # declination of the sun in radians
+    dec_sun =  math.asin(r_sun[2]/np.linalg.norm(r_sun))  
 
     # Unit vector u towards the apex of the diurnal bulge
     # in inertial geocentric coordinates
