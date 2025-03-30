@@ -32,9 +32,10 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
-from getMGRS import getMGRS  # custom getMGRS module for MGRS grid handling
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map  # For multiprocessing with progress tracking
+
+from utils.earth_utils import get_MGRS_grid
 
 
 def sm2b(key, input_path, window, num_boxes, box_color, box_outline):  # pylint: disable=all
@@ -145,7 +146,7 @@ if __name__ == "__main__":
     # Initialize variables and lists
     keys = zip(args.keys)
     input_path = args.path
-    grid = getMGRS()
+    grid = get_MGRS_grid()
     window = args.window
     num_boxes = args.num_boxes
     box_color = (0, 0, 255)  # Color of the box in RGB (blue in this example)
