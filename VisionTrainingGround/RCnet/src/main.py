@@ -7,7 +7,7 @@ This script initializes and runs the training pipeline
 import argparse
 
 import torch
-from region_classifier import RegionClassifier
+from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
 
 
 def parse_args():
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
 
     # Create the classifier object
-    classifier = RegionClassifier(
+    classifier = TrainRegionClassifier(
         data_path=args.data_dir,
         save_plot_flag=args.save_plot_flag,
         save_plot_path=args.save_plot_path,
