@@ -51,7 +51,7 @@ def sun_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
 
     :return: sun gravity acceleration
     """
-    r_sun = brahe.ephemerides.sun_position(epc=epoch)
+    r_sun = brahe.ephemerides.sun_position(epc=epoch) / 1e3
     return third_body_acceleration(r_sat=r_sat, r_body=r_sun, mu=GM_SUN)
 
 
@@ -64,7 +64,7 @@ def sun_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
 
     :return: Jacobian of the sun gravity acceleration
     """
-    r_sun = brahe.ephemerides.sun_position(epc=epoch)
+    r_sun = brahe.ephemerides.sun_position(epc=epoch) / 1e3
     return third_body_jacobian(r_sat=r_sat, r_body=r_sun, mu=GM_SUN)
 
 
@@ -77,7 +77,7 @@ def moon_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
 
     :return: moon gravity acceleration
     """
-    r_moon = brahe.ephemerides.moon_position(epc=epoch)
+    r_moon = brahe.ephemerides.moon_position(epc=epoch) / 1e3
     return third_body_acceleration(r_sat=r_sat, r_body=r_moon, mu=GM_MOON)
 
 
@@ -90,5 +90,5 @@ def moon_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
 
     :return: Jacobian of the moon gravity acceleration
     """
-    r_moon = brahe.ephemerides.moon_position(epc=epoch)
+    r_moon = brahe.ephemerides.moon_position(epc=epoch) / 1e3
     return third_body_jacobian(r_sat=r_sat, r_body=r_moon, mu=GM_MOON)
