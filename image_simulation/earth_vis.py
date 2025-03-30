@@ -314,9 +314,7 @@ class EarthImageSimulator:
             )
 
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
-            region_image = geotiff_data.query_pixel_colors(lat_lon[region_mask])
-
-            image[region_mask, :] = region_image
+            image[region_mask, :] = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
         if self.inpaint_blue_marble:
             inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
