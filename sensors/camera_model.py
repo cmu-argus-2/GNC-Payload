@@ -90,8 +90,8 @@ class CameraModel:
         Generate ray directions in the camera frame for each pixel.
 
         Returns:
-            A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
-            in the camera frame for each pixel.
+            A numpy array of shape CameraModel.OUTPUT_SHAPE consisting of ray directions in the camera frame for each
+            pixel.
         """
         half_width = np.tan(CameraModel.HORIZONTAL_FOV / 2)
         half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
@@ -113,8 +113,8 @@ class CameraModel:
 
         Note that this method is dynamically wrapped with a cache in the constructor.
 
-        :return: A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
-                in the body frame for each pixel.
+        :return: A numpy array of shape CameraModel.OUTPUT_SHAPE consisting of ray directions in the body frame for each
+                 pixel.
         """
         ray_directions_body = CameraModel.ray_directions_camera() @ self.body_R_camera.T
         return ray_directions_body

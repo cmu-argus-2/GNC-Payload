@@ -7,10 +7,11 @@ from requests.exceptions import ChunkedEncodingError
 from tqdm import tqdm
 from time import sleep
 
+from image_simulation.blue_marble_simulator import MONTH_NAMES
+
 
 BASE_URL = "https://eoimages.gsfc.nasa.gov/images/imagerecords"
 DATASET_IDS_BY_MONTH = ["73938", "73967", "73992", "74017", "74042", "76487", "74092", "74117", "74142", "74167", "74192", "74218"]
-MONTH_NAMES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 RESOLUTION = "3x21600x21600"
 
 
