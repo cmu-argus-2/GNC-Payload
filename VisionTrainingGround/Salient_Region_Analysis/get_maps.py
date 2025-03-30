@@ -2,7 +2,8 @@ import os
 import cv2
 import numpy as np
 from multiprocessing import Pool
-from getMGRS import getMGRS
+
+from utils.earth_utils import get_MGRS_grid
 
 folder = 'bm1k_regions'
 outfolder = 'bm1k_maps'
@@ -58,7 +59,7 @@ def one_month(month):
 
 
 if __name__ == '__main__':
-    grid = getMGRS()
+    grid = get_MGRS_grid()
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
     if SAVEMAP:

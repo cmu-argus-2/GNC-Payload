@@ -1,87 +1,124 @@
 """
-This script trains a YOLO model on a custom dataset. It accepts command-line arguments to specify
-the region code, dataset path, model save directory, YOLO version, and the number of epochs for training.
-The model is trained using the provided dataset, and the results are saved in the specified directory.
+Train landmark detection YOLO models for the specified MGRS regions.
 
-Required arguments:
-- --region: The region code for naming and saving model results.
-- --data: Path to the dataset YAML file.
-- --save_dir: Directory to save the trained model file.
-Optional arguments:
-- --version: YOLO model version (default is "yolov8n").
-- --epochs: Number of training epochs (default is 300).
+This script expects to find the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - /LD_training
+      - dataset.yaml
+      - /train
+        - /images
+          - 00000.png (symlink)
+          - ...
+        - /labels
+          - 00000.txt
+          - ...
+      - /test
+        - ...
+      - /val
+        - ...
+
+This scipy will generate/overwrite the following contents in the training directory:
+- /training_directory
+  - /{region}
+    - yolo_model_weights.pt
 """
 
 import argparse
+import os
 
 import torch
 from ultralytics import YOLO
 
+from utils.config_utils import USER_CONFIG_PATH, load_config
+from vision_inference.landmark_detector import LandmarkDetector
+from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
+
 
 def parse_args():
     """
-    Parses command-line arguments to specify configuration for YOLO training.
+    Parse command-line arguments.
 
-    Arguments:
-    - None
-
-    Returns:
-    - args: Namespace object containing parsed arguments with the following attributes:
-       - region (str): The region code (required).
-       - data (str): Path to the dataset YAML file (required).
-       - save_dir (str): Directory to save the model file (required).
-       - version (str): YOLO model version (default is "yolov8n").
-       - epochs (int): Number of training epochs (default is 300).
+    :return: The parsed arguments.
     """
-    parser = argparse.ArgumentParser(description="Train YOLO model with custom name and data path.")
-    parser.add_argument("--region", type=str, required=True, help="Region Code")
-    parser.add_argument("--data", type=str, required=True, help="Path to the dataset YAML file")
+    parser = argparse.ArgumentParser(
+        description="Train landmark detection YOLO models for the specified MGRS regions."
+    )
+
     parser.add_argument(
-        "--save_dir",
+        "--regions",
         type=str,
-        required=True,
-        help='Path to save the model.pt file. The file is saved in save_dir/"<version>_<region>_n<epochs"',
+        nargs="+",
+        default=load_config()["vision"]["salient_mgrs_region_ids"],
+        help="MGRS regions to train landmark detection YOLO models for.",
     )
     parser.add_argument(
-        "--version", type=str, required=False, default="yolov8n", help="YOLO version"
+        "--skip_regions",
+        type=str,
+        nargs="+",
+        default=[],
+        help="MGRS regions to skip. This takes precedence over --regions.",
+    )
+
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Whether to overwrite the output file if it exists.",
     )
     parser.add_argument(
-        "--epochs", type=int, required=False, default=300, help="Number of training epochs"
+        "--version", type=str, required=False, default="yolov8n", help="The YOLO version to use."
+    )
+    parser.add_argument(
+        "--epochs", type=int, required=False, default=300, help="The number of training epochs."
     )
     return parser.parse_args()
 
 
-def train_yolo():
+def train_yolo(
+    region: str,
+    overwrite: bool,
+    version: str,
+    epochs: int,
+) -> None:
     """
     Main function to initialize and train a YOLO model using specified command-line arguments.
 
     This function:
-    - Parses the command-line arguments to get training parameters.
     - Determines the computing device (CPU or GPU).
     - Loads the YOLO model based on the version specified.
     - Sets up the training configuration and runs the training process.
-    - Saves the trained model to the specified directory.
+    - Saves the trained model.
 
     Arguments:
-    - None
-
-    Returns:
-    - None
+    - region (str): The MGRS region to train the model for.
+    - overwrite (bool): Whether to overwrite the output file if it exists.
+    - version (str): The YOLO model version to use.
+    - epochs (int): The number of epochs for training.
     """
-    args = parse_args()
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    model = YOLO(f"{args.version}.pt")
-    name = args.version + "_" + args.region + "_" + "n" + str(args.epochs)
-    print(args.save_dir)
+    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    output_file = os.path.join(
+        training_dir, LandmarkDetector.get_LD_model_weights_relative_path(region)
+    )
+    if os.path.exists(output_file):
+        if not overwrite:
+            raise FileExistsError(f"Output file {output_file} already exists.")
 
+        os.remove(output_file)
+
+    model = YOLO(f"{version}.pt")
+    yolo_config_path = os.path.join(
+        training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
+    )
     # pylint: disable=unused-variable
     results = model.train(
-        data=args.data,  # Dataset path from argument
-        project=args.save_dir,
-        name=name,  # The result files are saved in project/name
+        data=yolo_config_path,  # Dataset path from argument
+        project=os.path.dirname(os.path.abspath(output_file)),
+        name=os.path.splitext(os.path.basename(output_file))[
+            0
+        ],  # The result files are saved in project/name
         degrees=180,  # Image augmentation parameters
         scale=0.3,
         fliplr=0.0,
@@ -91,10 +128,21 @@ def train_yolo():
         plots=True,  # Plot the results
         save=True,  # Save the trained model
         resume=False,  # Do not resume training
-        epochs=args.epochs,  # Number of epochs for training
+        epochs=epochs,  # Number of epochs for training
         device=device,  # Set device to cuda or cpu
     )
 
 
+def main() -> None:
+    """
+    Script entry point.
+    """
+    args = parse_args()
+    regions = list(set(args.regions) - set(args.skip_regions))
+
+    for region in regions:
+        train_yolo(region, args.overwrite, args.version, args.epochs)
+
+
 if __name__ == "__main__":
-    train_yolo()
+    main()

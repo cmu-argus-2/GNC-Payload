@@ -5,8 +5,9 @@ This script initializes and runs the training pipeline
 """
 
 import argparse
+
 import torch
-from region_classifier import ImageClassifier
+from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
 
 
 def parse_args():
@@ -37,6 +38,7 @@ def parse_args():
     )
 
     # Paths
+    # TODO: update the RC training pipeline to automatically handle file paths within /training_directory
     parser.add_argument(
         "--data_dir", type=str, required=True, help="Path to the dataset directory."
     )
@@ -67,7 +69,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
 
     # Create the classifier object
-    classifier = ImageClassifier(
+    classifier = TrainRegionClassifier(
         data_path=args.data_dir,
         save_plot_flag=args.save_plot_flag,
         save_plot_path=args.save_plot_path,

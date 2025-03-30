@@ -31,7 +31,7 @@ def get_cos_sso_inclination(altitude: float) -> float:
     a = R_EARTH + altitude
     # https://en.wikipedia.org/wiki/Sun-synchronous_orbit#Technical_details
     # TODO: define this distance constant in terms of other constants
-    return -(a / 12_352e3) ** (7 / 2)
+    return -((a / 12_352e3) ** (7 / 2))
 
 
 def get_max_sso_latitude(altitude: float) -> float:
@@ -43,7 +43,9 @@ def get_max_sso_latitude(altitude: float) -> float:
     :return: The maximum possible latitude for the given altitude, in degrees. This will be between 0 and 90 degrees.
     """
     inclination = np.rad2deg(np.arccos(get_cos_sso_inclination(altitude)))
-    assert inclination > 90, "Inclination must be greater than 90 degrees for an sun-synchronous orbit!"
+    assert (
+        inclination > 90
+    ), "Inclination must be greater than 90 degrees for an sun-synchronous orbit!"
     return 180 - inclination
 
 

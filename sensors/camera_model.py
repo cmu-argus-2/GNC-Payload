@@ -3,6 +3,8 @@ This module contains a class representing a model for a single camera on the sat
 models.
 """
 
+from functools import cache
+
 import numpy as np
 
 from utils.config_utils import load_config
@@ -13,9 +15,25 @@ class CameraModel:
     A class representing a model for a single camera on the satellite.
     This class contains the camera_name and the transformation from the camera frame to the body frame.
     It also contains methods for various computations related to the camera.
+
+    The camera frame has an origin located at the optical center of the camera, with the x-axis pointing right, the
+    y-axis pointing down, and the z-axis pointing out of the camera lens.
+
+    The pixel coordinates have an origin located in the top-left corner of the image, with the u axis pointing right
+    (aligned with the camera frame x-axis), and the v axis pointing down (aligned with the camera frame y-axis).
+
+    Note that this means that the u axis corresponds to the image width and the v axis corresponds to the image height.
+    Thus, to access the pixel values in an image with shape CameraModel.OUTPUT_SHAPE, you would do image[v, u, :].
+    Nonetheless, pixel coordinates will still be stored as (u, v) in numpy arrays since this is the standard convention.
     """
 
-    RESOLUTION = (4608, 2592)
+    IMAGE_HEIGHT = 2592
+    IMAGE_WIDTH = 4608
+    RESOLUTION = (IMAGE_HEIGHT, IMAGE_WIDTH)
+    NUM_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
+    NUM_CHANNELS = 3
+    OUTPUT_SHAPE = RESOLUTION + (NUM_CHANNELS,)
+    DTYPE = np.uint8
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
     def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
@@ -31,6 +49,10 @@ class CameraModel:
         self.camera_name = camera_name
         self.body_R_camera = body_R_camera
         self.t_body_to_camera = t_body_to_camera
+
+        # Apply @cache at the instance level in the constructor to ensure separate caches for each instance
+        # and to avoid needing to call hash(self) in the cache implementation
+        self.ray_directions_body = cache(self.ray_directions_body)
 
     def get_camera_position(
         self, body_position: np.ndarray, frame_R_body: np.ndarray
@@ -61,29 +83,40 @@ class CameraModel:
         """
         return frame_R_body @ self.body_R_camera @ np.array([0, 0, 1])
 
-    def ray_directions(self):
+    @staticmethod
+    @cache
+    def ray_directions_camera():
         """
-        Generate ray directions for the camera.
+        Generate ray directions in the camera frame for each pixel.
 
         Returns:
-            A numpy array of shape (CameraModel.RESOLUTION) + (3,) consisting of ray directions
-            in the body frame for each pixel.
+            A numpy array of shape CameraModel.OUTPUT_SHAPE consisting of ray directions in the camera frame for each
+            pixel.
         """
-        width, height = self.RESOLUTION
-        half_width = np.tan(self.HORIZONTAL_FOV / 2)
-        half_height = half_width * (height / width)
+        half_width = np.tan(CameraModel.HORIZONTAL_FOV / 2)
+        half_height = half_width * (CameraModel.IMAGE_HEIGHT / CameraModel.IMAGE_WIDTH)
 
-        x = np.linspace(-half_width, half_width, width)
-        y = np.linspace(-half_height, half_height, height)
+        x = np.linspace(-half_width, half_width, CameraModel.IMAGE_WIDTH)
+        y = np.linspace(-half_height, half_height, CameraModel.IMAGE_HEIGHT)
         xx, yy = np.meshgrid(x, y)
         zz = np.ones_like(xx)  # Assume unit depth
 
         # Stack and normalize ray directions
-        # TODO: precompute this and store it as a class attribute
         ray_directions_cf = np.stack([xx, yy, zz], axis=-1)
         ray_directions_cf /= np.linalg.norm(ray_directions_cf, axis=-1, keepdims=True)
 
-        ray_directions_body = ray_directions_cf @ self.body_R_camera.T
+        return ray_directions_cf
+
+    def ray_directions_body(self) -> np.ndarray:
+        """
+        Get the ray directions in the body frame for each pixel.
+
+        Note that this method is dynamically wrapped with a cache in the constructor.
+
+        :return: A numpy array of shape CameraModel.OUTPUT_SHAPE consisting of ray directions in the body frame for each
+                 pixel.
+        """
+        ray_directions_body = CameraModel.ray_directions_camera() @ self.body_R_camera.T
         return ray_directions_body
 
     def pixel_to_bearing_unit_vector(self, pixel_coords: np.ndarray) -> np.ndarray:
@@ -96,28 +129,10 @@ class CameraModel:
         Returns:
             A numpy array of shape (N, 3) with bearing unit vectors in the body frame.
         """
-        width, height = self.RESOLUTION
-
-        half_width = np.tan(self.HORIZONTAL_FOV / 2)
-        half_height = half_width * (height / width)
-
-        u = pixel_coords[:, 0]  # Pixel x-coordinates
-        v = pixel_coords[:, 1]  # Pixel y-coordinates
-
-        # Normalize pixel coordinates to range [-half_width, half_width] and [half_height, -half_height]
-        # Assuming pixel (0,0) is at the top-left corner
-        x = -half_width + (2 * half_width) * (u / (width - 1))
-        y = half_height - (2 * half_height) * (
-            v / (height - 1)
-        )  # Invert y-axis for image coordinates
-        z = np.ones_like(x)
-
-        # Stack and normalize direction vectors
-        bearing_unit_vectors_cf = np.stack([x, y, z], axis=-1)
-        bearing_unit_vectors_cf /= np.linalg.norm(bearing_unit_vectors_cf, axis=1, keepdims=True)
-
-        bearing_unit_vectors_body = bearing_unit_vectors_cf @ self.body_R_camera.T
-        return bearing_unit_vectors_body
+        # since it'll be cached anyway, we can just look up the desired values
+        ray_directions_body = self.ray_directions_body()
+        u, v = pixel_coords.T
+        return ray_directions_body[v, u, :]
 
 
 class CameraModelManager:
