@@ -123,8 +123,7 @@ class RegionClassifier:
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] Starting the classification process.",
         )
         try:
-            img = Image.fromarray(cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2RGB))
-            img = self.transforms(img).unsqueeze(0).to(self.device)
+            img = self.transforms(Image.fromarray(frame_obj.image)).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
                 start_time = perf_counter()
