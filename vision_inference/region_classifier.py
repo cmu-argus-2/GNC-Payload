@@ -33,26 +33,33 @@ class RegionClassifier:
     A class to classify MGRS regions in images using a pretrained EfficientNet model.
     """
 
-    NUM_CLASSES = 16
+    NUM_CLASSES = 40
     CONFIDENCE_THRESHOLD = 0.55
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
     MODEL_WEIGHTS_RELATIVE_PATH = "rc_model_weights.pth"
 
-    def __init__(self):
+    def __init__(self, load_weights: bool = True):
+        """
+        Initialize the RegionClassifier.
+
+        Args:
+            load_weights (bool): Whether to load model weights. Default is True.
+        """
         Logger.log("INFO", "Initializing RegionClassifier.")
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.model = ClassifierEfficient().to(self.device)
 
-            # Load Custom model weights
-            self.model.load_state_dict(
-                torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
-            )
-            self.model.eval()
-            Logger.log("INFO", "Model loaded successfully.")
+            # Load Custom model weights if required
+            if load_weights:
+                self.model.load_state_dict(
+                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
+                )
+                self.model.eval()
+                Logger.log("INFO", "Model loaded successfully.")
 
         except Exception as e:
             Logger.log("ERROR", f"Failed to load model: {e}")
@@ -146,6 +153,9 @@ class ClassifierEfficient(nn.Module):
     """
 
     def __init__(self):
+        """
+        Initialize the classifier.
+        """
         super().__init__()
         # Using new weights system
         # This uses the most up-to-date weights
