@@ -89,7 +89,8 @@ class TrainRegionClassifier(BaseRegionClassifier):
         self._prepare_data(data_path, selected_classes)
 
         # Now initialize the parent class with our number of classes and skip weight loading
-        super().__init__(load_weights=False, num_classes=len(self.regions))
+        super().__init__(load_weights=False)
+        assert len(self.regions) == BaseRegionClassifier.NUM_CLASSES, "Number of classes mismatch!"
 
         # Initialize training specific components
         self.plotter = Plotter()

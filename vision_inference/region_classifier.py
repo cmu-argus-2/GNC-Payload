@@ -14,7 +14,7 @@ Date: [Creation or Last Update Date]
 
 import os
 from time import perf_counter
-from typing import List, Optional
+from typing import List
 
 import cv2
 import torch
@@ -40,29 +40,18 @@ class RegionClassifier:
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
     MODEL_WEIGHTS_RELATIVE_PATH = "rc_model_weights.pth"
 
-    def __init__(self, load_weights: bool = True, num_classes: Optional[int] = None):
+    def __init__(self, load_weights: bool = True):
         """
         Initialize the RegionClassifier.
 
         Args:
             load_weights (bool): Whether to load model weights. Default is True.
-            num_classes (Optional[int]): Number of classes for the model.
-                                        If None, uses the default NUM_CLASSES.
         """
         Logger.log("INFO", "Initializing RegionClassifier.")
 
-        # Set number of classes
-        assert num_classes == RegionClassifier.NUM_CLASSES or num_classes is None, (
-            f"Number of classes must match the default number of classes ({RegionClassifier.NUM_CLASSES}) or be None."
-        )
-        self.num_classes = num_classes if num_classes is not None else RegionClassifier.NUM_CLASSES
-        RegionClassifier.NUM_CLASSES = (
-            self.num_classes
-        )  # In case the number of classes has changed in training, and hasn't been updated in this class
-
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model = ClassifierEfficient(num_classes=self.num_classes).to(self.device)
+            self.model = ClassifierEfficient().to(self.device)
 
             # Load Custom model weights if required
             if load_weights:
@@ -163,12 +152,9 @@ class ClassifierEfficient(nn.Module):
     A custom classifier using the EfficientNet model.
     """
 
-    def __init__(self, num_classes: int = RegionClassifier.NUM_CLASSES):
+    def __init__(self):
         """
         Initialize the classifier.
-
-        Args:
-            num_classes (int): Number of output classes.
         """
         super().__init__()
         # Using new weights system
@@ -178,7 +164,7 @@ class ClassifierEfficient(nn.Module):
         for param in self.efficientnet.features[:3].parameters():
             param.requires_grad = False
         num_features = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier[1] = nn.Linear(num_features, num_classes)
+        self.efficientnet.classifier[1] = nn.Linear(num_features, RegionClassifier.NUM_CLASSES)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
