@@ -98,7 +98,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 20  # s
+    config["mission"]["duration"] = 3 * 90 * 60  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -137,30 +137,38 @@ def run_simulation() -> None:
     rot = np.array([0, 0, np.pi / 18])
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(15) * 1e-12
+    Q = np.eye(16) * 1e-12
     # Unmodelled acceleration has larger uncertainty
     Q[6:9, 6:9] = np.eye(3) * 1e-9
-    # Bias uncertainty also larger
-    Q[12:15, 12:15] = np.eye(3) * 1e-9
+    # # Bias uncertainty also larger
+    Q[13:16, 13:16] = np.eye(3) * 1e-9
 
-    P = np.eye(15)
+    P = np.eye(16)
     P[0:3, 0:3] *= 5
     P[3:6, 3:6] *= 5
     P[6:9, 6:9] *= 1e-4
-    P[9:12, 9:12] *= 1e-4
-    P[12:15, 12:15] *= 1e-4
+    P[9:10, 9:10] *= 1e-4
+    P[10:13, 10:13] *= 1e-4
+    P[13:16, 13:16] *= 1e-4
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
         config=config,
         use_drag=True,
         use_j2=True,
+        use_j34=True,
+        use_sun_grav=True,
+        use_moon_grav=True,
     )
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=False,
         use_j2=False,
+        use_j34=False,
+        use_sun_grav=False,
+        use_moon_grav=False,
         use_unmodelled_a=True,
+        use_drag_scalar=True,
         ua_scale=ua_scale,
     )
 
@@ -169,7 +177,7 @@ def run_simulation() -> None:
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 5000, 3),
+        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
         v=initial_state[3:6] + np.random.normal(0, 10, 3),
         ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
@@ -189,6 +197,7 @@ def run_simulation() -> None:
     cov_trace = []
     gyro_bias_error = []
     actual_bias = []
+    drag_estimate = []
     sigma_high = []
     sigma_low = []
 
@@ -213,9 +222,9 @@ def run_simulation() -> None:
         )
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
-
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
+
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
         if t % 120 == 0 and is_over_daytime(
             data_manager.latest_epoch, data_manager.latest_state[:3]
@@ -251,6 +260,7 @@ def run_simulation() -> None:
         cov_trace.append(np.trace(ekf.P_m))
         gyro_bias_error.append(ekf.w_b / gyro_bias_scale - imu_gyro_bias)
         actual_bias.append(imu_gyro_bias)
+        drag_estimate.append(ekf.drag_est)
 
         sigma_high.append(
             np.array(
@@ -325,6 +335,12 @@ def run_simulation() -> None:
     plt.xlabel("Time step")
     plt.ylabel("Actual gyro bias [rad/s]")
     plt.title("Actual Gyro Bias")
+
+    plt.figure()
+    plt.plot(drag_estimate)
+    plt.xlabel("Time step")
+    plt.ylabel("Drag estimate")
+    plt.title("EKF Drag Estimate")
 
     plt.show()
 

@@ -1,8 +1,10 @@
 import cv2
 import numpy as np
-from getMGRS import getMGRS
 import pandas as pd
 from sal_region_selection import select_mgrs_labels
+
+from utils.earth_utils import get_MGRS_grid
+
 
 def lat_lon_to_pixel(lat, lon, img_width, img_height):
     """
@@ -28,7 +30,7 @@ def highlight_regions(image_path, output_path, regions):
     img_height, img_width = img.shape[:2]
     
     # Get MGRS grid information
-    grid = getMGRS()
+    grid = get_MGRS_grid()
     
     for region in regions:
         if region in grid:

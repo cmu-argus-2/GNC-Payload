@@ -23,7 +23,7 @@ from torch import nn
 from torchvision import transforms
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
-from utils.config_utils import load_config
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -33,27 +33,33 @@ class RegionClassifier:
     A class to classify MGRS regions in images using a pretrained EfficientNet model.
     """
 
-    NUM_CLASSES = 16
+    NUM_CLASSES = 40
     CONFIDENCE_THRESHOLD = 0.55
     DOWNSAMPLED_SIZE = (224, 224)
     IMAGE_NET_MEAN = [0.485, 0.456, 0.406]
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
-    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../models/rc"))
-    MODEL_WEIGHTS_PATH = os.path.join(MODEL_DIR, "model.pth")
+    MODEL_WEIGHTS_RELATIVE_PATH = "rc_model_weights.pth"
 
-    def __init__(self):
+    def __init__(self, load_weights: bool = True):
+        """
+        Initialize the RegionClassifier.
+
+        Args:
+            load_weights (bool): Whether to load model weights. Default is True.
+        """
         Logger.log("INFO", "Initializing RegionClassifier.")
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.model = ClassifierEfficient().to(self.device)
 
-            # Load Custom model weights
-            self.model.load_state_dict(
-                torch.load(RegionClassifier.MODEL_WEIGHTS_PATH, map_location=self.device)
-            )
-            self.model.eval()
-            Logger.log("INFO", "Model loaded successfully.")
+            # Load Custom model weights if required
+            if load_weights:
+                self.model.load_state_dict(
+                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
+                )
+                self.model.eval()
+                Logger.log("INFO", "Model loaded successfully.")
 
         except Exception as e:
             Logger.log("ERROR", f"Failed to load model: {e}")
@@ -71,6 +77,17 @@ class RegionClassifier:
         )
 
         self.region_ids = RegionClassifier.load_region_ids()
+
+    @staticmethod
+    def get_model_weights_path() -> str:
+        """
+        Get the path to the model weights file.
+
+        Returns:
+            The path to the model weights file.
+        """
+        models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
+        return os.path.join(models_dir, RegionClassifier.MODEL_WEIGHTS_RELATIVE_PATH)
 
     @staticmethod
     def load_region_ids() -> List[str]:
@@ -106,8 +123,7 @@ class RegionClassifier:
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] Starting the classification process.",
         )
         try:
-            img = Image.fromarray(cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2RGB))
-            img = self.transforms(img).unsqueeze(0).to(self.device)
+            img = self.transforms(Image.fromarray(frame_obj.image)).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
                 start_time = perf_counter()
@@ -136,6 +152,9 @@ class ClassifierEfficient(nn.Module):
     """
 
     def __init__(self):
+        """
+        Initialize the classifier.
+        """
         super().__init__()
         # Using new weights system
         # This uses the most up-to-date weights

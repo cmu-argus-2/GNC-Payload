@@ -1,8 +1,14 @@
+from time import perf_counter
+
+from matplotlib import pyplot as plt
 import numpy as np
 from brahe.constants import R_EARTH
+from scipy.spatial.transform import Rotation
+from tqdm import trange
 
-from image_simulation.earth_vis import EarthImageSimulator
+from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
+from vision_inference.frame import Frame
 from utils.earth_utils import get_nadir_rotation, lat_lon_to_ecef
 
 CONTIGUOUS_US_CENTER_LAT_LON = np.array([39.8283, -98.5795])
@@ -47,11 +53,36 @@ def sweep_lat_lon_test():
         f.write(str(empty_indices))
 
 
+def compute_max_visible_regions(altitude: float = 510e3, iterations: int = 1000) -> None:
+    """
+    Experimentally determine the maximum number of visible regions from a specified altitude.
+
+    For the default parameters, the maximum number of visible regions is 58.
+
+    :param altitude: The altitude of the satellite.
+    :param iterations: The number of iterations to run.
+    """
+    simulator = EarthImageSimulator(GeoTIFFCache(max_cache_size=None))
+    camera_model_manager = CameraModelManager()
+
+    ecef_position = lat_lon_to_ecef(CONTIGUOUS_US_CENTER_LAT_LON)
+    ecef_position *= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
+
+    for _ in trange(iterations):
+        ecef_R_body = Rotation.random().as_matrix()
+        _ = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"])
+
+    print(
+        f"Max visible regions from an altitude of {altitude / 1000}km is "
+        f"{simulator.cache.load_geotiff_data.cache_info().currsize}"
+    )
+
+
 def simulate_image(
     lat_lon: np.ndarray = CONTIGUOUS_US_CENTER_LAT_LON,
     altitude: float = 6000e3,
     display_image: bool = True,
-) -> None:
+) -> Frame:
     simulator = EarthImageSimulator()
     camera_model_manager = CameraModelManager()
 
@@ -62,15 +93,22 @@ def simulate_image(
     ecef_velocity = np.cross(np.array([0, 0, 1]), ecef_position)
     ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
-    simulated_image = simulator.simulate_image(
+    start_time = perf_counter()
+    frame = simulator.simulate_image(
         ecef_position, ecef_R_body, camera_model_manager["x+"]
-    ).image
+    )
+    print(f"Image simulation took {perf_counter() - start_time:.2f} seconds")
 
-    print(f"Simulated image is {'' if np.all(simulated_image == 0) else 'not'} blank")
+    print(f"Simulated image is {'blank' if np.all(frame.image == 0) else 'not blank'}")
     if display_image:
-        simulator.display_image(simulated_image)
+        plt.imshow(frame.image)
+        plt.axis("off")
+        plt.show()
+
+    return frame
 
 
 if __name__ == "__main__":
     # sweep_lat_lon_test()
+    # compute_max_visible_regions()
     simulate_image()
