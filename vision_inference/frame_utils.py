@@ -8,7 +8,7 @@ import cv2
 from vision_inference.frame import Frame
 
 
-def demo_frame_cycle_generator(image_dir: str) -> Generator[Frame, None, None]:
+def demo_frame_cycle_generator(image_dir: str) -> Generator[Frame | None, None, None]:
     """
     A generator that endlessly cycles through the images in the specified directory and yields Frame objects.
 
@@ -22,6 +22,7 @@ def demo_frame_cycle_generator(image_dir: str) -> Generator[Frame, None, None]:
 
     for image_path in cycle(image_files):
         image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if image is not None:
             yield Frame(image=image, camera_name="x+", timestamp=datetime.now())
         else:

@@ -2,11 +2,12 @@ import os
 import cv2
 import numpy as np
 from multiprocessing import Pool
-from getMGRS import getMGRS
+
+from utils.earth_utils import get_MGRS_grid
 
 folder = 'bm1k'
 outfolder = 'bm1k_regions'
-grid = getMGRS()
+grid = get_MGRS_grid()
 min_lat = -90
 max_lat = 90
 min_lon = -180

@@ -21,11 +21,11 @@ import ee
 import numpy as np
 import pyproj
 import requests
-from getMGRS import getMGRS
 from retry import retry
 from tqdm.contrib.concurrent import process_map
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
+from utils.earth_utils import get_MGRS_grid
 
 if os.path.exists(USER_CONFIG_PATH):
     config = load_config(USER_CONFIG_PATH)
@@ -299,7 +299,7 @@ bands = args.bands
 
 # Adjusting bounds if grid key is provided
 if args.grid_key:
-    grid = getMGRS()
+    grid = get_MGRS_grid()
     left, bottom, right, top = grid[args.grid_key]
     args.bounds = [float(left), float(bottom), float(right), float(top)]
 

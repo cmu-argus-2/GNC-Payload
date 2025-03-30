@@ -1,7 +1,7 @@
 """
 Image Classification Module using EfficientNet.
 
-This module defines the `ImageClassifier` class for training, 
+This module defines the `TrainRegionClassifier` class for training, 
 evaluating, and validating an image classification model.  
 It leverages EfficientNet-B0 as the backbone, supports logging with Weights & Biases (wandb),  
 and provides utilities for dataset preparation, training, and performance evaluation.
@@ -19,17 +19,16 @@ import numpy as np
 import torch
 import wandb
 from data_loader import CustomImageDataset
-from efficientnet_pytorch import EfficientNet
-from matplotlib.colors import hsv_to_rgb
-from PIL import Image
 from plotter import Plotter
 from sklearn.manifold import TSNE
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from vision_inference.region_classifier import RegionClassifier as BaseRegionClassifier
 
-class ImageClassifier:
+
+class TrainRegionClassifier(BaseRegionClassifier):
     """
     A deep learning-based multi-label image classifier using EfficientNet.
 
@@ -78,7 +77,7 @@ class ImageClassifier:
         save_plot_path: Optional[str] = None,
     ) -> None:
         """
-        Initializes the ImageClassifier.
+        Initializes the TrainRegionClassifier for training.
 
         Args:
             data_path (str): Path to the dataset.
@@ -86,15 +85,14 @@ class ImageClassifier:
             save_plot_flag (bool): Whether to save training loss plots.
             save_plot_path (str): Path to save the loss plot.
         """
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Prepare data first to get the number of classes
         self._prepare_data(data_path, selected_classes)
-        self.model = EfficientNet.from_pretrained("efficientnet-b0")
 
-        # Replace the classifier layer
-        num_ftrs = self.model._fc.in_features
-        self.model._fc = nn.Linear(num_ftrs, len(self.classes))  # Output for each class
+        # Now initialize the parent class with our number of classes and skip weight loading
+        super().__init__(load_weights=False)
+        assert len(self.regions) == BaseRegionClassifier.NUM_CLASSES, "Number of classes mismatch!"
 
-        self.model = self.model.to(self.device)
+        # Initialize training specific components
         self.plotter = Plotter()
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
@@ -108,15 +106,23 @@ class ImageClassifier:
             selected_classes (list): List of salient regions for classification.
         """
         if selected_classes is None:
-            # Use all available classes and output a warning
-            selected_classes = sorted(os.listdir(data_path + "/train"))
-            print("Warning: Using all available classes for training!")
+            # Use all regions from configuration using the parent class's method
+            try:
+                selected_classes = BaseRegionClassifier.load_region_ids()
+                print(f"Using {len(selected_classes)} regions from configuration")
+            except Exception as e:
+                # Fallback to directory scanning if config loading fails
+                selected_classes = sorted(os.listdir(data_path + "/train"))
+                print(
+                    "Warning: Failed to load regions from config, using all available classes for training!"
+                )
+                print(f"Error: {e}")
 
-        self.classes = selected_classes
-        print("self.class", self.classes)
+        self.regions = selected_classes
+        print("Using regions:", self.regions)
 
         # Define transforms for training and testing sets
-        train_transform = transforms.Compose(
+        self.train_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
@@ -125,12 +131,12 @@ class ImageClassifier:
                 transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
                 # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-                # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
             ]
         )
 
-        test_transform = transforms.Compose(
+        self.val_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
@@ -138,20 +144,24 @@ class ImageClassifier:
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
                 transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
-                # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-                transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
             ]
         )
 
         # Load datasets with appropriate transforms
         train_dataset = CustomImageDataset(
-            root_dir=data_path + "/train", selected_classes=self.classes, transform=train_transform
+            root_dir=data_path + "/train",
+            selected_classes=self.regions,
+            transform=self.train_transform,
         )
         test_dataset = CustomImageDataset(
-            root_dir=data_path + "/test", selected_classes=self.classes, transform=test_transform
+            root_dir=data_path + "/test",
+            selected_classes=self.regions,
+            transform=self.val_transform,
         )
         val_dataset = CustomImageDataset(
-            root_dir=data_path + "/val", selected_classes=self.classes, transform=test_transform
+            root_dir=data_path + "/val", selected_classes=self.regions, transform=self.val_transform
         )
 
         # Create DataLoader objects for training and testing sets
@@ -179,7 +189,8 @@ class ImageClassifier:
             },
         )
 
-        criterion = nn.BCEWithLogitsLoss()  # BCE loss for multi-label classification
+        # CHANGED: Use BCE loss instead of BCEWithLogitsLoss since model already applies sigmoid
+        criterion = nn.BCELoss()  # BCE loss for multi-label classification
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         for epoch in range(epochs):
@@ -187,10 +198,8 @@ class ImageClassifier:
             # pylint: disable=unused-variable
             for batch_idx, (data, targets) in enumerate(self.train_loader):
                 data = data.to(self.device)
-                targets = targets.to(
-                    self.device
-                ).float()  # Ensure targets are float for BCEWithLogits
-                scores = self.model(data)
+                targets = targets.to(self.device).float()  # Ensure targets are float for BCE
+                scores = self.model(data)  # Model already applies sigmoid
                 loss = criterion(scores, targets)
                 optimizer.zero_grad()
                 loss.backward()
@@ -236,7 +245,9 @@ class ImageClassifier:
         Args:
             path (str): Path to the saved model file.
         """
+
         self.model.load_state_dict(torch.load(path, weights_only=True))
+
         self.model.eval()
 
     def validate(self) -> float:
@@ -244,25 +255,53 @@ class ImageClassifier:
         Evaluates model performance on the validation dataset.
 
         Returns:
-            float: Validation accuracy in percentage.
+            float: Validation F1 score in percentage.
         """
         self.model.eval()  # Set the model to evaluation mode
-        correct = 0
-        total = 0
+
+        true_positives = 0
+        false_positives = 0
+        false_negatives = 0
+
         with torch.no_grad():  # No gradient is needed for validation
             for images, labels in self.val_loader:  # Use the validation data loader
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-                outputs = self.model(images)
-                predictions = torch.sigmoid(outputs) > 0.5  # Sigmoid + thresholding for multi-label
-                total += labels.numel()
-                correct += (predictions == labels).sum().item()
+                outputs = self.model(images)  # Model already applies sigmoid
+                # CHANGED: No need to apply sigmoid again
+                predictions = outputs > 0.5  # Direct thresholding for multi-label
 
-        accuracy = 100 * correct / total
-        wandb.log({"validation_accuracy": accuracy})
+                # Calculate multi-label metrics
+                true_positives += (predictions & labels.bool()).sum().item()
+                false_positives += (predictions & ~labels.bool()).sum().item()
+                false_negatives += (~predictions & labels.bool()).sum().item()
 
-        print(f"Validation Accuracy: {accuracy:.2f}%")
-        return accuracy
+        precision = (
+            true_positives / (true_positives + false_positives)
+            if (true_positives + false_positives) > 0
+            else 0
+        )
+        recall = (
+            true_positives / (true_positives + false_negatives)
+            if (true_positives + false_negatives) > 0
+            else 0
+        )
+        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+        # Log metrics
+        wandb.log(
+            {
+                "validation_f1_score": f1_score * 100,
+                "validation_precision": precision * 100,
+                "validation_recall": recall * 100,
+            }
+        )
+
+        print(f"Validation F1 Score: {f1_score * 100:.2f}%")
+        print(f"Validation Precision: {precision * 100:.2f}%")
+        print(f"Validation Recall: {recall * 100:.2f}%")
+
+        return f1_score * 100  # Return F1 score as percentage
 
     # pylint: disable=too-many-locals
     def evaluate(self, output_file: str = "RCnet/results/evaluation_results.txt") -> float:
@@ -286,14 +325,12 @@ class ImageClassifier:
             )
 
         self.model.eval()
-        total_correct = 0
-        total_labels = 0
         all_features = []
         all_labels = []
-        class_correct = {i: 0 for i in range(40)}  # Assuming 40 classes
-        class_total = {i: 0 for i in range(40)}
+        class_correct = {i: 0 for i in range(len(self.regions))}
+        class_total = {i: 0 for i in range(len(self.regions))}
 
-        class_images = {i: [] for i in range(40)}  # Store images per class
+        class_images = {i: [] for i in range(len(self.regions))}  # Store images per class
         tot_time = 0
         with torch.no_grad():
             for batch in self.test_loader:
@@ -301,32 +338,62 @@ class ImageClassifier:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 start_time = time.time()
-                outputs = self.model(images)
+                outputs = self.model(images)  # Model already applies sigmoid
                 end_time = time.time()
-                probabilities = torch.sigmoid(outputs)
-                predicted = (probabilities > 0.5).float()  # Multi-label thresholding
+
+                # CHANGED: No need to handle probabilities separately, outputs are already probabilities
+                predicted = outputs > 0.5  # Direct thresholding for multi-label (keep as boolean)
                 tot_time += end_time - start_time
+
                 # Store features and labels for t-SNE
                 all_features.append(outputs.cpu().numpy())
                 all_labels.append(labels.cpu().numpy())
 
                 # Group images by their predicted classes
                 for i in range(images.size(0)):
-                    predicted_classes = [j for j, val in enumerate(predicted[i]) if val == 1]
+                    predicted_classes = [j for j, val in enumerate(predicted[i]) if val]
                     for pred_class in predicted_classes:
-                        class_images[pred_class].append(images[i].cpu())
+                        if pred_class < len(class_images):
+                            class_images[pred_class].append(images[i].cpu())
 
-                # Compute accuracy
-                true_positives = (predicted * labels).sum().item()
-                total_correct += true_positives
-                total_labels += labels.numel()
+                # For sample-wise accuracy (exact matches)
+                exact_matches = (
+                    ((predicted == labels.bool()).sum(dim=1) == labels.size(1)).sum().item()
+                )
+                sample_accuracy = 100 * exact_matches / labels.size(0)
+
+                # For label-wise metrics
+                true_positives = (predicted & labels.bool()).sum().item()
+                false_positives = (predicted & ~labels.bool()).sum().item()
+                false_negatives = (~predicted & labels.bool()).sum().item()
+
+                precision = (
+                    true_positives / (true_positives + false_positives)
+                    if (true_positives + false_positives) > 0
+                    else 0
+                )
+                recall = (
+                    true_positives / (true_positives + false_negatives)
+                    if (true_positives + false_negatives) > 0
+                    else 0
+                )
+                f1_score = (
+                    2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+                )
+
+                # Calculate exact match ratio (all labels correct for each sample)
+                exact_matches = (
+                    ((predicted == labels.bool()).sum(dim=1) == labels.size(1)).sum().item()
+                )
+                exact_match_ratio = exact_matches / labels.size(0)
 
                 # Compute per-class accuracy
                 for class_idx in range(labels.size(1)):  # Iterate over classes
-                    class_labels = labels[:, class_idx]
+                    class_labels = labels[:, class_idx].bool()
                     class_preds = predicted[:, class_idx]
 
-                    class_correct[class_idx] += (class_labels * class_preds).sum().item()
+                    # CHANGED: Use boolean operations instead of float
+                    class_correct[class_idx] += (class_labels & class_preds).sum().item()
                     class_total[class_idx] += class_labels.sum().item()
 
             # Convert collected features and labels to NumPy for t-SNE
@@ -336,19 +403,22 @@ class ImageClassifier:
             # Log images per class
             for class_id, image_list in class_images.items():
                 if len(image_list) > 0:
-                    image_grid = torch.stack(image_list, dim=0)
-                    class_name = self.classes[class_id]
-                    wandb.log(
-                        {
-                            f"class_{class_name}_images": wandb.Image(
-                                image_grid, caption=f"Class {class_name} predictions"
-                            )
-                        }
-                    )
+                    # CHANGED: Only take up to 16 images to avoid memory issues
+                    sample_images = image_list[: min(16, len(image_list))]
+                    if sample_images:
+                        image_grid = torch.stack(sample_images, dim=0)
+                        class_name = self.regions[class_id]
+                        wandb.log(
+                            {
+                                f"class_{class_name}_images": wandb.Image(
+                                    image_grid, caption=f"Class {class_name} predictions"
+                                )
+                            }
+                        )
 
             # Compute class-wise accuracies
             class_accuracies = {
-                self.classes[class_idx]: (
+                self.regions[class_idx]: (
                     (100 * class_correct[class_idx] / class_total[class_idx])
                     if class_total[class_idx] > 0
                     else 0
@@ -363,12 +433,13 @@ class ImageClassifier:
             plt.ylabel("Accuracy (%)")
             plt.title("Class-wise Accuracies")
             plt.xticks(
-                ticks=range(len(self.classes)), labels=self.classes, rotation=90
+                ticks=range(len(self.regions)), labels=self.regions, rotation=90
             )  # Assuming 40 classes
             plt.ylim(0, 100)  # Accuracy range 0-100%
 
             # Save the figure and log to wandb
-            plot_path = "RCnet/results/class_wise_accuracies.png"
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            plot_path = os.path.join(os.path.dirname(output_file), "class_wise_accuracies.png")
             plt.savefig(plot_path)
             plt.close()
             wandb.log({"class_wise_accuracies_plot": wandb.Image(plot_path)})
@@ -376,70 +447,16 @@ class ImageClassifier:
             # Log overall accuracy and per-class accuracies
             wandb.log(
                 {
-                    "overall_accuracy": 100 * total_correct / total_labels,
+                    "overall_f1_score": f1_score * 100,
+                    "precision": precision * 100,
+                    "recall": recall * 100,
+                    "exact_match_ratio": exact_match_ratio * 100,
                     **{f"{k}_accuracy": v for k, v in class_accuracies.items()},
                 }
             )
 
-            # Plot t-SNE visualization
-            self.plot_tsne(all_features, all_labels, num_classes=40)
+            print(f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
+            print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
+            print(f"Total Inf time:{tot_time}")
 
-        accuracy = 100 * total_correct / total_labels
-        print(f"Accuracy of the network on the test images: {accuracy:.2f}%")
-        print(f"Total Inf time:{tot_time}")
-
-        return accuracy
-
-    def plot_tsne(self, features, labels, num_classes):
-        """
-        Generates and logs a t-SNE plot for the given features and labels to wandb.
-
-        Args:
-            features (ndarray): Feature representations of the dataset.
-            labels (ndarray): Multi-label ground truth labels.
-            num_classes (int): Number of classes in the dataset.
-
-        Returns:
-            None
-        """
-        # Reduce to 2D using t-SNE
-        tsne_plot = TSNE(n_components=2, perplexity=30, random_state=42)
-        tsne_results = tsne_plot.fit_transform(features)
-
-        # Assign colors for multi-labels
-        base_colors = [hsv_to_rgb([i / num_classes, 1, 1]) for i in range(num_classes)]
-
-        def get_mixed_color(label_vector):
-            """Mix colors based on label activation."""
-            active_classes = np.where(label_vector == 1)[0]
-            if len(active_classes) == 1:
-                return base_colors[active_classes[0]]
-            elif len(active_classes) > 1:
-                return np.mean([base_colors[i] for i in active_classes], axis=0)
-            return [0, 0, 0]  # Default color for no class
-
-        colors = np.array([get_mixed_color(label) for label in labels])
-
-        # Plot t-SNE
-        plt.figure(figsize=(10, 8))
-        plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=colors, alpha=0.7, edgecolors="k")
-        plt.title("t-SNE Visualization of Model Features")
-        plt.xlabel("t-SNE Dimension 1")
-        plt.ylabel("t-SNE Dimension 2")
-        plt.grid(True)
-
-        # Save plot to memory using BytesIO
-        buf = BytesIO()
-        plt.savefig(buf, format="png")
-        buf.seek(0)  # Rewind buffer for reading
-
-        # Open the image from the buffer with PIL
-        img = Image.open(buf)
-
-        # Log the image to wandb
-        wandb.log({"t-SNE Plot": wandb.Image(img)})
-
-        buf.close()  # Close the buffer
-
-        # Close the plot to avoid memory issues
-        plt.close()
+            return f1_score * 100

@@ -27,6 +27,7 @@ from PIL import Image
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -150,7 +151,6 @@ class LandmarkDetector:
     CONFIDENCE_THRESHOLD = 0.5
     # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
     IMAGE_SIZE = (1088, 1920)
-    MODEL_DIR = os.path.abspath(os.path.join(__file__, "../models/ld"))
 
     def __init__(self, region_id: str):
         """
@@ -158,18 +158,45 @@ class LandmarkDetector:
         The YOLO object is created with the path to a specific pretrained model
         """
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
+        models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
 
         self.region_id = region_id
         try:
             self.model = YOLO(
-                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_nadir.pt")
+                os.path.join(models_dir, self.get_LD_model_weights_relative_path(region_id))
             )
             self.ground_truth = LandmarkDetector.load_ground_truth(
-                os.path.join(LandmarkDetector.MODEL_DIR, region_id, f"{region_id}_top_salient.csv")
+                os.path.join(models_dir, self.get_region_bounding_boxes_relative_path(region_id))
             )
         except Exception as e:
             Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
+
+    @staticmethod
+    def get_LD_model_weights_relative_path(region_id: str) -> str:
+        """
+        Get the relative path to the model weights file for a specific MGRS region.
+
+        Args:
+            region_id: The MGRS region ID to get the LD model weights relative path for.
+
+        Returns:
+            The relative path to the LD model weights file.
+        """
+        return os.path.join(region_id, "yolo_model_weights.pt")
+
+    @staticmethod
+    def get_region_bounding_boxes_relative_path(region_id: str) -> str:
+        """
+        Get the relative path to the bounding box lat/lon coordinates file for a specific MGRS region.
+
+        Args:
+            region_id: The MGRS region ID to get the bounding box coordinates relative path for.
+
+        Returns:
+            The relative path to the bounding box coordinates file.
+        """
+        return os.path.join(region_id, "bounding_boxes.csv")
 
     @staticmethod
     def load_ground_truth(ground_truth_path: str) -> np.ndarray:
@@ -184,8 +211,7 @@ class LandmarkDetector:
             (centroid_lat, centroid_lon, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon).
         """
         try:
-            # TODO: change csvs to have lat, lon instead of lon, lat for consistency
-            return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)[:, [1, 0, 3, 2, 5, 4]]
+            return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)
         except Exception as e:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
@@ -212,10 +238,9 @@ class LandmarkDetector:
 
         try:
             # Detect landmarks using the YOLO model
-            img = Image.fromarray(cv2.cvtColor(frame.image, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
             results: Results = self.model.predict(
-                img,
+                Image.fromarray(frame.image),
                 conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
                 imgsz=LandmarkDetector.IMAGE_SIZE,
                 verbose=False,
