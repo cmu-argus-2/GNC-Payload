@@ -24,7 +24,7 @@ class MemoryAwareProcessPool:
         num_workers: int = 32,
         low_memory_usage_threshold: float = 80.0,
         high_memory_usage_threshold: float = 90.0,
-        poll_interval: float = 5.0,
+        poll_interval: float = 2.0,
     ):
         """
         Initialize the MemoryAwareProcessPool.
