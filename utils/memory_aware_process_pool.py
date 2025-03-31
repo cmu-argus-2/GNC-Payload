@@ -192,7 +192,7 @@ class MemoryAwareProcessPool:
             return True
 
         pbar = (
-            tqdm(total=num_jobs, desc="Processing requests", unit="request")
+            tqdm(total=num_jobs, desc="0 jobs in progress", unit="request")
             if display_progress_bar
             else nullcontext()
         )
@@ -247,6 +247,9 @@ class MemoryAwareProcessPool:
                         job_ids_to_request_ids[next_job_id] = request_id
                         next_job_id += 1
                         started_job = True
+
+                if display_progress_bar:
+                    pbar.set_description(f"{len(job_ids_to_request_ids)} jobs in progress")
 
                 if output_log_path is not None:
                     output_log_file.write(
