@@ -228,7 +228,12 @@ class MemoryAwareProcessPool:
 
                 memory_usage_percentage = MemoryAwareProcessPool.get_memory_usage_percentage()
 
-                if memory_usage_percentage < self.low_memory_usage_threshold:
+                if memory_usage_percentage > self.high_memory_usage_threshold:
+                    terminated_process = terminate_process()
+                elif (
+                    memory_usage_percentage < self.low_memory_usage_threshold
+                    and len(job_ids_to_request_ids) < self.num_workers
+                ):
                     in_progress_requests = np.zeros(num_jobs, dtype=bool)
                     for request_id in job_ids_to_request_ids.values():
                         in_progress_requests[request_id] = True
@@ -242,9 +247,6 @@ class MemoryAwareProcessPool:
                         job_ids_to_request_ids[next_job_id] = request_id
                         next_job_id += 1
                         started_job = True
-
-                elif memory_usage_percentage > self.high_memory_usage_threshold:
-                    terminated_process = terminate_process()
 
                 if output_log_path is not None:
                     output_log_file.write(
