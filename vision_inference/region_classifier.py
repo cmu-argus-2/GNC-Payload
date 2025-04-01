@@ -71,7 +71,7 @@ class RegionClassifier:
             # Load Custom model weights if required
             if load_weights:
                 self.model.load_state_dict(
-                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
+                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device, weights_only=True)
                 )
                 self.model.eval()
                 Logger.log("INFO", "Model loaded successfully.")
@@ -162,12 +162,12 @@ class RegionClassifier:
         return predicted_region_ids
 
 
-    def _prepare_batch_data(self, image_dir: str, num_workers: int = 0) -> None:
+    def _prepare_batch_data(self, images_dir: str, num_workers: int = 0) -> None:
         """
         Prepares the data for the model.
         """
-        self.image_dir = image_dir
-        self.dataset = NumpyImageDataset(image_paths=image_dir, transform=self.transforms)
+        self.images_dir = images_dir
+        self.dataset = NumpyImageDataset(images_dir=images_dir, transform=self.transforms)
         self.dataloader = DataLoader(
             self.dataset,
             batch_size=16,
@@ -175,24 +175,25 @@ class RegionClassifier:
             num_workers=num_workers
         )
 
-    def classify_region_batch(self, image_dir: str, num_workers: int = 0) -> dict[str, List[str]]:
+    def classify_region_batch(self, images_dir: str, num_workers: int = 0) -> dict[str, List[str]]:
         """
         Classify regions in a batch of images from a directory.
         
         Args:
-            image_dir (str): Directory containing images to classify
+            images_dir (str): Directory containing images to classify
             num_workers (int): Number of worker processes for data loading
             
         Returns:
             List[tuple[str, List[str]]]: A list of tuples containing (image_name, region_ids)
         """
-        Logger.log("INFO", f"Starting batch classification of images from {image_dir}")
+        Logger.log("INFO", f"Starting batch classification of images from {images_dir}")
         
         try:
             # Prepare data loader
-            self._prepare_batch_data(image_dir, num_workers)
+            self._prepare_batch_data(images_dir, num_workers)
             
-            all_predictions = defaultdict(list)
+            img2reg = defaultdict(list)
+            reg2img = defaultdict(list)
             batch_start_time = perf_counter()
             
             # Process each batch
@@ -210,14 +211,15 @@ class RegionClassifier:
                         img_predicted_regions = [self.region_ids[idx.item()] for idx in img_predicted_indices]
                         image_name = os.path.basename(paths[i])
                         for region in img_predicted_regions:
-                            all_predictions[image_name].append(region)
+                            img2reg[image_name].append(region)
+                            reg2img[region].append(image_name)
                     
                     if (batch_idx + 1) % 5 == 0:
                         Logger.log("INFO", f"Processed {(batch_idx + 1) * self.dataloader.batch_size} images")
             
             total_time = perf_counter() - batch_start_time
-            Logger.log("INFO", f"Batch classification completed. Processed {len(all_predictions)} images in {total_time:.2f} seconds")
-            return all_predictions
+            Logger.log("INFO", f"Batch classification completed. Processed {len(images)} images, and classified {len(img2reg)} of them in {total_time:.2f} seconds")
+            return reg2img, img2reg
             
         except Exception as e:
             Logger.log("ERROR", f"Batch classification failed: {e}")

@@ -32,6 +32,7 @@ from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 from typing import Dict, List
 from tqdm import tqdm
+from collections import defaultdict
 
 
 @dataclass
@@ -51,6 +52,7 @@ class LandmarkDetections:
     pixel_coordinates: np.ndarray
     latlons: np.ndarray
     class_ids: np.ndarray
+    region_ids: np.ndarray
     confidences: np.ndarray
 
     def __len__(self) -> int:
@@ -73,6 +75,7 @@ class LandmarkDetections:
             pixel_coordinates=self.pixel_coordinates[index, :],
             latlons=self.latlons[index, :],
             class_ids=self.class_ids[index],
+            region_ids=self.region_ids[index],
             confidences=self.confidences[index],
         )
 
@@ -85,6 +88,7 @@ class LandmarkDetections:
                 self.pixel_coordinates[i, :],
                 self.latlons[i, :],
                 self.class_ids[i],
+                self.region_ids[i],
                 self.confidences[i],
             )
 
@@ -100,6 +104,7 @@ class LandmarkDetections:
             pixel_coordinates=np.zeros((0, 2)),
             latlons=np.zeros((0, 2)),
             class_ids=np.zeros(0, dtype=int),
+            region_ids=np.array([], dtype='U32'),
             confidences=np.zeros(0),
         )
 
@@ -114,6 +119,7 @@ class LandmarkDetections:
         assert len(self.latlons.shape) == 2, "latlons should be a 2D array."
         assert self.latlons.shape[1] == 2, "latlons should have 2 columns."
         assert len(self.class_ids.shape) == 1, "class_ids should be a 1D array."
+        assert len(self.region_ids.shape) == 1, "region_ids should be a 1D array."
         assert len(self.confidences.shape) == 1, "confidences should be a 1D array."
 
         assert (
@@ -141,6 +147,7 @@ class LandmarkDetections:
             pixel_coordinates=np.row_stack([det.pixel_coordinates for det in detections]),
             latlons=np.row_stack([det.latlons for det in detections]),
             class_ids=np.concatenate([det.class_ids for det in detections]),
+            region_ids=np.concatenate([d.region_ids for d in detections]),
             confidences=np.concatenate([det.confidences for det in detections]),
         )
 
@@ -275,6 +282,7 @@ class LandmarkDetector:
                         pixel_coordinates=xywh[:, :2],
                         latlons=self.ground_truth[class_ids, :2],
                         class_ids=class_ids,
+                        region_ids=np.array([self.region_id] * len(class_ids)),
                         confidences=confidences,
                     )
                 )
@@ -366,24 +374,22 @@ class LandmarkDetector:
                                 array = (array * 255).astype(np.uint8)
                             else:  # Assume standard range
                                 array = array.astype(np.uint8)
-                    
                     batch_images.append(array)
-                    valid_paths.append(npy_path)
+                    valid_paths.append(os.path.basename(npy_path))
                     
                 except Exception as e:
                     Logger.log("ERROR", f"Error loading NumPy file {npy_path}: {e}")
-                    results[npy_path] = LandmarkDetections.empty()
+                    results[os.path.basename(npy_path)] = LandmarkDetections.empty()
             
             # No valid images in this batch
             if not batch_images:
                 continue
             
-            # Process batch
-            batch_results = self._process_image_batch_direct(batch_images)
+            # Process batch and get dictionary results directly
+            batch_results = self._process_image_batch_direct(batch_images, valid_paths)
             
-            # Map results back to file paths
-            for npy_path, detections in zip(valid_paths, batch_results):
-                results[npy_path] = detections
+            # Update the results dictionary with batch results
+            results.update(batch_results)
         
         # Log summary
         success_count = sum(1 for detections in results.values() if len(detections) > 0)
@@ -396,23 +402,25 @@ class LandmarkDetector:
 
     def _process_image_batch_direct(
         self,
-        images: List[np.ndarray], 
-    ) -> List[LandmarkDetections]:
+        images: List[np.ndarray],
+        image_names: List[str] 
+    ) -> Dict[str, LandmarkDetections]:
         """
         Process a batch of image arrays through the YOLO model at once to leverage GPU parallelism.
         
         Args:
             images: List of numpy arrays representing images
+            image_names: List of corresponding image names (not file paths)
             
         Returns:
-            List of LandmarkDetections objects, one per input image
+            Dictionary mapping image names to their corresponding LandmarkDetections
         """
         if not images:
-            return []
+            return {}
         
         try:
             # Convert images to PIL format for YOLO
-            pil_images = [Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)) for img in images]
+            pil_images = [Image.fromarray(img) for img in images]          
             
             batch_results = self.model.predict(
                 pil_images,
@@ -423,12 +431,11 @@ class LandmarkDetector:
             )
             
             # Process results for each image
-            detections_list = []
-            for i, result in enumerate(batch_results):
+            detections_dict = defaultdict(List)
+            for i, (name, result) in enumerate(zip(image_names, batch_results)):
                 landmarks = result.boxes
                 if len(landmarks) == 0:
-                    Logger.log("INFO", f"[Batch image {i}] No landmarks detected.")
-                    detections_list.append(LandmarkDetections.empty())
+                    Logger.log("INFO", f"[Image: {name}] No landmarks detected in region {self.region_id}.")
                     continue
                 
                 # Extract detection data
@@ -439,9 +446,8 @@ class LandmarkDetector:
                 # Filter valid detections
                 valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
                 if not np.all(valid_indices):
-                    Logger.log("INFO", "Skipping landmark(s) with invalid bounding box dimensions.")
+                    Logger.log("INFO", f"[Image: {name}] Skipping landmark(s) with invalid bounding box dimensions.")
                     if not np.any(valid_indices):
-                        detections_list.append(LandmarkDetections.empty())
                         continue
                         
                     xywh = xywh[valid_indices]
@@ -453,15 +459,15 @@ class LandmarkDetector:
                     pixel_coordinates=xywh[:, :2],
                     latlons=self.ground_truth[class_ids, :2],
                     class_ids=class_ids,
+                    region_ids=np.array([self.region_id] * len(class_ids)),
                     confidences=confidences
                 )
                 
-                Logger.log("INFO", f"[Batch image {i}] {len(detections)} landmarks detected.")
-                detections_list.append(detections)
-            
-            return detections_list
+                Logger.log("INFO", f"[Image: {name}] {len(detections)} landmarks detected.")
+                detections_dict[name].append(detections)
+            return detections_dict
             
         except Exception as e:
             Logger.log("ERROR", f"Batch detection failed: {e}")
             # Return empty detections for all images in case of failure
-            return [LandmarkDetections.empty() for _ in images]
+            return {name: LandmarkDetections.empty() for name in image_names}

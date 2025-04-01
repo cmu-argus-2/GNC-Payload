@@ -1,11 +1,14 @@
 """
-NumPy Image Batch Processing Module
+NumPy Image Batch Processing Module for ML Inference
 
-This module provides classes and functions to support batch processing of
-numpy image files for inference tasks.
+This module provides datasets and data loading utilities for efficient batch processing 
+of NumPy-format image files (.npy) in machine learning inference tasks.
 
-Author: Arvind
-Date: April 1, 2025
+Key features:
+- Brightness-based image filtering to exclude under-exposed frames
+- PyTorch Dataset implementation for integration with DataLoader
+- Configurable transformation pipelines for image preprocessing
+- Robust error handling for corrupt or invalid image files
 """
 
 import os
@@ -23,22 +26,82 @@ from vision_inference.logger import Logger
 class NumpyImageDataset(Dataset):
     """
     Dataset class for processing numpy image files in batches.
+    Includes brightness filtering similar to frame_processor logic.
     """
     
     def __init__(
         self, 
-        image_paths: List[str],
-        transform: Optional[Callable] = None
+        images_dir: str,
+        transform: Optional[Callable] = None,
+        file_extension: str = "*.npy",
+        brightness_filter: bool = True,
+        dark_threshold: float = 0.5,
+        brightness_threshold: int = 60
     ):
         """
         Initialize the dataset.
         
         Args:
-            image_paths: List of paths to numpy image files
+            images_dir: Directory path containing numpy image files
             transform: Transformation to apply to images
+            file_extension: File extension pattern to match (default: "*.npy")
+            brightness_filter: Whether to apply brightness filtering (default: True)
+            dark_threshold: Maximum percentage of dark pixels allowed for valid images (default: 0.5)
+            brightness_threshold: Pixel value below which pixels are considered dark (default: 60)
         """
-        self.image_paths = image_paths
+        self.images_dir = images_dir
         self.transform = transform
+        self.dark_threshold = dark_threshold
+        self.brightness_threshold = brightness_threshold
+        
+        # Find all matching files in the directory
+        all_image_paths = sorted(glob.glob(os.path.join(images_dir, file_extension)))
+        
+        if not all_image_paths:
+            Logger.log("WARNING", f"No files matching '{file_extension}' found in {images_dir}")
+            self.image_paths = []
+            return
+            
+        # Filter images based on brightness if enabled
+        if brightness_filter:
+            self.image_paths = []
+            skipped_count = 0
+            
+            for path in all_image_paths:
+                try:
+                    # Load and check brightness
+                    img = np.load(path)
+                    if self._is_image_bright_enough(img):
+                        self.image_paths.append(path)
+                    else:
+                        skipped_count += 1
+                except Exception as e:
+                    Logger.log("ERROR", f"Error checking brightness for {path}: {e}")
+                    skipped_count += 1
+                    
+            Logger.log("INFO", f"Loaded {len(self.image_paths)} images, skipped {skipped_count} dim images")
+        else:
+            # Use all images without filtering
+            self.image_paths = all_image_paths
+            Logger.log("INFO", f"Loaded all {len(self.image_paths)} images without brightness filtering")
+    
+    def _is_image_bright_enough(self, image: np.ndarray) -> bool:
+        """
+        Check if image meets brightness criteria for ML processing.
+        
+        Args:
+            image: NumPy array containing image data
+            
+        Returns:
+            Boolean indicating if image is bright enough
+        """
+        try:
+            gray_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            dark_percentage = np.sum(gray_frame < self.brightness_threshold) / np.prod(gray_frame.shape)
+            return dark_percentage <= self.dark_threshold
+        except Exception as e:
+            Logger.log("ERROR", f"Error in brightness calculation: {e}")
+            return False  # Reject images we can't process
     
     def __len__(self) -> int:
         return len(self.image_paths)
@@ -58,13 +121,13 @@ class NumpyImageDataset(Dataset):
         try:
             # Load numpy image file
             image = np.load(image_path)
-            
-            # Convert to PIL Image for transforms
 
-            # Convert BGR to RGB
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # Convert to PIL Image for transforms
             pil_image = Image.fromarray(image)
-            
+            if pil_image.mode != 'RGB':
+                Logger.log("WARNING", f"Image {image_path} is not RGB, converting to RGB")
+                pil_image = pil_image.convert('RGB')
+
             # Apply transformations if provided
             if self.transform:
                 image_tensor = self.transform(pil_image)
@@ -72,7 +135,6 @@ class NumpyImageDataset(Dataset):
                 # Basic conversion to tensor if no transform is provided
                 from torchvision import transforms
                 image_tensor = transforms.ToTensor()(pil_image)
-            
             return image_tensor, image_path
             
         except Exception as e:
