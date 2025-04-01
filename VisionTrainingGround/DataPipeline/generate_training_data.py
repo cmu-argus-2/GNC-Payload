@@ -24,7 +24,7 @@ from scipy.spatial.transform import Rotation
 from tqdm import tqdm
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
-from sensors.camera_model import CameraModelManager
+from sensors.camera_model import CameraModel, CameraModelManager
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.memory_aware_process_pool import MemoryAwareProcessPool
@@ -60,6 +60,11 @@ def parse_args() -> argparse.Namespace:
         "--overwrite", action="store_true", help="Overwrite the output directory if it exists."
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume generating training data for all requests that failed in the previous run.",
+    )
+    parser.add_argument(
         "--num_processes",
         type=int,
         default=int(0.5 * cpu_count()),
@@ -93,16 +98,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
+def setup_region_directory(region_dir: str, overwrite: bool, resume: bool) -> bool:
     """
-    Create the region directory if it does not exist, or clear the output files that will be replaced if overwrite is
-    True.
+    Set up the region directory for generating training data.
+
+    This function will create the region directory if it does not exist.
+    If overwrite is True, it will clear any output files that will be replaced.
+    If resume is True, it will check for and remove any output files with partial or corrupted data.
 
     :param region_dir: The path to the region directory.
-    :param overwrite: Whether to overwrite the output files if they exist.
-    :return: True if region_dir is now a directory that doesn't contain any of the output files that would be replaced,
-             False otherwise.
+    :param overwrite: Whether to overwrite the output files if they exist. Cannot be True if resume is also True.
+    :param resume: Whether to resume generating training data for all requests that failed in the previous run.
+                   Cannot be True if overwrite is also True.
+    :return: True if region_dir is now a directory that is ready for generating training data, False otherwise.
     """
+    assert not (overwrite and resume), "Overwrite and resume cannot both be True."
+
     if not os.path.exists(region_dir):
         os.makedirs(region_dir)
         return True
@@ -114,20 +125,73 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
         os.makedirs(region_dir)
         return True
 
-    conflicting_suffixes = [".png", LAT_LON_OUTPUT_FILE_SUFFIX]
-    conflicting_file_names = [
-        file_name
-        for file_name in os.listdir(region_dir)
-        if any(file_name.endswith(suffix) for suffix in conflicting_suffixes)
+    file_names = os.listdir(region_dir)
+    existing_image_file_names = [
+        file_name for file_name in file_names if file_name.endswith(".png")
     ]
-    if len(conflicting_file_names) == 0:
+    existing_lat_lon_file_names = [
+        file_name for file_name in file_names if file_name.endswith(LAT_LON_OUTPUT_FILE_SUFFIX)
+    ]
+    if len(existing_image_file_names) == 0 and len(existing_lat_lon_file_names) == 0:
         return True
 
-    if not overwrite:
+    if overwrite:
+        for file_name in existing_image_file_names + existing_lat_lon_file_names:
+            os.remove(os.path.join(region_dir, file_name))
+        return True
+
+    def are_files_corrupted(common_file_name_: str) -> bool:
+        """
+        Check if the image and lat/lon files with the given common file name are corrupted.
+
+        :param common_file_name_: The common file name to check.
+        :return: True if the files are corrupted, False otherwise.
+        """
+        try:
+            img = cv2.imread(os.path.join(region_dir, f"{common_file_name_}.png"))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            lat_lon = np.load(
+                os.path.join(region_dir, f"{common_file_name_}{LAT_LON_OUTPUT_FILE_SUFFIX}")
+            )["lat_lon"]
+            if img is None or lat_lon is None:
+                return True
+
+            if img.shape != CameraModel.OUTPUT_SHAPE or img.dtype != CameraModel.DTYPE:
+                return True
+            if lat_lon.shape != (CameraModel.RESOLUTION, 2) or not np.issubdtype(
+                lat_lon.dtype, np.floating
+            ):
+                return True
+        except Exception:
+            return True
         return False
-    for conflicting_file_name in conflicting_file_names:
-        os.remove(os.path.join(region_dir, conflicting_file_name))
-    return True
+
+    if resume:
+        existing_image_file_names = set([file_name[:-4] for file_name in existing_image_file_names])
+        existing_lat_lon_file_names = set(
+            [
+                file_name[: -len(LAT_LON_OUTPUT_FILE_SUFFIX)]
+                for file_name in existing_lat_lon_file_names
+            ]
+        )
+
+        # delete files without a counterpart
+        for file_name in existing_image_file_names - existing_lat_lon_file_names:
+            os.remove(os.path.join(region_dir, f"{file_name}.png"))
+        for file_name in existing_lat_lon_file_names - existing_image_file_names:
+            os.remove(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"))
+
+        for common_file_name in existing_image_file_names & existing_lat_lon_file_names:
+            if are_files_corrupted(common_file_name):
+                os.remove(os.path.join(region_dir, f"{common_file_name}.png"))
+                os.remove(
+                    os.path.join(region_dir, f"{common_file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}")
+                )
+
+        return True
+
+    # there are existing files but overwrite and resume are both False
+    return False
 
 
 def generate_training_image(
@@ -209,6 +273,9 @@ def main() -> None:
     Generate training data using the EarthImageSimulator.
     """
     args = parse_args()
+    if args.overwrite and args.resume:
+        raise ValueError("Cannot use --overwrite and --resume at the same time.")
+
     regions = list(set(args.regions) - set(args.skip_regions))
     total_images = len(regions) * args.num_images
     if total_images == 0:
@@ -218,11 +285,20 @@ def main() -> None:
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in regions:
         region_dir: str = os.path.join(training_dir, region)
-        if not setup_region_directory(region_dir, args.overwrite):
+        if not setup_region_directory(region_dir, args.overwrite, args.resume):
             print(
                 f"Output directory {region_dir} could not be emptied. Set --overwrite to clear any existing data."
             )
             return
+
+    file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
+    requests_generator = product(regions, file_prefixes_generator)
+    if args.resume:
+        requests_generator = (
+            (region, file_prefix)
+            for region, file_prefix in requests_generator
+            if not os.path.exists(os.path.join(training_dir, region, f"{file_prefix}.png"))
+        )
 
     func = partial(
         generate_training_image,
@@ -231,20 +307,19 @@ def main() -> None:
         altitude_variation=args.altitude_variation,
         off_nadir_variation=args.off_nadir_variation,
     )
-    file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
     if args.num_processes > 1:
-        requests = list(product(regions, file_prefixes_generator))
+        requests = list(requests_generator)
         log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
         with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-            successful_requests, request_results = pool.map(func, requests, output_log_path=log_file_path)
+            successful_requests, request_results = pool.map(
+                func, requests, output_log_path=log_file_path
+            )
 
         for request, success, result in zip(requests, successful_requests, request_results):
             if not success:
                 print(f"Generation of training image for {request} failed with exception: {result}")
     else:
-        for region, file_prefix in tqdm(
-            product(regions, file_prefixes_generator), total=total_images
-        ):
+        for region, file_prefix in tqdm(requests_generator, total=total_images):
             func(region, file_prefix)
 
 
