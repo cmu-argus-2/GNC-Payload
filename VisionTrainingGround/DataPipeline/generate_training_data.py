@@ -283,7 +283,7 @@ def main() -> None:
         return
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    for region in regions:
+    for region in tqdm(regions, desc="Setting up region directories"):
         region_dir: str = os.path.join(training_dir, region)
         if not setup_region_directory(region_dir, args.overwrite, args.resume):
             print(
