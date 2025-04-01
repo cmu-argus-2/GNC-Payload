@@ -211,6 +211,9 @@ def main() -> None:
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
     total_images = len(regions) * args.num_images
+    if total_images == 0:
+        print("No training images to generate.")
+        return
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in regions:
