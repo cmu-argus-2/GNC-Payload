@@ -209,6 +209,32 @@ class LandmarkDetector:
         return os.path.join(region_id, "bounding_boxes.csv")
 
     @staticmethod
+    def get_LD_model_weights_relative_path(region_id: str) -> str:
+        """
+        Get the relative path to the model weights file for a specific MGRS region.
+
+        Args:
+            region_id: The MGRS region ID to get the LD model weights relative path for.
+
+        Returns:
+            The relative path to the LD model weights file.
+        """
+        return os.path.join(region_id, "yolo_model_weights.pt")
+
+    @staticmethod
+    def get_region_bounding_boxes_relative_path(region_id: str) -> str:
+        """
+        Get the relative path to the bounding box lat/lon coordinates file for a specific MGRS region.
+
+        Args:
+            region_id: The MGRS region ID to get the bounding box coordinates relative path for.
+
+        Returns:
+            The relative path to the bounding box coordinates file.
+        """
+        return os.path.join(region_id, "bounding_boxes.csv")
+
+    @staticmethod
     def load_ground_truth(ground_truth_path: str) -> np.ndarray:
         """
         Loads ground truth bounding box coordinates from a CSV file.
@@ -248,10 +274,9 @@ class LandmarkDetector:
 
         try:
             # Detect landmarks using the YOLO model
-            img = Image.fromarray(cv2.cvtColor(frame.image, cv2.COLOR_BGR2RGB))
             start_time = perf_counter()
             results: Results = self.model.predict(
-                img,
+                Image.fromarray(frame.image),
                 conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
                 imgsz=LandmarkDetector.IMAGE_SIZE,
                 verbose=False,

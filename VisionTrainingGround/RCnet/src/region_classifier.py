@@ -86,10 +86,18 @@ class TrainRegionClassifier(BaseRegionClassifier):
             save_plot_path (str): Path to save the loss plot.
         """
         # Prepare data first to get the number of classes
+<<<<<<< HEAD
         self._prepare_batch_data(data_path, selected_classes)
 
         # Now initialize the parent class with our number of classes and skip weight loading
         super().__init__(load_weights=False, num_classes=len(self.regions))
+=======
+        self._prepare_data(data_path, selected_classes)
+
+        # Now initialize the parent class with our number of classes and skip weight loading
+        super().__init__(load_weights=False)
+        assert len(self.regions) == BaseRegionClassifier.NUM_CLASSES, "Number of classes mismatch!"
+>>>>>>> main
 
         # Initialize training specific components
         self.plotter = Plotter()

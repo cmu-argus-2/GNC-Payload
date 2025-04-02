@@ -7,7 +7,7 @@ import numpy as np
 from brahe import Epoch
 
 # pylint: disable=import-error
-from dynamics.j2_dynamics import j2_jacobian_manual, j2_jacobian_auto
+from dynamics.grav_potential_dynamics import j2_jacobian_auto, j2_jacobian_manual
 from utils.config_utils import load_config
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state
 

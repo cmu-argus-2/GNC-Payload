@@ -15,6 +15,7 @@ import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count
+from time import time
 
 import cv2
 import numpy as np
@@ -166,7 +167,7 @@ def generate_training_image(
     altitude = nominal_altitude + np.random.uniform(-altitude_variation, altitude_variation)
 
     ecef_position = lat_lon_to_ecef(np.array([lat, lon]))
-    ecef_position /= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
+    ecef_position *= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
     ecef_velocity = np.array([0, 0, 1])
 
     camera_manager = CameraModelManager()
@@ -230,8 +231,9 @@ def main() -> None:
     file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
     if args.num_processes > 1:
         requests = list(product(regions, file_prefixes_generator))
+        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
         with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-            successful_requests, request_results = pool.map(func, requests)
+            successful_requests, request_results = pool.map(func, requests, output_log_path=log_file_path)
 
         for request, success, result in zip(requests, successful_requests, request_results):
             if not success:

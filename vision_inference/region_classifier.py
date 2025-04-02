@@ -44,14 +44,12 @@ class RegionClassifier:
     IMAGE_NET_STD = [0.229, 0.224, 0.225]
     MODEL_WEIGHTS_RELATIVE_PATH = "rc_model_weights.pth"
 
-    def __init__(self, load_weights: bool = True, num_classes: Optional[int] = None):
+    def __init__(self, load_weights: bool = True):
         """
         Initialize the RegionClassifier.
 
         Args:
             load_weights (bool): Whether to load model weights. Default is True.
-            num_classes (Optional[int]): Number of classes for the model.
-                                        If None, uses the default NUM_CLASSES.
         """
         Logger.log("INFO", "Initializing RegionClassifier.")
 
@@ -71,7 +69,7 @@ class RegionClassifier:
             # Load Custom model weights if required
             if load_weights:
                 self.model.load_state_dict(
-                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device, weights_only=True)
+                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
                 )
                 self.model.eval()
                 Logger.log("INFO", "Model loaded successfully.")
@@ -138,8 +136,7 @@ class RegionClassifier:
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] Starting the classification process.",
         )
         try:
-            img = Image.fromarray(cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2RGB))
-            img = self.transforms(img).unsqueeze(0).to(self.device)
+            img = self.transforms(Image.fromarray(frame_obj.image)).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
                 start_time = perf_counter()
@@ -234,12 +231,9 @@ class ClassifierEfficient(nn.Module):
     A custom classifier using the EfficientNet model.
     """
 
-    def __init__(self, num_classes: int = RegionClassifier.NUM_CLASSES):
+    def __init__(self):
         """
         Initialize the classifier.
-
-        Args:
-            num_classes (int): Number of output classes.
         """
         super().__init__()
         # Using new weights system
