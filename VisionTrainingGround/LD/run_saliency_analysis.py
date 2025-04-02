@@ -291,6 +291,7 @@ def main() -> None:
     """
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
+    args.num_processes = min(args.num_processes, len(regions))
 
     func = partial(
         run_saliency_analysis_for_region,
@@ -300,7 +301,7 @@ def main() -> None:
         num_boxes=args.num_boxes,
     )
     if args.num_processes > 1:
-        with Pool(min(args.num_processes, len(regions))) as pool:
+        with Pool(args.num_processes) as pool:
             pool.map(func, regions)
     else:
         map(func, regions)
