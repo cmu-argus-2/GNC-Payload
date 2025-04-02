@@ -175,7 +175,7 @@ class RegionClassifier:
             num_workers=num_workers
         )
 
-    def classify_region_batch(self, images_dir: str, num_workers: int = 0) -> dict[str, List[str]]:
+    def classify_region_batch(self, images_dir: str, num_workers: int = 0) -> tuple[dict[str, List[str]], dict[str, List[str]]]:
         """
         Classify regions in a batch of images from a directory.
         
@@ -184,7 +184,9 @@ class RegionClassifier:
             num_workers (int): Number of worker processes for data loading
             
         Returns:
-            List[tuple[str, List[str]]]: A list of tuples containing (image_name, region_ids)
+            tuple:
+                - reg2img (dict[str, List[str]]): Mapping from region IDs to lists of image names
+                - img2reg (dict[str, List[str]]): Mapping from image names to lists of region IDs
         """
         Logger.log("INFO", f"Starting batch classification of images from {images_dir}")
         

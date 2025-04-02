@@ -46,7 +46,7 @@ class NumpyImageDataset(Dataset):
             transform: Transformation to apply to images
             file_extension: File extension pattern to match (default: "*.npy")
             brightness_filter: Whether to apply brightness filtering (default: True)
-            dark_threshold: Maximum percentage of dark pixels allowed for valid images (default: 0.5)
+            dark_threshold: Maximum percentage of dark pixels allowed for valid images (default: 0.9)
             brightness_threshold: Pixel value below which pixels are considered dark (default: 60)
         """
         self.images_dir = images_dir
