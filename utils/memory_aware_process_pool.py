@@ -22,8 +22,8 @@ class MemoryAwareProcessPool:
     def __init__(
         self,
         num_workers: int = 32,
-        low_memory_usage_threshold: float = 80.0,
-        high_memory_usage_threshold: float = 90.0,
+        low_memory_usage_threshold: float = 75.0,
+        high_memory_usage_threshold: float = 85.0,
         poll_interval: float = 2.0,
     ):
         """
