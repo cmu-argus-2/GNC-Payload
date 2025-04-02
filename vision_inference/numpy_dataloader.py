@@ -35,7 +35,7 @@ class NumpyImageDataset(Dataset):
         transform: Optional[Callable] = None,
         file_extension: str = "*.npy",
         brightness_filter: bool = True,
-        dark_threshold: float = 0.5,
+        dark_threshold: float = 0.9,
         brightness_threshold: int = 60
     ):
         """

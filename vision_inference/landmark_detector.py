@@ -32,8 +32,7 @@ from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 from typing import Dict, List
 from tqdm import tqdm
-from collections import defaultdict
-
+import torch
 
 @dataclass
 class LandmarkDetections:
@@ -168,7 +167,7 @@ class LandmarkDetector:
         """
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
         models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
-
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.region_id = region_id
         try:
             self.model = YOLO(
@@ -180,6 +179,8 @@ class LandmarkDetector:
         except Exception as e:
             Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
+        self.model.to(self.device)
+        Logger.log("INFO", f"Model device: {self.model.device}")
 
     @staticmethod
     def get_LD_model_weights_relative_path(region_id: str) -> str:
@@ -365,15 +366,7 @@ class LandmarkDetector:
                         Logger.log("WARNING", f"Invalid array shape in {npy_path}: {array.shape}")
                         results[npy_path] = LandmarkDetections.empty()
                         continue
-                    
-                    # Ensure we have proper image format
-                    if array.shape[2] == 3 and array.dtype != np.uint8:
-                        # Normalize if not already uint8
-                        if array.dtype == np.float32 or array.dtype == np.float64:
-                            if array.max() <= 1.0:  # Assume [0,1] range
-                                array = (array * 255).astype(np.uint8)
-                            else:  # Assume standard range
-                                array = array.astype(np.uint8)
+
                     batch_images.append(array)
                     valid_paths.append(os.path.basename(npy_path))
                     
@@ -421,7 +414,7 @@ class LandmarkDetector:
         try:
             # Convert images to PIL format for YOLO
             pil_images = [Image.fromarray(img) for img in images]          
-            
+            start_time = perf_counter()
             batch_results = self.model.predict(
                 pil_images,
                 conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
@@ -429,9 +422,13 @@ class LandmarkDetector:
                 verbose=False,
                 batch=len(pil_images)  # Explicitly set batch size
             )
+            inference_time = perf_counter() - start_time
+            avg_time_per_image = inference_time / len(pil_images)
+            Logger.log("INFO", f"Batch inference completed in {inference_time:.3f}s "
+                      f"(avg: {avg_time_per_image:.3f}s/image) on {self.model.device}")
             
             # Process results for each image
-            detections_dict = defaultdict(List)
+            detections_dict = {}
             for i, (name, result) in enumerate(zip(image_names, batch_results)):
                 landmarks = result.boxes
                 if len(landmarks) == 0:
@@ -464,7 +461,7 @@ class LandmarkDetector:
                 )
                 
                 Logger.log("INFO", f"[Image: {name}] {len(detections)} landmarks detected.")
-                detections_dict[name].append(detections)
+                detections_dict[name] = detections
             return detections_dict
             
         except Exception as e:

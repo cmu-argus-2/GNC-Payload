@@ -1,5 +1,5 @@
 from vision_inference.region_classifier import RegionClassifier
-from vision_inference.landmark_detector import LandmarkDetector
+from vision_inference.landmark_detector import LandmarkDetector, LandmarkDetections
 
 import argparse
 import os
@@ -8,9 +8,10 @@ from typing import Dict, List, Any
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.logger import Logger
 import numpy as np
+from collections import defaultdict
 
 INPUT_DIR = "images"
-OUTPUT_DIR = "vision_inference_output"
+OUTPUT_DIR = "vision_inference"
 
 
 def run_region_classification(args: argparse.Namespace, output_dir: str) -> Dict[str, List[str]]:
@@ -42,25 +43,24 @@ def run_region_classification(args: argparse.Namespace, output_dir: str) -> Dict
     )
     return predictions
 
-def run_landmark_detection(args: argparse.Namespace, models_dir: str, output_dir: str, region_results: Dict[str, List[str]]) -> Dict[str, Dict]:
+def run_landmark_detection(args: argparse.Namespace, models_dir: str, output_dir: str, RC_results: Dict[str, List[str]]) -> Dict[str, Dict]:
     """
     Run landmark detection on images based on their classified regions.
     
     Args:
         args: Command line arguments
         output_dir: Output directory path from config
-        region_results: Results from region classification (region -> list of image paths)
+        RC_results: Results from region classification (region -> list of image paths)
         
     Returns:
-        Dict of landmark detection results by region
+        Dict of landmark detection results mapping (img_name -> LandmarkDetections)
     """
-    detections_by_image = {}
+    detections_by_image = defaultdict(list)
     total_landmarks = 0
     total_images = 0
     
     # Process each region's images
-    for region, image_paths in region_results.items():
-        region_dir = os.path.join(models_dir, region)
+    for region, image_paths in RC_results.items():
         if not image_paths:  # Skip regions with no images
             continue
             
@@ -69,24 +69,28 @@ def run_landmark_detection(args: argparse.Namespace, models_dir: str, output_dir
             total_images += len(image_paths)
             
             # Initialize detector for this region
-            detector = LandmarkDetector(region_id=region_dir)
+            detector = LandmarkDetector(region_id=region)
             
             # Run batch detection
-            region_results = detector.batch_detect_landmarks(
+            LD_results = detector.batch_detect_landmarks(
                 npy_paths= [os.path.join(output_dir, args.name, INPUT_DIR, img_path) for img_path in image_paths],
                 batch_size=args.batch_size if hasattr(args, "batch_size") else 8,
             )
             
             # Count landmarks detected in this region
-            region_landmark_count = sum(len(detections) for detections in region_results.values())
+            region_landmark_count = sum(len(detections) for detections in LD_results.values())
             total_landmarks += region_landmark_count
             Logger.log("INFO", f"Detected {region_landmark_count} landmarks in region {region}")
             
-            detections_by_image[region] = region_results
+            for img_name, detections in LD_results.items():
+                detections_by_image[img_name].append(detections)
             
         except Exception as e:
             Logger.log("ERROR", f"Failed to process region {region}: {e}")
-    
+
+    for img_name, detections in detections_by_image.items():
+        detections_by_image[img_name] = LandmarkDetections.stack(detections)
+
     Logger.log("INFO", f"Landmark detection complete: {total_landmarks} landmarks detected across {total_images} images in {len(detections_by_image)} regions")
     return detections_by_image
 
@@ -124,42 +128,27 @@ def save_landmark_detections(LD_results, output_dir, name):
     save_dir = os.path.join(output_dir, name, OUTPUT_DIR, "landmark_detections")
     os.makedirs(save_dir, exist_ok=True)
     
-    # Create a lookup file to record what's saved where
-    lookup = {}
     
-    for region, region_results in LD_results.items():
-        # Create region directory
-        region_dir = os.path.join(save_dir, region)
-        os.makedirs(region_dir, exist_ok=True)
-        
-        region_lookup = {}
-        for img_name, detections in region_results.items():
-            if len(detections) == 0:
-                continue
-                
-            # Create a compact numpy file with all detection data
-            # Use the basename without extension as the key
-            base_name = os.path.splitext(os.path.basename(img_name))[0]
-            file_path = os.path.join(save_dir, f"{base_name}.npz")
+    for img_name, detections in LD_results.items():
+        if len(detections) == 0:
+            continue
             
-            # Save all arrays in a single compressed file
-            np.savez_compressed(
-                file_path,
-                pixels=detections.pixel_coordinates,
-                latlons=detections.latlons,
-                class_ids=detections.class_ids,
-                region_ids=detections.region_ids,
-                confidences=detections.confidences
-            )
-            
-            region_lookup[base_name] = len(detections)
-        
-        # Save region lookup with counts
-        lookup[region] = region_lookup
-    
-    # Save the lookup file as JSON
-    with open(os.path.join(save_dir, "detection_counts.json"), "w") as f:
-        json.dump(lookup, f)
+        # Use the basename without extension as the file name
+        base_name = os.path.splitext(os.path.basename(img_name))[0]
+        # swap the "img" in the base name with "inf"
+        base_name = base_name.replace("img", "inf")
+        # Create a unique file path for each image
+        file_path = os.path.join(save_dir, f"{base_name}.npz")
+        # Save all arrays in a single compressed file
+        np.savez_compressed(
+            file_path,
+            pixels=detections.pixel_coordinates,
+            latlons=detections.latlons,
+            class_ids=detections.class_ids,
+            region_ids=detections.region_ids,
+            confidences=detections.confidences
+        )
+
     
     Logger.log("INFO", f"Landmark detection results saved to {save_dir}")
 
@@ -202,19 +191,18 @@ def main():
     if LD_results:
         # Count images with landmarks
         images_with_landmarks = 0
-        for region, region_data in LD_results.items():
-            images_with_landmarks += sum(1 for img_data in region_data.values() if len(img_data) > 0)
+        # Count only images that have at least one landmark detection
+        images_with_landmarks = sum(1 for detections in LD_results.values() if len(detections) > 0)
         
         Logger.log("INFO", f"Found landmarks in {images_with_landmarks} images across {len(LD_results)} regions")
         
         # Print example of landmark detection results
-        for region, region_data in list(LD_results.items())[:1]:
-            example_items = list(region_data.items())[:2]
-            for img_name, detections in example_items:
-                if len(detections) > 0:
-                    Logger.log("INFO", f"Example - Image: {os.path.basename(img_name)}, "
-                                        f"Region: {region}, Landmarks: {len(detections)}")
-                    break
+        for img_name, detections in list(LD_results.items())[:2]:
+            if len(detections) > 0:
+                Logger.log("INFO", f"Example - Image: {os.path.basename(img_name)}, "
+                                   f"Region(s): {np.unique(detections.region_ids)}, "
+                                   f"Landmarks: {len(detections)}")
+                break
 
     save_landmark_detections(LD_results, config["output_dir"], args.name)
     
