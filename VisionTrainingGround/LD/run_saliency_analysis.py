@@ -180,7 +180,7 @@ def generate_saliency_map(
         # cannot use += because it won't work with repeated indices
         np.add.at(
             region_saliency_map.image_data,
-            (vs[valid_mask], us[valid_mask]),
+            (vs[valid_mask], us[valid_mask], 0),
             img_saliency_map[valid_mask],
         )
         np.add.at(region_saliency_map_counts, (vs[valid_mask], us[valid_mask]), 1)
