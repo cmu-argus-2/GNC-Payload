@@ -26,6 +26,7 @@ import numpy as np
 from affine import Affine
 from brahe.constants import R_EARTH
 from scipy.ndimage import uniform_filter
+from tqdm import tqdm
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -156,7 +157,7 @@ def generate_saliency_map(
     region_saliency_map_counts = np.zeros((height, width), dtype=int)
     saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
-    for file_prefix in file_prefixes:
+    for file_prefix in tqdm(file_prefixes, desc=f"Processing images for region {region_id}"):
         file_path = os.path.join(region_dir, file_prefix + ".png")
         image = cv2.imread(file_path)
         success, img_saliency_map = saliency_computer.computeSaliency(image)
@@ -267,6 +268,8 @@ def run_saliency_analysis_for_region(
         if not overwrite:
             raise FileExistsError(f"Output file {bounding_boxes_file} already exists.")
         os.remove(bounding_boxes_file)
+
+    print(f"Running saliency analysis for region {region}...")
 
     saliency_map = generate_saliency_map(region_dir, saliency_map_file, gsd, region)
     saliency_map.save()
