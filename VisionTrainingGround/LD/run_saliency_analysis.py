@@ -307,7 +307,8 @@ def main() -> None:
         with Pool(args.num_processes) as pool:
             pool.map(func, regions)
     else:
-        map(func, regions)
+        # we don't care about the results, just exhaust the iterator
+        list(map(func, regions))
 
 
 if __name__ == "__main__":
