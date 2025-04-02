@@ -8,13 +8,8 @@ import argparse
 
 import torch
 
-<<<<<<< HEAD
-from region_classifier import RegionClassifier
-
-=======
 from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
 
->>>>>>> main
 
 
 def parse_args():
@@ -76,11 +71,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
 
     # Create the classifier object
-<<<<<<< HEAD
-    classifier = RegionClassifier(
-=======
     classifier = TrainRegionClassifier(
->>>>>>> main
         data_path=args.data_dir,
         save_plot_flag=args.save_plot_flag,
         save_plot_path=args.save_plot_path,
