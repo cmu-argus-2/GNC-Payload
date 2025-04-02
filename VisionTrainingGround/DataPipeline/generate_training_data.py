@@ -98,7 +98,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_region_directory(region_dir: str, overwrite: bool, resume: bool) -> bool:
+def setup_region_directory(region_dir: str, overwrite: bool, resume: bool, check_corrupted: bool = False) -> bool:
     """
     Set up the region directory for generating training data.
 
@@ -110,9 +110,14 @@ def setup_region_directory(region_dir: str, overwrite: bool, resume: bool) -> bo
     :param overwrite: Whether to overwrite the output files if they exist. Cannot be True if resume is also True.
     :param resume: Whether to resume generating training data for all requests that failed in the previous run.
                    Cannot be True if overwrite is also True.
+    :param check_corrupted: Whether to check for corrupted files in the region directory before resuming. This can only
+                            be True if resume is also True. This is very expensive since it loads all existing image and
+                            lat/lon files into memory. You're probably better off just crossing your fingers and hoping
+                            for the best.
     :return: True if region_dir is now a directory that is ready for generating training data, False otherwise.
     """
     assert not (overwrite and resume), "Overwrite and resume cannot both be True."
+    assert not (check_corrupted and not resume), "Check corrupted files cannot be True if resume is False."
 
     if not os.path.exists(region_dir):
         os.makedirs(region_dir)
@@ -181,12 +186,13 @@ def setup_region_directory(region_dir: str, overwrite: bool, resume: bool) -> bo
         for file_name in existing_lat_lon_file_names - existing_image_file_names:
             os.remove(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"))
 
-        for common_file_name in existing_image_file_names & existing_lat_lon_file_names:
-            if are_files_corrupted(common_file_name):
-                os.remove(os.path.join(region_dir, f"{common_file_name}.png"))
-                os.remove(
-                    os.path.join(region_dir, f"{common_file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}")
-                )
+        if check_corrupted:
+            for common_file_name in existing_image_file_names & existing_lat_lon_file_names:
+                if are_files_corrupted(common_file_name):
+                    os.remove(os.path.join(region_dir, f"{common_file_name}.png"))
+                    os.remove(
+                        os.path.join(region_dir, f"{common_file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}")
+                    )
 
         return True
 
