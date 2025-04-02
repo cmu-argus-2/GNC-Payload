@@ -34,7 +34,7 @@ def image_vis(args) -> None:
     :param: args
     """
     earth_image_sim = EarthImageSimulator(
-        geotiff_cache=None, inpaint_blue_marble=False, blue_marble_month=None
+        geotiff_cache=None, inpaint_blue_marble=True, blue_marble_month=None
     )
     camera_model_manager = CameraModelManager()
 
