@@ -19,20 +19,20 @@ Date: [Creation or Last Update Date]
 import os
 from dataclasses import dataclass
 from time import perf_counter
-from typing import List, Sequence
+from typing import Dict, List, Sequence
 
 import cv2
 import numpy as np
+import torch
 from PIL import Image
+from tqdm import tqdm
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
-from typing import Dict, List
-from tqdm import tqdm
-import torch
+
 
 @dataclass
 class LandmarkDetections:
@@ -103,7 +103,7 @@ class LandmarkDetections:
             pixel_coordinates=np.zeros((0, 2)),
             latlons=np.zeros((0, 2)),
             class_ids=np.zeros(0, dtype=int),
-            region_ids=np.array([], dtype='U32'),
+            region_ids=np.array([], dtype="U32"),
             confidences=np.zeros(0),
         )
 
@@ -363,29 +363,32 @@ class LandmarkDetector:
         Returns:
             Dictionary mapping file paths to their corresponding LandmarkDetections
         """
-        Logger.log("INFO", f"Initialized LandmarkDetector for GPU batch processing in region {self.region_id}")
-        
+        Logger.log(
+            "INFO",
+            f"Initialized LandmarkDetector for GPU batch processing in region {self.region_id}",
+        )
+
         # Process in batches to utilize GPU effectively
         results = {}
         total_batches = (len(npy_paths) + batch_size - 1) // batch_size
-        
+
         Logger.log("INFO", f"Processing {len(npy_paths)} NumPy files in {total_batches} batches...")
         batch_iterator = tqdm(range(0, len(npy_paths), batch_size), total=total_batches)
-        
+
         for batch_start in batch_iterator:
             # Get batch paths
             batch_end = min(batch_start + batch_size, len(npy_paths))
             batch_paths = npy_paths[batch_start:batch_end]
-            
+
             # Load and prepare batch images
             batch_images = []
             valid_paths = []
-            
+
             for npy_path in batch_paths:
                 try:
                     # Load NumPy array
                     array = np.load(npy_path)
-                    
+
                     # Check array shape and type
                     if len(array.shape) != 3 or array.shape[2] not in [1, 3, 4]:
                         Logger.log("WARNING", f"Invalid array shape in {npy_path}: {array.shape}")
@@ -394,101 +397,112 @@ class LandmarkDetector:
 
                     batch_images.append(array)
                     valid_paths.append(os.path.basename(npy_path))
-                    
+
                 except Exception as e:
                     Logger.log("ERROR", f"Error loading NumPy file {npy_path}: {e}")
                     results[os.path.basename(npy_path)] = LandmarkDetections.empty()
-            
+
             # No valid images in this batch
             if not batch_images:
                 continue
-            
+
             # Process batch and get dictionary results directly
             batch_results = self._process_image_batch_direct(batch_images, valid_paths)
-            
+
             # Update the results dictionary with batch results
             results.update(batch_results)
-        
+
         # Log summary
         success_count = sum(1 for detections in results.values() if len(detections) > 0)
         total_landmarks = sum(len(detections) for detections in results.values())
-        
-        Logger.log("INFO", f"Batch processing complete: {len(results)}/{len(npy_paths)} files processed")
-        Logger.log("INFO", f"Found landmarks in {success_count} images, {total_landmarks} landmarks detected total")
-        
+
+        Logger.log(
+            "INFO", f"Batch processing complete: {len(results)}/{len(npy_paths)} files processed"
+        )
+        Logger.log(
+            "INFO",
+            f"Found landmarks in {success_count} images, {total_landmarks} landmarks detected total",
+        )
+
         return results
 
     def _process_image_batch_direct(
-        self,
-        images: List[np.ndarray],
-        image_names: List[str] 
+        self, images: List[np.ndarray], image_names: List[str]
     ) -> Dict[str, LandmarkDetections]:
         """
         Process a batch of image arrays through the YOLO model at once to leverage GPU parallelism.
-        
+
         Args:
             images: List of numpy arrays representing images
             image_names: List of corresponding image names (not file paths)
-            
+
         Returns:
             Dictionary mapping image names to their corresponding LandmarkDetections
         """
         if not images:
             return {}
-        
+
         try:
             # Convert images to PIL format for YOLO
-            pil_images = [Image.fromarray(img) for img in images]          
+            pil_images = [Image.fromarray(img) for img in images]
             start_time = perf_counter()
             batch_results = self.model.predict(
                 pil_images,
                 conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
                 imgsz=LandmarkDetector.IMAGE_SIZE,
                 verbose=False,
-                batch=len(pil_images)  # Explicitly set batch size
+                batch=len(pil_images),  # Explicitly set batch size
             )
             inference_time = perf_counter() - start_time
             avg_time_per_image = inference_time / len(pil_images)
-            Logger.log("INFO", f"Batch inference completed in {inference_time:.3f}s "
-                      f"(avg: {avg_time_per_image:.3f}s/image) on {self.model.device}")
-            
+            Logger.log(
+                "INFO",
+                f"Batch inference completed in {inference_time:.3f}s "
+                f"(avg: {avg_time_per_image:.3f}s/image) on {self.model.device}",
+            )
+
             # Process results for each image
             detections_dict = {}
             for i, (name, result) in enumerate(zip(image_names, batch_results)):
                 landmarks = result.boxes
                 if len(landmarks) == 0:
-                    Logger.log("INFO", f"[Image: {name}] No landmarks detected in region {self.region_id}.")
+                    Logger.log(
+                        "INFO", f"[Image: {name}] No landmarks detected in region {self.region_id}."
+                    )
                     continue
-                
+
                 # Extract detection data
                 xywh = landmarks.xywh.cpu().numpy()
                 class_ids = landmarks.cls.cpu().numpy().astype(int)
                 confidences = landmarks.conf.cpu().numpy()
-                
+
                 # Filter valid detections
                 valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
                 if not np.all(valid_indices):
-                    Logger.log("INFO", f"[Image: {name}] Skipping landmark(s) with invalid bounding box dimensions.")
+                    Logger.log(
+                        "INFO",
+                        f"[Image: {name}] Skipping landmark(s) with invalid bounding box dimensions.",
+                    )
                     if not np.any(valid_indices):
                         continue
-                        
+
                     xywh = xywh[valid_indices]
                     class_ids = class_ids[valid_indices]
                     confidences = confidences[valid_indices]
-                
+
                 # Create LandmarkDetections object
                 detections = LandmarkDetections(
                     pixel_coordinates=xywh[:, :2],
                     latlons=self.ground_truth[class_ids, :2],
                     class_ids=class_ids,
                     region_ids=np.array([self.region_id] * len(class_ids)),
-                    confidences=confidences
+                    confidences=confidences,
                 )
-                
+
                 Logger.log("INFO", f"[Image: {name}] {len(detections)} landmarks detected.")
                 detections_dict[name] = detections
             return detections_dict
-            
+
         except Exception as e:
             Logger.log("ERROR", f"Batch detection failed: {e}")
             # Return empty detections for all images in case of failure

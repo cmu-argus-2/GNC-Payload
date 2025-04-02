@@ -233,7 +233,9 @@ def main() -> None:
         requests = list(product(regions, file_prefixes_generator))
         log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
         with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-            successful_requests, request_results = pool.map(func, requests, output_log_path=log_file_path)
+            successful_requests, request_results = pool.map(
+                func, requests, output_log_path=log_file_path
+            )
 
         for request, success, result in zip(requests, successful_requests, request_results):
             if not success:

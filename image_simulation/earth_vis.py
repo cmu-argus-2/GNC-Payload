@@ -10,11 +10,12 @@ from typing import ClassVar, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage import label
 import rasterio
 from affine import Affine
 from rasterio.crs import CRS
+from scipy.ndimage import label
 
+from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
@@ -26,7 +27,6 @@ from utils.earth_utils import (
     intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
-from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 
 
 @dataclass
