@@ -1,3 +1,53 @@
+"""
+GNC Vision Pipeline Execution Script
+
+This script executes a complete vision processing pipeline for spacecraft navigation by:
+1. Running region classification on images to identify MGRS grid regions
+2. Running landmark detection within those identified regions
+3. Saving all results for orbit identification
+
+The script expects:
+- A set of images stored in <output_dir>/<experiment_name>/images/
+- A models directory containing YOLO weights for each region and ground truth landmark data
+- A valid configuration in the user config file (models_directory, output_dir)
+
+Directory Structure:
+- /output_dir
+    - /experiment_name
+        - /images                  # Input directory containing camera images
+            - img_<timestep>_<camera_name>.npy
+            - img_<timestep>_<camera_name>.npy
+            - ...
+        - /vis_inf                 # Output directory for vision inference results
+            - /region_classification
+                - region_to_images.json
+                - image_to_regions.json
+            - /landmark_detections
+                - inf_<timestep>_<camera_name>.npz
+                - inf_<timestep>_<camera_name>.npz
+                - ...
+
+How to use:
+    python run_vision.py --name <experiment_name> [--num_workers <n>] [--batch_ld <n>] [--batch_rc <n>]
+
+Required arguments:
+    --name: Experiment name used to organize inputs and outputs
+
+Optional arguments:
+    --num_workers: Number of worker processes for data loading (default: 0)
+    --batch_ld: Batch size for landmark detection inference (default: 8)
+    --batch_rc: Batch size for region classification inference (default: 8)
+
+Output Files:
+- region_to_images.json: Maps each region to its images
+- image_to_regions.json: Maps each image to its identified regions
+- inf_<timestep>_<camera_name>.npz: Binary files containing landmark detections for each image with arrays for:
+    - pixel_coordinates: (N,2) array of x,y points
+    - latlons: (N,2) array of lat,lon coordinates
+    - class_ids: (N,) array of landmark class IDs
+    - region_ids: (N,) array of region IDs
+    - confidences: (N,) array of detection confidences
+"""
 from vision_inference.region_classifier import RegionClassifier
 from vision_inference.landmark_detector import LandmarkDetector, LandmarkDetections
 
@@ -11,7 +61,7 @@ import numpy as np
 from collections import defaultdict
 
 INPUT_DIR = "images"
-OUTPUT_DIR = "vision_inference"
+OUTPUT_DIR = "vis_inf"
 
 
 def run_region_classification(args: argparse.Namespace, output_dir: str) -> Dict[str, List[str]]:
@@ -74,7 +124,7 @@ def run_landmark_detection(args: argparse.Namespace, models_dir: str, output_dir
             # Run batch detection
             LD_results = detector.batch_detect_landmarks(
                 npy_paths= [os.path.join(output_dir, args.name, INPUT_DIR, img_path) for img_path in image_paths],
-                batch_size=args.batch_size if hasattr(args, "batch_size") else 8,
+                batch_size=args.batch_ld,
             )
             
             # Count landmarks detected in this region
@@ -162,6 +212,10 @@ def parse_arguments() -> argparse.Namespace:
                         help="Path to data directory to store the generated files")
     parser.add_argument("--num_workers", type=int, default=0,
                         help="Number of worker processes for data loading")
+    parser.add_argument("--batch_ld", type=int, default=8,
+                        help="Batch size for landmark detection inference")
+    parser.add_argument("--batch_rc", type=int, default=8,
+                        help="Batch size for region classification inference")
     return parser.parse_args()
 
 
