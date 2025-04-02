@@ -1,11 +1,12 @@
 """
 Run the EKF using CLI.
 
+Arguments that are required by several scripts are loaded from the config.json file:
+    - angular_velocity: Angular velocity of the spacecraft [rad/s]
+    - frequency: Frequency of the dynamics model [Hz]
+    - duration: Duration of the spacecraft mission [s]
 This script requires the following arguments:
-    -f: Frequency of the spacecraft trajectory
-    --mission_duration: Duration of the spacecraft mission for which we are generating the trajectory [s]
     --name: Name of the experiment
-    --angular_velocity: Angular velocity of the spacecraft [rad/s]
     --meas_rate: Rate at which measurements are taken
 
 The script expects to find the following contents in the output directory:
@@ -37,6 +38,7 @@ The state data contains a dictionary with the following fields:
 """
 
 import argparse
+import json
 import os
 import pickle
 from time import time
@@ -68,30 +70,11 @@ def parse_args() -> argparse.Namespace:
     :return: The parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Run the EKF simulation.")
-
-    parser.add_argument(
-        "--f",
-        type=float,
-        default=1,
-        help="Frequency of the spacecraft trajectory",
-    )
-    parser.add_argument(
-        "--mission_duration",
-        type=float,
-        default=2700,
-        help="Duration of the spacecraft mission for which we are generating the trajectory [s]",
-    )
     parser.add_argument(
         "--name",
         type=str,
         default="test",
         help="Name of the experiment",
-    )
-    parser.add_argument(
-        "--angular_velocity",
-        type=list,
-        default=[0, 0, np.pi / 18],
-        help="Angular velocity of the spacecraft [rad/s]",
     )
     parser.add_argument(
         "--meas_rate",
@@ -113,10 +96,19 @@ def run_simulation(args) -> None:
     :return: None
     """
 
+    # Load json
+    with open("scripts/config.json", "r") as jsonfile:
+        json_config = json.load(jsonfile)
+        angular_velocity = np.array(
+            json_config.get("angular_velocity", [0, 0, np.pi / 18]), dtype=float
+        )
+        f = float(json_config.get("frequency", 2))
+        mission_duration = float(json_config.get("duration", 2700))
+
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
-    config["solver"]["world_update_rate"] = args.f  # Hz
-    config["mission"]["duration"] = args.mission_duration  # s
+    config["solver"]["world_update_rate"] = f  # Hz
+    config["mission"]["duration"] = mission_duration  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -158,7 +150,7 @@ def run_simulation(args) -> None:
     gyro_bias_scale = 2
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array(args.angular_velocity)
+    rot = np.array(angular_velocity)
 
     # Prep Q matrix for the EKF.
     Q = np.eye(16) * 1e-12

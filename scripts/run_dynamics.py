@@ -2,17 +2,17 @@
 Generate the trajectory of the spacecraft using the dynamics model.
 
 This script requires the following arguments:
-    -f: Frequency of the spacecraft trajectory
-    --mission_duration: Duration of the spacecraft mission for which we are generating the trajectory [s]
     --lat: Starting latitude of the spacecraft
     --lon: Starting longitude of the spacecraft
     --altitude: Starting altitude of the spacecraft [m]
     --name: Name of the experiment
-    --angular_velocity: Angular velocity of the spacecraft [rad/s]
     --start_date: Start date of the spacecraft mission [MJD]
     --northwards: Whether the spacecraft is moving northwards. If False, the spacecraft will move southwards.
 
-
+Arguments that are required by several scripts are loaded from the config.json file:
+    - angular_velocity: Angular velocity of the spacecraft [rad/s]
+    - frequency: Frequency of the dynamics model [Hz]
+    - duration: Duration of the spacecraft mission [s]
 The script will generate a ground truth trajectory of the spacecraft using the dynamics model and save this 
 the experiment in the output directory. It will store the spacecraft's position and velocity in trajectory_gt.npy,
 the spacecraft's attitude in attitude_gt.npy and a boolean specifying whether the spacecraft is currently on the 
@@ -26,6 +26,7 @@ day (1) or night (0) side of the earth.
 """
 
 import argparse
+import json
 import os
 
 import brahe
@@ -45,18 +46,6 @@ def parse_args() -> argparse.Namespace:
     :return: The parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Generate spacecraft trajectory")
-    parser.add_argument(
-        "--f",
-        type=float,
-        default=1,
-        help="Frequency of the spacecraft trajectory",
-    )
-    parser.add_argument(
-        "--mission_duration",
-        type=float,
-        default=2700,
-        help="Duration of the spacecraft mission for which we are generating the trajectory [s]",
-    )
     parser.add_argument(
         "--lat",
         type=float,
@@ -79,12 +68,6 @@ def parse_args() -> argparse.Namespace:
         help="Name of the experiment",
     )
     parser.add_argument(
-        "--angular_velocity",
-        type=list,
-        default=[0, 0, np.pi / 18],
-        help="Angular velocity of the spacecraft [rad/s]",
-    )
-    parser.add_argument(
         "--start_date",
         type=float,
         help="Start date of the spacecraft mission [MJD]",
@@ -105,6 +88,15 @@ def generate_trajectory(args) -> None:
 
     :return: None
     """
+
+    # Load json
+    with open("scripts/config.json", "r") as jsonfile:
+        json_config = json.load(jsonfile)
+        angular_velocity = np.array(
+            json_config.get("angular_velocity", [0, 0, np.pi / 18]), dtype=float
+        )
+        f = float(json_config.get("frequency", 2))
+        mission_duration = float(json_config.get("duration", 2700))
 
     # Check if altitude is provided and if not, generate a random altitude
     # Then check that if a latitude is given, it is within the calculated sso bounds
@@ -139,8 +131,8 @@ def generate_trajectory(args) -> None:
         args.start_date = round(np.random.uniform(60310, 60676), 1)
 
     config = load_config()
-    config["solver"]["world_update_rate"] = args.f  # Hz
-    config["mission"]["duration"] = args.mission_duration  # s
+    config["solver"]["world_update_rate"] = f  # Hz
+    config["mission"]["duration"] = mission_duration  # s
     config["mission"]["start_date"] = args.start_date
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -158,12 +150,15 @@ def generate_trajectory(args) -> None:
     daytime.append(1 if is_over_daytime(starting_epoch, initial_state[0:3]) else 0)
     data_manager.push_next_state(initial_state, initial_rot)
 
-    w = np.array(args.angular_velocity)
+    w = np.array(angular_velocity)
 
     ground_truth_dynamics = Dynamics(
         config=config,
         use_drag=True,
         use_j2=True,
+        use_j34=False,
+        use_moon_grav=False,
+        use_sun_grav=False,
     )
 
     for _ in range(0, N - 1):
