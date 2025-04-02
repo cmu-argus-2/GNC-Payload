@@ -32,6 +32,7 @@ The state data contains a dictionary with the following fields:
     - gyro_bias_estimate: The estimated gyro bias
     - gyro_bias: The actual gyro bias
     - unmodelled_acceleration: The unmodelled acceleration estimate
+    - drag_scalar_estimate: The drag scalar estimate
 
 """
 
@@ -160,24 +161,28 @@ def run_simulation(args) -> None:
     rot = np.array(args.angular_velocity)
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(15) * 1e-12
+    Q = np.eye(16) * 1e-12
     # Unmodelled acceleration has larger uncertainty
     Q[6:9, 6:9] = np.eye(3) * 1e-9
     # Bias uncertainty also larger
-    Q[12:15, 12:15] = np.eye(3) * 1e-9
+    Q[13:16, 13:16] = np.eye(3) * 1e-9
 
-    P = np.eye(15)
+    P = np.eye(16)
     P[0:3, 0:3] *= 5
     P[3:6, 3:6] *= 5
     P[6:9, 6:9] *= 1e-4
-    P[9:12, 9:12] *= 1e-4
-    P[12:15, 12:15] *= 1e-4
+    P[9:10, 9:10] *= 1e-4
+    P[10:13, 10:13] *= 1e-4
+    P[13:16, 13:16] *= 1e-4
 
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=False,
         use_j2=False,
         use_unmodelled_a=True,
+        use_drag_scalar=True,
+        use_moon_grav=False,
+        use_sun_grav=False,
         ua_scale=ua_scale,
     )
 
@@ -253,6 +258,7 @@ def run_simulation(args) -> None:
             "gyro_bias_estimate": ekf.w_b,
             "gyro_bias": imu_gyro_bias,
             "unmodelled_acceleration": ekf.ua,
+            "drag_scalar_estimate": ekf.drag_est,
         }
         # Save the state data to a file
         with open(f"output_dir/{args.name}/ekf_state_data_.pkl", "ab") as file:
