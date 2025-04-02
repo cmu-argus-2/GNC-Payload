@@ -8,7 +8,6 @@ from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import label
 import rasterio
@@ -281,9 +280,7 @@ class GeoTIFFCache:
             if len(os.listdir(region_folder)) == 0:
                 print(f"WARNING: Region folder '{region_folder}' is empty.")
                 all_regions_have_data = False
-        if all_regions_have_data:
-            print("All salient region folders found and contain data.")
-        else:
+        if not all_regions_have_data:
             raise FileNotFoundError("One or more region folders not found or empty.")
 
     def load_geotiff_data(self, region: str) -> GeoTIFFData | None:
@@ -319,6 +316,8 @@ class EarthImageSimulator:
     """
     Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
     """
+
+    BLUE_MARBLE_BRIGHTNESS_FACTOR = 2.7
 
     def __init__(
             self,
@@ -365,10 +364,10 @@ class EarthImageSimulator:
 
     def simulate_image_for_training(
         self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
-    ) -> Tuple[Frame, np.ndarray, np.ndarray]:
+    ) -> Tuple[Frame, np.ndarray]:
         """
         Simulate an Earth image given the satellite position, attitude, and camera model.
-        This method also returns the MGRS regions and latitudes/longitudes for each pixel.
+        This method also returns the latitudes and longitudes for each pixel.
 
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
@@ -378,8 +377,6 @@ class EarthImageSimulator:
         Returns:
             A Tuple containing:
             - The simulated Frame object.
-            - A numpy array of shape CameraModel.RESOLUTION containing the MGRS regions for each pixel,
-              or None if the pixel does not correspond to any MGRS region.
             - A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
               pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
@@ -410,9 +407,7 @@ class EarthImageSimulator:
             )
 
             region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
-            region_image = geotiff_data.query_pixel_colors(lat_lon[region_mask])
-
-            image[region_mask, :] = region_image
+            image[region_mask, :] = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
         if self.inpaint_blue_marble:
             inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
@@ -421,11 +416,14 @@ class EarthImageSimulator:
             # just happens to consist of zeros by chance, despite being valid data
             inpaint_mask = EarthImageSimulator.trim_small_connected_components(inpaint_mask)
 
-            image[inpaint_mask, :] = query_blue_marble_pixel_colors(lat_lon[inpaint_mask, :], self.blue_marble_month)
+            if np.any(inpaint_mask):
+                image[inpaint_mask, :] = (
+                    EarthImageSimulator.BLUE_MARBLE_BRIGHTNESS_FACTOR
+                    * query_blue_marble_pixel_colors(lat_lon[inpaint_mask, :], self.blue_marble_month)
+                )
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
-            mgrs_regions,
             lat_lon,
         )
 
@@ -443,16 +441,5 @@ class EarthImageSimulator:
         Returns:
             The simulated Frame object.
         """
-        frame, *_ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
+        frame, _ = self.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
         return frame
-
-    def display_image(self, image):
-        """
-        Display the simulated image.
-
-        Parameters:
-            image (np.ndarray): Simulated RGB image.
-        """
-        plt.imshow(image)
-        plt.axis("off")
-        plt.show()

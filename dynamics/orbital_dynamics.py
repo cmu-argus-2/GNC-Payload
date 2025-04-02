@@ -12,7 +12,21 @@ from brahe import Epoch
 from brahe.constants import GM_EARTH
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
-from dynamics.j2_dynamics import j2_dynamics, j2_jacobian_auto, j2_jacobian_manual
+from dynamics.grav_potential_dynamics import (
+    j2_dynamics,
+    j2_jacobian_auto,
+    j2_jacobian_manual,
+    j3_dynamics,
+    j3_jacobian_auto,
+    j4_dynamics,
+    j4_jacobian_auto,
+)
+from dynamics.third_body_dynamics import (
+    moon_gravity,
+    moon_gravity_jac,
+    sun_gravity,
+    sun_gravity_jac,
+)
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
@@ -31,6 +45,9 @@ class Dynamics:
         config: dict,
         use_drag: bool,
         use_j2: bool,
+        use_j34: bool,
+        use_sun_grav: bool,
+        use_moon_grav: bool,
     ) -> None:
         """
         Initialize the Dynamics class.
@@ -38,16 +55,29 @@ class Dynamics:
         :param config: The configuration dictionary.
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
+        :param use_j34: Whether to use J3 and J4 perturbations in the dynamics.
+        :param use_sun_grav: Whether to use the sun's gravity in the dynamics.
+        :param use_moon_grav: Whether to use the moon's gravity in the dynamics.
         :return: None
         """
         self.use_drag = use_drag
         self.use_j2 = use_j2
+        self.use_j34 = use_j34
+        self.use_sun_grav = use_sun_grav
+        self.use_moon_grav = use_moon_grav
         self.drag_const = (
             -0.5
             * config["satellite"]["Cd"]
             * config["satellite"]["area"]
             / config["satellite"]["mass"]
         )
+
+    @property
+    def require_epoch(self) -> bool:
+        """
+        :return: True if the configured perturbations require the current time epoch, False otherwise.
+        """
+        return self.use_drag or self.use_sun_grav or self.use_moon_grav
 
     @staticmethod
     def state_derivative(x: np.ndarray) -> np.ndarray:
@@ -179,7 +209,7 @@ class Dynamics:
         if self.use_drag and not np.isclose(v_norm, 0):
             if epoch is None:
                 raise ValueError("Epoch is required to compute drag")
-            a_drag_gt = drag_dynamics(x=x, drag_const=self.drag_const, latest_epoch=epoch)
+            a_drag_gt = drag_dynamics(x=x[0:6], drag_const=self.drag_const, latest_epoch=epoch)
 
             updated_a += a_drag_gt
 
@@ -188,6 +218,27 @@ class Dynamics:
             a_J2_gt = j2_dynamics(r)
 
             updated_a += a_J2_gt
+
+        # Compute J3 and J4
+        if self.use_j34 and not np.isclose(r_norm, 0):
+            a_J3_gt = j3_dynamics(r)
+            a_J4_gt = j4_dynamics(r)
+            updated_a += a_J3_gt + a_J4_gt
+
+        # Compute third body gravity
+        if self.use_sun_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute sun gravitational effects")
+            a_sun_gt = sun_gravity(r_sat=x[0:3], epoch=epoch)
+
+            updated_a += a_sun_gt
+
+        if self.use_moon_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute moon gravitational effects")
+            a_moon_gt = moon_gravity(r_sat=x[0:3], epoch=epoch)
+
+            updated_a += a_moon_gt
 
         return np.concatenate([base_derivative[0:3], updated_a])
 
@@ -213,7 +264,7 @@ class Dynamics:
         if self.use_drag and not np.isclose(v_norm, 0):
             if epoch is None:
                 raise ValueError("Epoch is required to compute drag jacobian")
-            da_drag_gt_dv = drag_jacobian(x=x, drag_const=self.drag_const, latest_epoch=epoch)
+            da_drag_gt_dv = drag_jacobian(x=x[0:6], drag_const=self.drag_const, latest_epoch=epoch)
 
             da_dv += da_drag_gt_dv
 
@@ -223,6 +274,28 @@ class Dynamics:
             da_J2_gt_dr = j2_jacobian_auto(x[0:3])
 
             da_dr += da_J2_gt_dr
+
+        # Compute J3 and J4
+        if self.use_j34 and not np.isclose(np.linalg.norm(x[0:3]), 0):
+            da_J3_gt_dr = j3_jacobian_auto(x[0:3])
+            da_J4_gt_dr = j4_jacobian_auto(x[0:3])
+
+            da_dr += da_J3_gt_dr + da_J4_gt_dr
+
+        # Compute third body gravity
+        if self.use_sun_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute sun gravitational effects jacobian")
+            da_sun_gt_dr = sun_gravity_jac(x=x[0:3], epoch=epoch)
+
+            da_dr += da_sun_gt_dr
+
+        if self.use_moon_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute moon gravitational effects jacobian")
+            da_moon_gt_dr = moon_gravity_jac(x=x[0:3], epoch=epoch)
+
+            da_dr += da_moon_gt_dr
 
         return np.block([[base_jacobian[0:3, 0:6]], [da_dr, da_dv]])
 
@@ -239,7 +312,7 @@ class Dynamics:
         """
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
-            if self.use_drag
+            if self.require_epoch
             else self.perturbed_state_derivative
         )
         return Dynamics.RK4(x=x, func=func, dt=dt)
@@ -258,12 +331,12 @@ class Dynamics:
 
         func = (
             partial(self.perturbed_state_derivative, epoch=epoch)
-            if self.use_drag
+            if self.require_epoch
             else self.perturbed_state_derivative
         )
         func_jac = (
             partial(self.perturbed_state_derivative_jac, epoch=epoch)
-            if self.use_drag
+            if self.require_epoch
             else self.perturbed_state_derivative_jac
         )
         return Dynamics.RK4_jac(

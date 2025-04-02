@@ -14,21 +14,22 @@ import argparse
 import os
 from functools import partial
 from itertools import product
-from multiprocessing import Pool, cpu_count
-from tqdm import tqdm
+from multiprocessing import cpu_count
+from time import time
 
 import cv2
 import numpy as np
 from brahe.constants import R_EARTH
 from scipy.spatial.transform import Rotation
+from tqdm import tqdm
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
+from utils.memory_aware_process_pool import MemoryAwareProcessPool
 
-MGRS_REGIONS_OUTPUT_FILE_SUFFIX = "_mgrs_regions.npy"
-LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npy"
+LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +62,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num_processes",
         type=int,
-        default=int(0.8 * cpu_count()),
+        default=int(0.5 * cpu_count()),
         help="Number of processes to use for generating training data in parallel.",
     )
 
@@ -69,7 +70,7 @@ def parse_args() -> argparse.Namespace:
         "--lat_lon_buffer",
         type=float,
         default=0.0,
-        help="Extra buffer in lat/lon for each region, in degrees."
+        help="Extra buffer in lat/lon for each region, in degrees.",
     )
     parser.add_argument(
         "--num_images", type=int, default=1000, help="Number of images to generate per region."
@@ -113,7 +114,7 @@ def setup_region_directory(region_dir: str, overwrite: bool) -> bool:
         os.makedirs(region_dir)
         return True
 
-    conflicting_suffixes = [".png", MGRS_REGIONS_OUTPUT_FILE_SUFFIX, LAT_LON_OUTPUT_FILE_SUFFIX]
+    conflicting_suffixes = [".png", LAT_LON_OUTPUT_FILE_SUFFIX]
     conflicting_file_names = [
         file_name
         for file_name in os.listdir(region_dir)
@@ -187,7 +188,7 @@ def generate_training_image(
     )
 
     image_simulator = EarthImageSimulator(GeoTIFFCache(max_cache_size=0))
-    frame, mgrs_regions, lat_lon = image_simulator.simulate_image_for_training(
+    frame, lat_lon = image_simulator.simulate_image_for_training(
         ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
     )
 
@@ -198,15 +199,9 @@ def generate_training_image(
         os.path.join(region_dir, f"{file_prefix}.png"),
         cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
     )
-    np.save(
-        os.path.join(region_dir, f"{file_prefix}{MGRS_REGIONS_OUTPUT_FILE_SUFFIX}"),
-        mgrs_regions,
+    np.savez_compressed(
+        os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon=lat_lon
     )
-    np.save(os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon)
-
-
-def unpack_and_call(func, args):
-    return func(*args)
 
 
 def main() -> None:
@@ -235,24 +230,14 @@ def main() -> None:
     )
     file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
     if args.num_processes > 1:
-        func = partial(
-            unpack_and_call,
-            func,
-        )
-        with Pool(args.num_processes) as pool:
-            results_generator = pool.imap_unordered(
-                func,
-                product(
-                    regions,
-                    file_prefixes_generator,
-                ),
-                # Use a chunksize of 1 to ensure that the progress bar updates after each image
-                # Interprocess communication overhead should be negligible compared to generating images regardless
-                chunksize=1,
-            )
+        requests = list(product(regions, file_prefixes_generator))
+        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
+        with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
+            successful_requests, request_results = pool.map(func, requests, output_log_path=log_file_path)
 
-            # We don't care about the return values, just exhaust the generator for the progress bar
-            list(tqdm(results_generator, total=total_images))
+        for request, success, result in zip(requests, successful_requests, request_results):
+            if not success:
+                print(f"Generation of training image for {request} failed with exception: {result}")
     else:
         for region, file_prefix in tqdm(
             product(regions, file_prefixes_generator), total=total_images

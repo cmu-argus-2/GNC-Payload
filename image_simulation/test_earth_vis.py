@@ -1,5 +1,6 @@
 from time import perf_counter
 
+from matplotlib import pyplot as plt
 import numpy as np
 from brahe.constants import R_EARTH
 from scipy.spatial.transform import Rotation
@@ -7,6 +8,7 @@ from tqdm import trange
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
+from vision_inference.frame import Frame
 from utils.earth_utils import get_nadir_rotation, lat_lon_to_ecef
 
 CONTIGUOUS_US_CENTER_LAT_LON = np.array([39.8283, -98.5795])
@@ -80,7 +82,7 @@ def simulate_image(
     lat_lon: np.ndarray = CONTIGUOUS_US_CENTER_LAT_LON,
     altitude: float = 6000e3,
     display_image: bool = True,
-) -> None:
+) -> Frame:
     simulator = EarthImageSimulator()
     camera_model_manager = CameraModelManager()
 
@@ -92,14 +94,18 @@ def simulate_image(
     ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
     start_time = perf_counter()
-    simulated_image = simulator.simulate_image(
+    frame = simulator.simulate_image(
         ecef_position, ecef_R_body, camera_model_manager["x+"]
-    ).image
+    )
     print(f"Image simulation took {perf_counter() - start_time:.2f} seconds")
 
-    print(f"Simulated image is {'blank' if np.all(simulated_image == 0) else 'not blank'}")
+    print(f"Simulated image is {'blank' if np.all(frame.image == 0) else 'not blank'}")
     if display_image:
-        simulator.display_image(simulated_image)
+        plt.imshow(frame.image)
+        plt.axis("off")
+        plt.show()
+
+    return frame
 
 
 if __name__ == "__main__":
