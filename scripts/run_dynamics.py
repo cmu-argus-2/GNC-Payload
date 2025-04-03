@@ -8,21 +8,21 @@ This script requires the following arguments:
     --name: Name of the experiment
     --start_date: Start date of the spacecraft mission [MJD]
     --northwards: Whether the spacecraft is moving northwards. If False, the spacecraft will move southwards.
+    --angular_velocity: Angular velocity of the spacecraft [rad/s]
+    --frequency: Frequency of the dynamics model [Hz]
+    --duration: Duration of the spacecraft mission [s]
 
-Arguments that are required by several scripts are loaded from the config.json file:
-    - angular_velocity: Angular velocity of the spacecraft [rad/s]
-    - frequency: Frequency of the dynamics model [Hz]
-    - duration: Duration of the spacecraft mission [s]
 The script will generate a ground truth trajectory of the spacecraft using the dynamics model and save this 
 the experiment in the output directory. It will store the spacecraft's position and velocity in trajectory_gt.npy,
 the spacecraft's attitude in attitude_gt.npy and a boolean specifying whether the spacecraft is currently on the 
-day (1) or night (0) side of the earth.
+day (1) or night (0) side of the earth. We also store the arguments used to generate the trajectory in args.json.
 
 - /output_dir
     - /experiment_name
         - trajectory_gt.npy
         - attitude_gt.npy
         - daytime_gt.npy
+        - args.json
 """
 
 import argparse
@@ -78,6 +78,24 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="Whether the spacecraft is moving northwards. If False, the spacecraft will move southwards.",
     )
+    parser.add_argument(
+        "--angular_velocity",
+        type=list,
+        default=[0, 0, np.pi / 18],
+        help="Angular velocity of the spacecraft [rad/s]",
+    )
+    parser.add_argument(
+        "--frequency",
+        type=float,
+        default=2,
+        help="Frequency of the dynamics model [Hz]",
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=2700,
+        help="Duration of the spacecraft mission [s]",
+    )
     return parser.parse_args()
 
 
@@ -89,40 +107,27 @@ def generate_trajectory(args) -> None:
     :return: None
     """
 
-    # Load json
-    with open(os.path.join(__file__, "../config.json"), "r") as jsonfile:
-        json_config = json.load(jsonfile)
-        angular_velocity = np.array(
-            json_config.get("angular_velocity", [0, 0, np.pi / 18]), dtype=float
-        )
-        f = float(json_config.get("frequency", 2))
-        mission_duration = float(json_config.get("duration", 2700))
-
     # Check if altitude is provided and if not, generate a random altitude
     # Then check that if a latitude is given, it is within the calculated sso bounds
     if args.altitude is None:
-        init_altitude = 510e3 + np.random.uniform(-20e3, 20e3)
+        args.altitude = 510e3 + np.random.uniform(-20e3, 20e3)
         if args.lat is None:
-            max_lat = get_max_sso_latitude(init_altitude)
-            init_lat = np.random.uniform(-max_lat, max_lat)
+            max_lat = get_max_sso_latitude(args.altitude)
+            args.lat = np.random.uniform(-max_lat, max_lat)
         else:
-            max_lat = get_max_sso_latitude(init_altitude)
+            max_lat = get_max_sso_latitude(args.altitude)
             if abs(args.lat) > max_lat:
                 raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-            init_lat = args.lat
 
     else:
-        init_altitude = args.altitude
-        max_lat = get_max_sso_latitude(init_altitude)
+        max_lat = get_max_sso_latitude(args.altitude)
         if args.lat is not None and abs(args.lat) > max_lat:
             raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
         else:
-            init_lat = np.random.uniform(-max_lat, max_lat)
+            args.lat = np.random.uniform(-max_lat, max_lat)
 
     if args.lon is None:
-        init_lon = np.random.uniform(-180, 180)
-    else:
-        init_lon = args.lon
+        args.lon = np.random.uniform(-180, 180)
 
     # Check if start date is provided and if not, generate a random start date
     # Start date between 2024-01-01 and 2025-01-01 (leap year so 366 days)
@@ -131,8 +136,8 @@ def generate_trajectory(args) -> None:
         args.start_date = round(np.random.uniform(60310, 60676), 1)
 
     config = load_config()
-    config["solver"]["world_update_rate"] = f  # Hz
-    config["mission"]["duration"] = mission_duration  # s
+    config["solver"]["world_update_rate"] = args.frequency  # Hz
+    config["mission"]["duration"] = args.duration  # s
     config["mission"]["start_date"] = args.start_date
 
     dt = 1 / config["solver"]["world_update_rate"]
@@ -144,13 +149,13 @@ def generate_trajectory(args) -> None:
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(
-        starting_epoch, init_lat, init_lon, init_altitude, northwards=args.northwards
+        starting_epoch, args.lat, args.lon, args.altitude, northwards=args.northwards
     )
     initial_rot = np.eye(3)
     daytime.append(1 if is_over_daytime(starting_epoch, initial_state[0:3]) else 0)
     data_manager.push_next_state(initial_state, initial_rot)
 
-    w = np.array(angular_velocity)
+    w = np.array(args.angular_velocity)
 
     ground_truth_dynamics = Dynamics(
         config=config,
@@ -182,12 +187,14 @@ def generate_trajectory(args) -> None:
     daytime = np.array(daytime)
 
     if not os.path.exists(f"output_dir/{args.name}"):
-        print(f"Directory output_dir/{args.name} does not exist.")
         os.makedirs(f"output_dir/{args.name}")
-        print(f"Created directory output_dir/{args.name}")
     np.save(f"output_dir/{args.name}/trajectory_gt.npy", trajectory)
     np.save(f"output_dir/{args.name}/attitude_gt.npy", attitude)
     np.save(f"output_dir/{args.name}/daytime_gt.npy", daytime)
+
+    # Store args as json
+    with open(f"output_dir/{args.name}/args.json", "w") as jsonfile:
+        json.dump(args.__dict__, jsonfile, indent=4)
 
 
 if __name__ == "__main__":

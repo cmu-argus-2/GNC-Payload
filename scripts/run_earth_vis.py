@@ -9,30 +9,63 @@ The script requires as input the spacecraft trajectory and attitude, which are g
     - /experiment_name
         - trajectory_gt.npy
         - attitude_gt.npy
-        - daytime.npy
+        - daytime_gt.npy
+        - args.json
 
-The script will generate the following contents in the output directory:
+The script will generate (append in the args.json case) the following contents in the output directory:
 - /output_dir
     - /experiment_name
         -/images
             - img_<timestep>_<camera_name>.png
             - lat_lon_<timestep>_<camera_name>.npy
+
+        - args.json
 """
 
+import json
 import os
 from argparse import ArgumentParser
 from functools import partial
 from multiprocessing import cpu_count
 
-import numpy as np
+import brahe
 import cv2
+import numpy as np
+from brahe.epoch import Epoch
 
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModelManager
+from utils.brahe_utils import increment_epoch
 from utils.memory_aware_process_pool import MemoryAwareProcessPool
 
 
-def generate_image(position: np.ndarray, attitude: np.ndarray, camera_name: str, index: int, output_dir: str) -> None:
+def parse_args() -> ArgumentParser:
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--name",
+        type=str,
+        default="test",
+        help="Name of the experiment",
+    )
+    parser.add_argument(
+        "--meas_rate",
+        type=int,
+        default=120,
+        help="Rate at which measurements should be taken",
+    )
+    parser.add_argument(
+        "--num_processes",
+        type=int,
+        default=int(0.5 * cpu_count()),
+        help="Number of processes to use for image generation",
+    )
+
+    return parser.parse_args()
+
+
+def generate_image(
+    position: np.ndarray, attitude: np.ndarray, camera_name: str, index: int, output_dir: str
+) -> None:
     """
     Generate an image and lat/lon .npy file for a given position, attitude, and camera model.
 
@@ -70,6 +103,7 @@ def image_vis(args) -> None:
         not os.path.exists(f"output_dir/{args.name}/trajectory_gt.npy")
         or not os.path.exists(f"output_dir/{args.name}/attitude_gt.npy")
         or not os.path.exists(f"output_dir/{args.name}/daytime_gt.npy")
+        or not os.path.exists(f"output_dir/{args.name}/args.json")
     ):
         raise FileNotFoundError(
             f"One of the required files in {args.name} does not exist. Please run the trajectory generation script first."
@@ -78,6 +112,24 @@ def image_vis(args) -> None:
     attitude_gt = np.load(f"output_dir/{args.name}/attitude_gt.npy")
     daytime_gt = np.load(f"output_dir/{args.name}/daytime_gt.npy")
 
+    try:
+        with open(f"output_dir/{args.name}/args.json", "r") as jsonfile:
+            arg_data = json.load(jsonfile)
+
+    except Exception as e:
+        raise ValueError(f"Error in args.json in {args.name}: {e}")
+
+    # Store args as part of json
+    arg_data["meas_rate"] = args.meas_rate
+    arg_data["num_processes"] = args.num_processes
+
+    with open(f"output_dir/{args.name}/args.json", "w") as jsonfile:
+        json.dump(arg_data, jsonfile, indent=4)
+
+    # Set the starting epoch and dt based on the args.json file
+    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(arg_data["start_date"]))
+    dt = 1 / arg_data["frequency"]
+
     if not os.path.exists(f"output_dir/{args.name}/images"):
         os.makedirs(f"output_dir/{args.name}/images")
 
@@ -85,9 +137,11 @@ def image_vis(args) -> None:
     for i, state in enumerate(trajectory_gt):
         # Only run the earth image visualizer if it's a measurement step and daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
+            curr_epoch = increment_epoch(starting_epoch, i * dt)
             for camera_name in CameraModelManager.CAMERA_NAMES:
-                # TODO: bug fix: convert from ECI to ECEF
-                requests.append((state[0:3], attitude_gt[i], camera_name, i))
+                ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
+                position_ecef = ecef_R_eci @ state[0:3]
+                requests.append((position_ecef, attitude_gt[i], camera_name, i))
 
     with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
         pool.map(
@@ -97,25 +151,6 @@ def image_vis(args) -> None:
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--name",
-        type=str,
-        default="test",
-        help="Name of the experiment",
-    )
-    parser.add_argument(
-        "--meas_rate",
-        type=str,
-        default=120,
-        help="Rate at which measurements should be taken",
-    )
-    parser.add_argument(
-        "--num_processes",
-        type=int,
-        default=int(0.5 * cpu_count()),
-        help="Number of processes to use for image generation",
-    )
 
-    args = parser.parse_args()
+    args = parse_args()
     image_vis(args)
