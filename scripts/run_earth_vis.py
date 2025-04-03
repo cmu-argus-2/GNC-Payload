@@ -119,6 +119,11 @@ def image_vis(args) -> None:
     except Exception as e:
         raise ValueError(f"Error in args.json in {args.name}: {e}")
 
+    # Check that if a name was provided it matches the one in the json file
+    assert (
+        arg_data["name"] == args.name
+    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
+
     # Store args as part of json
     arg_data["meas_rate"] = args.meas_rate
     arg_data["num_processes"] = args.num_processes

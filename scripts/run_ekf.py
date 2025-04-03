@@ -94,16 +94,21 @@ def run_simulation(args) -> None:
 
     except Exception as e:
         raise ValueError(f"Error in args.json in {args.name}: {e}")
-    
+
+    # Check that if a name was provided it matches the one in the json file
+    assert (
+        arg_data["name"] == args.name
+    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
+
     f = arg_data["frequency"]
     mission_duration = arg_data["duration"]
     angular_velocity = arg_data["angular_velocity"]
     meas_rate = arg_data["meas_rate"]
-    
+
     # No new args to be stored.
 
     # Set the world update rate and mission duration
-    # Technically we don't need to set these because we get them from the json file 
+    # Technically we don't need to set these because we get them from the json file
     # but we need the config for the EKF so we might as well set it here
     config = load_config()
     config["solver"]["world_update_rate"] = f  # Hz
