@@ -20,11 +20,9 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
-
 from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
-from utils.imu_utils import imu_init
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
