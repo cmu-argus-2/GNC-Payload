@@ -8,6 +8,7 @@ from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
+from brahe import R_EARTH
 import numpy as np
 from scipy.ndimage import label
 import rasterio
@@ -380,6 +381,8 @@ class EarthImageSimulator:
             - A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
               pixel, or np.nan if the pixel does not correspond to any MGRS region.
         """
+        assert np.linalg.norm(position_ecef) > R_EARTH, "position_ecef must be outside the Earth."
+
         ray_directions_body = camera_model.ray_directions_body()
         ray_directions_ecef = ray_directions_body @ ecef_R_body.T
 
