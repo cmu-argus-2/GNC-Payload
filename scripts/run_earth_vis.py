@@ -15,17 +15,50 @@ The script will generate the following contents in the output directory:
 - /output_dir
     - /experiment_name
         -/images
-            - img_<timestep>_<camera_name>.npy
+            - img_<timestep>_<camera_name>.png
+            - lat_lon_<timestep>_<camera_name>.npy
 """
 
 import os
 from argparse import ArgumentParser
-from datetime import datetime
+from functools import partial
+from multiprocessing import cpu_count
 
 import numpy as np
+import cv2
 
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModelManager
+from utils.memory_aware_process_pool import MemoryAwareProcessPool
+
+
+def generate_image(position: np.ndarray, attitude: np.ndarray, camera_name: str, index: int, output_dir: str) -> None:
+    """
+    Generate an image and lat/lon .npy file for a given position, attitude, and camera model.
+
+    :param position: The position of the spacecraft in ECEF coordinates.
+    :param attitude: A numpy array of shape (3, 3) representing the rotation matrix from body to ECEF frame.
+    :param camera_name: The name of the camera model to use.
+    :param index: The index in the trajectory that the image corresponds to.
+    :param output_dir: The directory to save the generated image.
+    """
+    earth_image_sim = EarthImageSimulator(
+        geotiff_cache=None, inpaint_blue_marble=True, blue_marble_month=None
+    )
+    camera_model_manager = CameraModelManager()
+    camera_model = camera_model_manager[camera_name]
+
+    frame, lat_lon = earth_image_sim.simulate_image_for_training(position, attitude, camera_model)
+
+    suffix = f"{index}_{camera_name}"
+    cv2.imwrite(
+        os.path.join(output_dir, f"img_{suffix}.png"),
+        cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
+    )
+    np.save(
+        os.path.join(output_dir, f"lat_lon_{suffix}.npy"),
+        lat_lon,
+    )
 
 
 def image_vis(args) -> None:
@@ -33,11 +66,6 @@ def image_vis(args) -> None:
     Visualize earth for a set of positions and attitudes using all available cameras.
     :param: args
     """
-    earth_image_sim = EarthImageSimulator(
-        geotiff_cache=None, inpaint_blue_marble=True, blue_marble_month=None
-    )
-    camera_model_manager = CameraModelManager()
-
     if (
         not os.path.exists(f"output_dir/{args.name}/trajectory_gt.npy")
         or not os.path.exists(f"output_dir/{args.name}/attitude_gt.npy")
@@ -53,16 +81,19 @@ def image_vis(args) -> None:
     if not os.path.exists(f"output_dir/{args.name}/images"):
         os.makedirs(f"output_dir/{args.name}/images")
 
+    requests = []
     for i, state in enumerate(trajectory_gt):
         # Only run the earth image visualizer if it's a measurement step and daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
             for camera_name in CameraModelManager.CAMERA_NAMES:
-                img = earth_image_sim.simulate_image(
-                    state[0:3], attitude_gt[i], camera_model_manager[camera_name]
-                )
-                print(img.timestamp)
-                store_str = f"img_{i}_{camera_name}"
-                np.save(f"output_dir/{args.name}/images/{store_str}.npy", img.image)
+                # TODO: bug fix: convert from ECI to ECEF
+                requests.append((state[0:3], attitude_gt[i], camera_name, i))
+
+    with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
+        pool.map(
+            partial(generate_image, output_dir=f"output_dir/{args.name}/images"),
+            requests,
+        )
 
 
 if __name__ == "__main__":
@@ -78,6 +109,12 @@ if __name__ == "__main__":
         type=str,
         default=120,
         help="Rate at which measurements should be taken",
+    )
+    parser.add_argument(
+        "--num_processes",
+        type=int,
+        default=int(0.5 * cpu_count()),
+        help="Number of processes to use for image generation",
     )
 
     args = parser.parse_args()
