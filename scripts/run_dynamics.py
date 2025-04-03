@@ -90,7 +90,7 @@ def generate_trajectory(args) -> None:
     """
 
     # Load json
-    with open("scripts/config.json", "r") as jsonfile:
+    with open(os.path.join(__file__, "../config.json"), "r") as jsonfile:
         json_config = json.load(jsonfile)
         angular_velocity = np.array(
             json_config.get("angular_velocity", [0, 0, np.pi / 18]), dtype=float
