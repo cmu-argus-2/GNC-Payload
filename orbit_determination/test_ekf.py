@@ -26,6 +26,8 @@ from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
+
+
 def run_simulation() -> None:
     """
     Run the simulation.
