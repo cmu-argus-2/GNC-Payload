@@ -2,8 +2,6 @@
 Inertial Measurement Unit (IMU) Sensor Module
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 from sensors.bias import BiasParams
@@ -58,7 +56,7 @@ class IMU:
         return gyro_measurement, accel_measurement
 
     @staticmethod
-    def get_default_imu(dt: float) -> IMU:
+    def get_default_imu(dt: float) -> "IMU":
         """
         Initializes the IMU.
 
