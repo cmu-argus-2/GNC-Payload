@@ -143,9 +143,9 @@ def image_vis(args) -> None:
         # Only run the earth image visualizer if it's a measurement step and daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
             curr_epoch = increment_epoch(starting_epoch, i * dt)
+            ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
+            position_ecef = ecef_R_eci @ state[0:3]
             for camera_name in CameraModelManager.CAMERA_NAMES:
-                ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
-                position_ecef = ecef_R_eci @ state[0:3]
                 requests.append((position_ecef, attitude_gt[i], camera_name, i))
 
     with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
