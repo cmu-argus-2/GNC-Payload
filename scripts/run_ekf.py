@@ -1,10 +1,6 @@
 """
 Run the EKF using CLI.
 
-Arguments that are required by several scripts are loaded from the config.json file:
-    - angular_velocity: Angular velocity of the spacecraft [rad/s]
-    - frequency: Frequency of the dynamics model [Hz]
-    - duration: Duration of the spacecraft mission [s]
 This script requires the following arguments:
     --name: Name of the experiment
     --meas_rate: Rate at which measurements are taken
@@ -14,11 +10,13 @@ The script expects to find the following contents in the output directory:
     - /experiment_name
         - trajectory_gt.npy
         - attitude_gt.npy
+        - args.json
 
-The script will generate the following contents in the output directory:
+The script will generate (append in the args.json case) the following contents in the output directory:
 - /output_dir
     - /experiment_name
         - ekf_state_data_.pkl
+        - args.json
 
 The state data contains a dictionary with the following fields:
     - timestep: The time step
@@ -76,13 +74,6 @@ def parse_args() -> argparse.Namespace:
         default="test",
         help="Name of the experiment",
     )
-    parser.add_argument(
-        "--meas_rate",
-        type=int,
-        default=120,
-        help="The rate at which measurements are supposed to be taken. 120 means that a measurement"
-        "is taken every 120 timesteps",
-    )
 
     return parser.parse_args()
 
@@ -97,16 +88,29 @@ def run_simulation(args) -> None:
     """
 
     # Load json
-    with open("scripts/config.json", "r") as jsonfile:
-        json_config = json.load(jsonfile)
-        angular_velocity = np.array(
-            json_config.get("angular_velocity", [0, 0, np.pi / 18]), dtype=float
-        )
-        f = float(json_config.get("frequency", 2))
-        mission_duration = float(json_config.get("duration", 2700))
+    try:
+        with open(f"output_dir/{args.name}/args.json", "r") as jsonfile:
+            arg_data = json.load(jsonfile)
 
+    except Exception as e:
+        raise ValueError(f"Error in args.json in {args.name}: {e}")
+
+    # Check that if a name was provided it matches the one in the json file
+    assert (
+        arg_data["name"] == args.name
+    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
+
+    f = arg_data["frequency"]
+    mission_duration = arg_data["duration"]
+    angular_velocity = arg_data["angular_velocity"]
+    meas_rate = arg_data["meas_rate"]
+
+    # No new args to be stored.
+
+    # Set the world update rate and mission duration
+    # Technically we don't need to set these because we get them from the json file
+    # but we need the config for the EKF so we might as well set it here
     config = load_config()
-    # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = f  # Hz
     config["mission"]["duration"] = mission_duration  # s
 
@@ -171,6 +175,7 @@ def run_simulation(args) -> None:
         config=config,
         use_drag=False,
         use_j2=False,
+        use_j34=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
         use_moon_grav=False,
@@ -210,7 +215,7 @@ def run_simulation(args) -> None:
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
         data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
 
-        if t % args.meas_rate == 0 and is_over_daytime(
+        if t % meas_rate == 0 and is_over_daytime(
             data_manager.latest_epoch, data_manager.latest_state[:3]
         ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
