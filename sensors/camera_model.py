@@ -32,6 +32,7 @@ class CameraModel:
     RESOLUTION = (IMAGE_HEIGHT, IMAGE_WIDTH)
     NUM_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
     NUM_CHANNELS = 3
+    # Note that this is the OUTPUT_SHAPE of both the image and the ray directions, since NUM_CHANNELS == NUM_DIMENSIONS
     OUTPUT_SHAPE = RESOLUTION + (NUM_CHANNELS,)
     DTYPE = np.uint8
     HORIZONTAL_FOV = np.deg2rad(66.1)
