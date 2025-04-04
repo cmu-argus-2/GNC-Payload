@@ -20,7 +20,6 @@ import torch
 import wandb
 from data_loader import CustomImageDataset
 from plotter import Plotter
-from sklearn.manifold import TSNE
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms

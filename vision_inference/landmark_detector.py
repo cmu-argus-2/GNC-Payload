@@ -388,13 +388,6 @@ class LandmarkDetector:
                 try:
                     # Load NumPy array
                     array = np.load(npy_path)
-
-                    # Check array shape and type
-                    if len(array.shape) != 3 or array.shape[2] not in [1, 3, 4]:
-                        Logger.log("WARNING", f"Invalid array shape in {npy_path}: {array.shape}")
-                        results[npy_path] = LandmarkDetections.empty()
-                        continue
-
                     batch_images.append(array)
                     valid_paths.append(os.path.basename(npy_path))
 

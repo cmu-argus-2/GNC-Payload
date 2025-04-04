@@ -132,7 +132,28 @@ class CameraModel:
         # since it'll be cached anyway, we can just look up the desired values
         ray_directions_body = self.ray_directions_body()
         u, v = pixel_coords.T
-        return ray_directions_body[v, u, :]
+
+        # Get integer and fractional parts
+        u0 = np.floor(u).astype(int)
+        v0 = np.floor(v).astype(int)
+        u1 = np.minimum(u0 + 1, CameraModel.IMAGE_WIDTH - 1)
+        v1 = np.minimum(v0 + 1, CameraModel.IMAGE_HEIGHT - 1)
+
+        # Calculate interpolation weights
+        wu = u - u0
+        wv = v - v0
+
+        # Perform bilinear interpolation
+        vectors = (
+            (1 - wu)[:, None] * (1 - wv)[:, None] * ray_directions_body[v0, u0]
+            + wu[:, None] * (1 - wv)[:, None] * ray_directions_body[v0, u1]
+            + (1 - wu)[:, None] * wv[:, None] * ray_directions_body[v1, u0]
+            + wu[:, None] * wv[:, None] * ray_directions_body[v1, u1]
+        )
+
+        # Normalize the interpolated vectors to ensure they are unit vectors
+        vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+        return vectors
 
 
 class CameraModelManager:
