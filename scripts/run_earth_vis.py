@@ -86,7 +86,7 @@ def generate_image(
     suffix = f"{index}_{camera_name}"
     cv2.imwrite(
         os.path.join(output_dir, f"img_{suffix}.png"),
-        cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
+        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
     )
     np.save(
         os.path.join(output_dir, f"lat_lon_{suffix}.npy"),
