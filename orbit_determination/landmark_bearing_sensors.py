@@ -363,4 +363,4 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
         eci_R_body: np.ndarray,
         camera_model: CameraModel,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        return 0
+        raise NotImplementedError("The take_measurement method is not implemented and shouldn't be used.")
