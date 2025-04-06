@@ -331,3 +331,36 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
 
         # TODO: output confidences too
         return bearing_unit_vectors_body, landmark_positions_eci
+
+
+class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
+    """
+    A sensor that uses already calculated landmark bearing measurements and landmark locations to provide correct measurements at each timestep.
+    """
+
+    def __init__(self, name) -> None:
+        # Set up paths to stored data
+        VIS_INF_DIR = "vis_inf"
+        self.bearing_dir = os.path.join("output_dir", name, VIS_INF_DIR, "bearing_vectors")
+
+    def load_measurements(self, timestep, camera_name):
+        # Load the bearing vectors and landmark positions from the stored data
+        base_name = f"{timestep}_{camera_name}"
+        file_path = os.path.join(self.bearing_dir, f"landmarks_{base_name}.npz")
+        with np.load(file_path) as data:
+            bearing_vectors = data["bearing_vectors"]
+            landmark_positions = data["landmark_positions"]
+
+        if bearing_vectors.ndim == 1:
+            bearing_vectors = np.expand_dims(bearing_vectors, axis=0)
+            landmark_positions = np.expand_dims(landmark_positions, axis=0)
+        return bearing_vectors, landmark_positions
+
+    def take_measurement(
+        self,
+        epoch: Epoch,
+        cubesat_position: np.ndarray,
+        eci_R_body: np.ndarray,
+        camera_model: CameraModel,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        return 0

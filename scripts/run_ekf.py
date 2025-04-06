@@ -51,6 +51,7 @@ from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
+    SimulatedMLStoredLandmarkBearingSensor,
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
@@ -118,7 +119,7 @@ def run_simulation(args) -> None:
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
+    landmark_bearing_sensor = SimulatedMLStoredLandmarkBearingSensor(args.name)
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 

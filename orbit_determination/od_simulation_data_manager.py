@@ -9,7 +9,10 @@ from typing import Tuple
 import numpy as np
 from brahe.epoch import Epoch
 
-from orbit_determination.landmark_bearing_sensors import LandmarkBearingSensor
+from orbit_determination.landmark_bearing_sensors import (
+    LandmarkBearingSensor,
+    SimulatedMLStoredLandmarkBearingSensor,
+)
 from sensors.camera_model import CameraModel
 from utils.brahe_utils import increment_epoch
 
@@ -158,9 +161,14 @@ class ODSimulationDataManager:
         position_eci = self.states[t_idx, :3]
         eci_R_body = self.eci_Rs_body[t_idx, ...]
 
-        bearing_unit_vectors, landmarks = landmark_bearing_sensor.take_measurement(
-            self.latest_epoch, position_eci, eci_R_body, camera_model
-        )
+        if isinstance(landmark_bearing_sensor, SimulatedMLStoredLandmarkBearingSensor):
+            bearing_unit_vectors, landmarks = landmark_bearing_sensor.load_measurements(
+                t_idx - 1, camera_model.camera_name
+            )
+        else:
+            bearing_unit_vectors, landmarks = landmark_bearing_sensor.take_measurement(
+                self.latest_epoch, position_eci, eci_R_body, camera_model
+            )
         measurement_count = bearing_unit_vectors.shape[0]
         assert landmarks.shape[0] == measurement_count
 
