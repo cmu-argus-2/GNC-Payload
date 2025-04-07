@@ -245,8 +245,8 @@ def generate_training_image(
 
     camera_manager = CameraModelManager()
     perturbed_camera_R_nominal_camera = Rotation.from_euler(
-        "ZX",
-        [rng.uniform(0, 360), rng.uniform(0, off_nadir_variation)],
+        "ZXZ",
+        [rng.uniform(0, 360), rng.uniform(0, off_nadir_variation), rng.uniform(0, 360)],
         degrees=True,
     ).as_matrix()
     nominal_body_R_nominal_camera = perturbed_body_R_perturbed_camera = camera_manager[
