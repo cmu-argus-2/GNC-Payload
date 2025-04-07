@@ -10,3 +10,5 @@ training_directory: /path/to/training/directory
 # The directory where the trained models will be loaded from
 # If you train your own models, the models_directory can be the same as the training_directory
 models_directory: /path/to/models/directory
+# The directory where the output files from the result of running the files in the scripts directory will be saved
+output_directory: /path/to/output/directory
