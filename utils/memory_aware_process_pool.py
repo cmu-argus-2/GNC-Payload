@@ -22,9 +22,9 @@ class MemoryAwareProcessPool:
     def __init__(
         self,
         num_workers: int = 32,
-        low_memory_usage_threshold: float = 80.0,
-        high_memory_usage_threshold: float = 90.0,
-        poll_interval: float = 5.0,
+        low_memory_usage_threshold: float = 75.0,
+        high_memory_usage_threshold: float = 85.0,
+        poll_interval: float = 2.0,
     ):
         """
         Initialize the MemoryAwareProcessPool.
@@ -192,7 +192,7 @@ class MemoryAwareProcessPool:
             return True
 
         pbar = (
-            tqdm(total=num_jobs, desc="Processing requests", unit="request")
+            tqdm(total=num_jobs, desc="0 jobs in progress", unit="request")
             if display_progress_bar
             else nullcontext()
         )
@@ -228,7 +228,12 @@ class MemoryAwareProcessPool:
 
                 memory_usage_percentage = MemoryAwareProcessPool.get_memory_usage_percentage()
 
-                if memory_usage_percentage < self.low_memory_usage_threshold:
+                if memory_usage_percentage > self.high_memory_usage_threshold:
+                    terminated_process = terminate_process()
+                elif (
+                    memory_usage_percentage < self.low_memory_usage_threshold
+                    and len(job_ids_to_request_ids) < self.num_workers
+                ):
                     in_progress_requests = np.zeros(num_jobs, dtype=bool)
                     for request_id in job_ids_to_request_ids.values():
                         in_progress_requests[request_id] = True
@@ -243,8 +248,8 @@ class MemoryAwareProcessPool:
                         next_job_id += 1
                         started_job = True
 
-                elif memory_usage_percentage > self.high_memory_usage_threshold:
-                    terminated_process = terminate_process()
+                if display_progress_bar:
+                    pbar.set_description(f"{len(job_ids_to_request_ids)} jobs in progress")
 
                 if output_log_path is not None:
                     output_log_file.write(

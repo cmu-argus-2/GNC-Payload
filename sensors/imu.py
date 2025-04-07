@@ -4,7 +4,8 @@ Inertial Measurement Unit (IMU) Sensor Module
 
 import numpy as np
 
-from sensors.sensor import TriAxisSensor
+from sensors.bias import BiasParams
+from sensors.sensor import SensorNoiseParams, TriAxisSensor
 
 
 class IMUNoiseParams:
@@ -20,7 +21,9 @@ class IMUNoiseParams:
 
 
 class IMU:
-    def __init__(self, dt: float, IMU_noise_params: IMUNoiseParams, misalignment_range: list) -> None:
+    def __init__(
+        self, dt: float, IMU_noise_params: IMUNoiseParams, misalignment_range: list
+    ) -> None:
         """
         Initialize an IMU sensor with given noise parameters.
 
@@ -51,3 +54,61 @@ class IMU:
         gyro_measurement = self.gyro.update(clean_gyro_signal)
         accel_measurement = self.accel.update(clean_accel_signal)
         return gyro_measurement, accel_measurement
+
+    @staticmethod
+    def get_default_imu(dt: float) -> "IMU":
+        """
+        Initializes the IMU.
+
+        :param dt: The time step for the simulation.
+
+        :return: The initialized IMU.
+        """
+        # Initialize the IMU
+        # bias params are min max range of bias and sigma_w
+        # [units] and [(units/s)/sqrt(Hz)]
+        bias_params_x = BiasParams.get_random_params([-1e-2, 1e-2], [1e-6, 1e-5])
+        bias_params_y = BiasParams.get_random_params([-1e-2, 1e-2], [1e-6, 1e-5])
+        bias_params_z = BiasParams.get_random_params([-1e-2, 1e-2], [1e-6, 1e-5])
+        # bias_params = BiasParams.get_random_params([0, 0], [0, 0])
+        # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
+        sensor_noise_params_accel_x = SensorNoiseParams.get_random_params(
+            bias_params_x, [0, 0.0], [0, 0.0]
+        )
+        sensor_noise_params_accel_y = SensorNoiseParams.get_random_params(
+            bias_params_y, [0, 0.0], [0, 0.0]
+        )
+        sensor_noise_params_accel_z = SensorNoiseParams.get_random_params(
+            bias_params_z, [0, 0.0], [0, 0.0]
+        )
+        sensor_noise_params_accel = [
+            sensor_noise_params_accel_x,
+            sensor_noise_params_accel_y,
+            sensor_noise_params_accel_z,
+        ]
+        # sigma_v [units/sqrt(Hz)] & scale_factor_error [-]
+        sensor_noise_params_gyro_x = SensorNoiseParams.get_random_params(
+            bias_params_x, [1e-6, 1e-5], [0, 0.01]
+        )
+        sensor_noise_params_gyro_y = SensorNoiseParams.get_random_params(
+            bias_params_y, [1e-6, 1e-5], [0, 0.01]
+        )
+        sensor_noise_params_gyro_z = SensorNoiseParams.get_random_params(
+            bias_params_z, [1e-6, 1e-5], [0, 0.01]
+        )
+        sensor_noise_params_gyro = [
+            sensor_noise_params_gyro_x,
+            sensor_noise_params_gyro_y,
+            sensor_noise_params_gyro_z,
+        ]
+
+        imu_noise_params = IMUNoiseParams(
+            gyro_params=sensor_noise_params_gyro, accel_params=sensor_noise_params_accel
+        )
+        imu = IMU(
+            dt=dt,
+            IMU_noise_params=imu_noise_params,
+            misalignment_range=[-0.01, 0.01],
+        )
+
+        return imu

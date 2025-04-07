@@ -70,7 +70,6 @@ class Sensor:
 
         self.value = 0
 
-
     def update(self, clean_signal: np.ndarray) -> np.ndarray:
         """
         Update the measurements of the sensor by applying noise to the clean signal.
@@ -91,7 +90,7 @@ class Sensor:
         Getter for the bias
         """
         return self.bias.get_bias()
-    
+
     def get_value(self) -> float:
         """
         Getter for the latest signal value
@@ -140,7 +139,9 @@ class TriAxisSensor:
 
         # Apply misalignment to each sensor
         signal_x = (
-            self.x.get_value() + self.misalignmentxy * clean_signal[1] + self.misalignmentxz * clean_signal[2]
+            self.x.get_value()
+            + self.misalignmentxy * clean_signal[1]
+            + self.misalignmentxz * clean_signal[2]
         )
         signal_y = (
             self.y.get_value()
