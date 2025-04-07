@@ -222,14 +222,21 @@ def save_region_classification_results(RC_reg2img, RC_img2reg, output_dir, name)
     Logger.log("INFO", f"Region classification results saved to {save_dir}")
 
 
-def save_landmark_detections(LD_results, output_dir, name):
+def save_landmark_detections(
+    LD_results: Dict[str, LandmarkDetections], 
+    output_dir: str, 
+    name: str
+) -> None:
     """
     Save landmark detection results to binary files efficiently.
 
     Args:
-        LD_results: Dict of dicts mapping region -> {filename -> LandmarkDetections}
+        LD_results: Dict mapping image filename to LandmarkDetections object
         output_dir: Base output directory
         name: Experiment name for subdirectory
+
+    Returns:
+        None
     """
     save_dir = os.path.join(output_dir, name, OUTPUT_DIR, "landmark_detections")
     os.makedirs(save_dir, exist_ok=True)
