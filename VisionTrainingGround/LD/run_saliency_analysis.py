@@ -186,7 +186,7 @@ def generate_saliency_map(
         np.add.at(region_saliency_map_counts, (vs[valid_mask], us[valid_mask]), 1)
 
     nonzero_mask = region_saliency_map_counts > 0
-    region_saliency_map.image_data[nonzero_mask, :] /= region_saliency_map_counts[nonzero_mask]
+    region_saliency_map.image_data[nonzero_mask, 0] /= region_saliency_map_counts[nonzero_mask]
     return region_saliency_map
 
 
