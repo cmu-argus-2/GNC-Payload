@@ -243,7 +243,7 @@ def generate_yolo_labels(
     top_right_lat_lon = np.column_stack((top_left_lat_lon[:, 0], bottom_right_lat_lon[:, 1]))
     bottom_left_lat_lon = np.column_stack((bottom_right_lat_lon[:, 0], top_left_lat_lon[:, 1]))
 
-    stacked_corners_lat_lon = np.stack(
+    stacked_corners_lat_lon = np.concatenate(
         (top_left_lat_lon, top_right_lat_lon, bottom_left_lat_lon, bottom_right_lat_lon), axis=0
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
