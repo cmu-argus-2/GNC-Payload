@@ -26,18 +26,19 @@ import json
 import os
 from argparse import ArgumentParser
 from functools import partial
-from multiprocessing import cpu_count
+from multiprocessing import cpu_count, Pool
 
 import brahe
 import cv2
 import numpy as np
 from brahe.epoch import Epoch
+from tqdm import tqdm
 
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModelManager
 from utils.brahe_utils import increment_epoch
 from utils.config_utils import USER_CONFIG_PATH, load_config
-from utils.memory_aware_process_pool import MemoryAwareProcessPool
+from utils.function_utils import unpack_and_call
 
 
 def parse_args() -> ArgumentParser:
@@ -150,10 +151,18 @@ def image_vis(args) -> None:
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 requests.append((position_ecef, attitude_gt[i], camera_name, i))
 
-    with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-        pool.map(
-            partial(generate_image, output_dir=f"{output_dir}/images"),
-            requests,
+    func = partial(generate_image, output_dir=f"{output_dir}/images")
+    with Pool(args.num_processes) as pool:
+        list(
+            tqdm(
+                pool.imap_unordered(
+                    partial(unpack_and_call, func),
+                    requests,
+                    chunksize=1,
+                ),
+                total=len(requests),
+                desc="Generating images",
+            )
         )
 
 

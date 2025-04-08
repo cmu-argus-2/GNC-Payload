@@ -3,6 +3,7 @@ from multiprocessing import Array, Process, Queue
 from multiprocessing.sharedctypes import SynchronizedArray
 from time import perf_counter, sleep
 from typing import Callable, List, ParamSpec, Tuple, TypeVar
+from deprecated import deprecated
 
 import numpy as np
 import psutil
@@ -12,6 +13,11 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+@deprecated(
+    reason="After some bug fixes, the memory usage when generating images with the image simulator is now low enough "
+           "that we are bottlenecked by the CPU. As a result, this class is no longer needed. Also, there is likely a "
+           "memory leak in this class leading to gradual performance degradation over time.",
+)
 class MemoryAwareProcessPool:
     """
     This class maintains a pool of worker processes to execute jobs in parallel. The number of jobs running in parallel

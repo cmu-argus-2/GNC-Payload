@@ -5,7 +5,6 @@ This script will generate/overwrite the following contents in the training direc
 - /training_directory
   - /{region}
     - 00000.png
-    - 00000_mgrs_regions.npy
     - 00000_lat_lon.npy
     - ...
 """
@@ -14,8 +13,7 @@ import argparse
 import os
 from functools import partial
 from itertools import product
-from multiprocessing import cpu_count
-from time import time
+from multiprocessing import cpu_count, Pool
 
 import cv2
 import numpy as np
@@ -27,7 +25,7 @@ from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModel, CameraModelManager
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
-from utils.memory_aware_process_pool import MemoryAwareProcessPool
+from utils.function_utils import unpack_and_call
 
 LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
 
@@ -317,18 +315,25 @@ def main() -> None:
         off_nadir_variation=args.off_nadir_variation,
     )
     if args.num_processes > 1:
-        requests = list(requests_generator)
-        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
-        with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-            successful_requests, request_results = pool.map(
-                func, requests, output_log_path=log_file_path
+        with Pool(args.num_processes) as pool:
+            list(
+                tqdm(
+                    pool.imap_unordered(
+                        partial(
+                            unpack_and_call,
+                            func,
+                        ),
+                        requests_generator,
+                        chunksize=1,
+                    ),
+                    total=total_images,
+                    desc="Generating images",
+                )
             )
-
-        for request, success, result in zip(requests, successful_requests, request_results):
-            if not success:
-                print(f"Generation of training image for {request} failed with exception: {result}")
     else:
-        for region, file_prefix in tqdm(requests_generator, total=total_images):
+        for region, file_prefix in tqdm(
+            requests_generator, total=total_images, desc="Generating images"
+        ):
             func(region, file_prefix)
 
 
