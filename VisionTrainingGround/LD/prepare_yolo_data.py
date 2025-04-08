@@ -390,7 +390,7 @@ def main():
         with Pool(args.num_processes) as pool:
             pool.map(func, regions)
     else:
-        map(func, regions)
+        list(map(func, regions))
 
 
 if __name__ == "__main__":
