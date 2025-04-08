@@ -14,6 +14,7 @@ import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count, Pool
+from typing import Generator, Tuple
 
 import cv2
 import numpy as np
@@ -279,12 +280,7 @@ def main() -> None:
     args = parse_args()
     if args.overwrite and args.resume:
         raise ValueError("Cannot use --overwrite and --resume at the same time.")
-
     regions = list(set(args.regions) - set(args.skip_regions))
-    total_images = len(regions) * args.num_images
-    if total_images == 0:
-        print("No training images to generate.")
-        return
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in tqdm(regions, desc="Setting up region directories"):
@@ -295,14 +291,27 @@ def main() -> None:
             )
             return
 
-    file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
-    requests_generator = product(regions, file_prefixes_generator)
-    if args.resume:
-        requests_generator = (
-            (region, file_prefix)
-            for region, file_prefix in requests_generator
-            if not os.path.exists(os.path.join(training_dir, region, f"{file_prefix}.png"))
-        )
+    def get_requests_generator() -> Generator[Tuple[str, str], None, None]:
+        """
+        :return: A generator that yields tuples of (region, file_prefix) for each image to be generated.
+        """
+        file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
+        requests_generator = product(regions, file_prefixes_generator)
+
+        if args.resume:
+            requests_generator = (
+                (region_, file_prefix_)
+                for region_, file_prefix_ in requests_generator
+                if not os.path.exists(os.path.join(training_dir, region_, f"{file_prefix_}.png"))
+            )
+        return requests_generator
+
+    total_images = (
+        sum(1 for _ in get_requests_generator()) if args.resume else len(regions) * args.num_images
+    )
+    if total_images == 0:
+        print("No training images to generate.")
+        return
 
     func = partial(
         generate_training_image,
@@ -320,7 +329,7 @@ def main() -> None:
                             unpack_and_call,
                             func,
                         ),
-                        requests_generator,
+                        get_requests_generator(),
                         chunksize=1,
                     ),
                     total=total_images,
@@ -329,7 +338,7 @@ def main() -> None:
             )
     else:
         for region, file_prefix in tqdm(
-            requests_generator, total=total_images, desc="Generating images"
+            get_requests_generator(), total=total_images, desc="Generating images"
         ):
             func(region, file_prefix)
 
