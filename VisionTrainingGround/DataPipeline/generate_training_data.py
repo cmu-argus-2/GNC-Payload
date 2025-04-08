@@ -97,7 +97,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_region_directory(region_dir: str, overwrite: bool, resume: bool, check_corrupted: bool = False) -> bool:
+def setup_region_directory(
+    region_dir: str, overwrite: bool, resume: bool, check_corrupted: bool = False
+) -> bool:
     """
     Set up the region directory for generating training data.
 
@@ -116,7 +118,9 @@ def setup_region_directory(region_dir: str, overwrite: bool, resume: bool, check
     :return: True if region_dir is now a directory that is ready for generating training data, False otherwise.
     """
     assert not (overwrite and resume), "Overwrite and resume cannot both be True."
-    assert not (check_corrupted and not resume), "Check corrupted files cannot be True if resume is False."
+    assert not (
+        check_corrupted and not resume
+    ), "Check corrupted files cannot be True if resume is False."
 
     if not os.path.exists(region_dir):
         os.makedirs(region_dir)
