@@ -14,6 +14,7 @@ import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count, Pool
+from time import time
 
 import cv2
 import numpy as np
