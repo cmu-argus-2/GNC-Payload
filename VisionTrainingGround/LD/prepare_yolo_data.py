@@ -352,7 +352,7 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
 
     yolo_label_paths = yolo_label_paths.tolist()
     assert "" not in yolo_label_paths
-    num_classes = generate_yolo_labels(region_dir, file_prefixes, yolo_label_paths)
+    num_classes = generate_yolo_labels(region_id, file_prefixes, yolo_label_paths)
 
     yolo_config = {
         "path": os.path.abspath(LD_training_dir),
