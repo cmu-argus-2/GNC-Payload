@@ -334,7 +334,7 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
     test_indices = all_indices[train_cutoff:test_cutoff]
     val_indices = all_indices[test_cutoff:]
 
-    yolo_label_paths = np.full(num_files, "", dtype=str)
+    yolo_label_paths = [""] * num_files
     for split_indices, split_dir_name in zip(
         [train_indices, test_indices, val_indices], ["train", "test", "val"]
     ):
@@ -350,7 +350,6 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
             )
             yolo_label_paths[i] = os.path.join(labels_dir, f"{file_prefix}.txt")
 
-    yolo_label_paths = yolo_label_paths.tolist()
     assert "" not in yolo_label_paths
     num_classes = generate_yolo_labels(region_id, file_prefixes, yolo_label_paths)
 
