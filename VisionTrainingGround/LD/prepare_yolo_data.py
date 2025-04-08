@@ -234,7 +234,7 @@ def generate_yolo_labels(
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
     bounding_boxes_lat_lon = LandmarkDetector.load_ground_truth(
-        os.path.join(training_dir, LandmarkDetector.get_LD_ground_truth_relative_path(region_id))
+        os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region_id))
     )
     num_classes = bounding_boxes_lat_lon.shape[0]
 
