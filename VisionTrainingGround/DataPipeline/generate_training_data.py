@@ -5,7 +5,6 @@ This script will generate/overwrite the following contents in the training direc
 - /training_directory
   - /{region}
     - 00000.png
-    - 00000_mgrs_regions.npy
     - 00000_lat_lon.npy
     - ...
 """
@@ -14,8 +13,8 @@ import argparse
 import os
 from functools import partial
 from itertools import product
-from multiprocessing import cpu_count
-from time import time
+from multiprocessing import cpu_count, Pool
+from typing import Generator, Tuple
 
 import cv2
 import numpy as np
@@ -27,7 +26,7 @@ from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModel, CameraModelManager
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
-from utils.memory_aware_process_pool import MemoryAwareProcessPool
+from utils.function_utils import unpack_and_call
 
 LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
 
@@ -98,7 +97,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_region_directory(region_dir: str, overwrite: bool, resume: bool, check_corrupted: bool = False) -> bool:
+def setup_region_directory(
+    region_dir: str, overwrite: bool, resume: bool, check_corrupted: bool = False
+) -> bool:
     """
     Set up the region directory for generating training data.
 
@@ -117,7 +118,9 @@ def setup_region_directory(region_dir: str, overwrite: bool, resume: bool, check
     :return: True if region_dir is now a directory that is ready for generating training data, False otherwise.
     """
     assert not (overwrite and resume), "Overwrite and resume cannot both be True."
-    assert not (check_corrupted and not resume), "Check corrupted files cannot be True if resume is False."
+    assert not (
+        check_corrupted and not resume
+    ), "Check corrupted files cannot be True if resume is False."
 
     if not os.path.exists(region_dir):
         os.makedirs(region_dir)
@@ -281,12 +284,7 @@ def main() -> None:
     args = parse_args()
     if args.overwrite and args.resume:
         raise ValueError("Cannot use --overwrite and --resume at the same time.")
-
     regions = list(set(args.regions) - set(args.skip_regions))
-    total_images = len(regions) * args.num_images
-    if total_images == 0:
-        print("No training images to generate.")
-        return
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in tqdm(regions, desc="Setting up region directories"):
@@ -297,14 +295,27 @@ def main() -> None:
             )
             return
 
-    file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
-    requests_generator = product(regions, file_prefixes_generator)
-    if args.resume:
-        requests_generator = (
-            (region, file_prefix)
-            for region, file_prefix in requests_generator
-            if not os.path.exists(os.path.join(training_dir, region, f"{file_prefix}.png"))
-        )
+    def get_requests_generator() -> Generator[Tuple[str, str], None, None]:
+        """
+        :return: A generator that yields tuples of (region, file_prefix) for each image to be generated.
+        """
+        file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
+        requests_generator = product(regions, file_prefixes_generator)
+
+        if args.resume:
+            requests_generator = (
+                (region_, file_prefix_)
+                for region_, file_prefix_ in requests_generator
+                if not os.path.exists(os.path.join(training_dir, region_, f"{file_prefix_}.png"))
+            )
+        return requests_generator
+
+    total_images = (
+        sum(1 for _ in get_requests_generator()) if args.resume else len(regions) * args.num_images
+    )
+    if total_images == 0:
+        print("No training images to generate.")
+        return
 
     func = partial(
         generate_training_image,
@@ -314,18 +325,25 @@ def main() -> None:
         off_nadir_variation=args.off_nadir_variation,
     )
     if args.num_processes > 1:
-        requests = list(requests_generator)
-        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
-        with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-            successful_requests, request_results = pool.map(
-                func, requests, output_log_path=log_file_path
+        with Pool(args.num_processes) as pool:
+            list(
+                tqdm(
+                    pool.imap_unordered(
+                        partial(
+                            unpack_and_call,
+                            func,
+                        ),
+                        get_requests_generator(),
+                        chunksize=1,
+                    ),
+                    total=total_images,
+                    desc="Generating images",
+                )
             )
-
-        for request, success, result in zip(requests, successful_requests, request_results):
-            if not success:
-                print(f"Generation of training image for {request} failed with exception: {result}")
     else:
-        for region, file_prefix in tqdm(requests_generator, total=total_images):
+        for region, file_prefix in tqdm(
+            get_requests_generator(), total=total_images, desc="Generating images"
+        ):
             func(region, file_prefix)
 
 
