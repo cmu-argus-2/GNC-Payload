@@ -26,17 +26,19 @@ import json
 import os
 from argparse import ArgumentParser
 from functools import partial
-from multiprocessing import cpu_count
+from multiprocessing import cpu_count, Pool
 
 import brahe
 import cv2
 import numpy as np
 from brahe.epoch import Epoch
+from tqdm import tqdm
 
 from image_simulation.earth_vis import EarthImageSimulator
 from sensors.camera_model import CameraModelManager
 from utils.brahe_utils import increment_epoch
-from utils.memory_aware_process_pool import MemoryAwareProcessPool
+from utils.config_utils import USER_CONFIG_PATH, load_config
+from utils.function_utils import unpack_and_call
 
 
 def parse_args() -> ArgumentParser:
@@ -86,7 +88,7 @@ def generate_image(
     suffix = f"{index}_{camera_name}"
     cv2.imwrite(
         os.path.join(output_dir, f"img_{suffix}.png"),
-        cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
+        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
     )
     np.save(
         os.path.join(output_dir, f"lat_lon_{suffix}.npy"),
@@ -99,21 +101,22 @@ def image_vis(args) -> None:
     Visualize earth for a set of positions and attitudes using all available cameras.
     :param: args
     """
+    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_directory"], args.name)
     if (
-        not os.path.exists(f"output_dir/{args.name}/trajectory_gt.npy")
-        or not os.path.exists(f"output_dir/{args.name}/attitude_gt.npy")
-        or not os.path.exists(f"output_dir/{args.name}/daytime_gt.npy")
-        or not os.path.exists(f"output_dir/{args.name}/args.json")
+        not os.path.exists(f"{output_dir}/trajectory_gt.npy")
+        or not os.path.exists(f"{output_dir}/attitude_gt.npy")
+        or not os.path.exists(f"{output_dir}/daytime_gt.npy")
+        or not os.path.exists(f"{output_dir}/args.json")
     ):
         raise FileNotFoundError(
             f"One of the required files in {args.name} does not exist. Please run the trajectory generation script first."
         )
-    trajectory_gt = np.load(f"output_dir/{args.name}/trajectory_gt.npy")
-    attitude_gt = np.load(f"output_dir/{args.name}/attitude_gt.npy")
-    daytime_gt = np.load(f"output_dir/{args.name}/daytime_gt.npy")
+    trajectory_gt = np.load(f"{output_dir}/trajectory_gt.npy")
+    attitude_gt = np.load(f"{output_dir}/attitude_gt.npy")
+    daytime_gt = np.load(f"{output_dir}/daytime_gt.npy")
 
     try:
-        with open(f"output_dir/{args.name}/args.json", "r") as jsonfile:
+        with open(f"{output_dir}/args.json", "r") as jsonfile:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
@@ -128,30 +131,38 @@ def image_vis(args) -> None:
     arg_data["meas_rate"] = args.meas_rate
     arg_data["num_processes"] = args.num_processes
 
-    with open(f"output_dir/{args.name}/args.json", "w") as jsonfile:
+    with open(f"{output_dir}/args.json", "w") as jsonfile:
         json.dump(arg_data, jsonfile, indent=4)
 
     # Set the starting epoch and dt based on the args.json file
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(arg_data["start_date"]))
     dt = 1 / arg_data["frequency"]
 
-    if not os.path.exists(f"output_dir/{args.name}/images"):
-        os.makedirs(f"output_dir/{args.name}/images")
+    if not os.path.exists(f"{output_dir}/images"):
+        os.makedirs(f"{output_dir}/images")
 
     requests = []
     for i, state in enumerate(trajectory_gt):
         # Only run the earth image visualizer if it's a measurement step and daytime
         if i % args.meas_rate == 0 and daytime_gt[i]:
             curr_epoch = increment_epoch(starting_epoch, i * dt)
+            ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
+            position_ecef = ecef_R_eci @ state[0:3]
             for camera_name in CameraModelManager.CAMERA_NAMES:
-                ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
-                position_ecef = ecef_R_eci @ state[0:3]
                 requests.append((position_ecef, attitude_gt[i], camera_name, i))
 
-    with MemoryAwareProcessPool(num_workers=args.num_processes) as pool:
-        pool.map(
-            partial(generate_image, output_dir=f"output_dir/{args.name}/images"),
-            requests,
+    func = partial(generate_image, output_dir=f"{output_dir}/images")
+    with Pool(args.num_processes) as pool:
+        list(
+            tqdm(
+                pool.imap_unordered(
+                    partial(unpack_and_call, func),
+                    requests,
+                    chunksize=1,
+                ),
+                total=len(requests),
+                desc="Generating images",
+            )
         )
 
 

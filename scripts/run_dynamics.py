@@ -36,7 +36,7 @@ from brahe.epoch import Epoch
 
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from utils.config_utils import load_config
+from utils.config_utils import load_config, USER_CONFIG_PATH
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state, is_over_daytime
 
 
@@ -186,18 +186,18 @@ def generate_trajectory(args) -> None:
     attitude = data_manager.eci_Rs_body
     daytime = np.array(daytime)
 
-    if not os.path.exists(f"output_dir/{args.name}"):
-        os.makedirs(f"output_dir/{args.name}")
-    np.save(f"output_dir/{args.name}/trajectory_gt.npy", trajectory)
-    np.save(f"output_dir/{args.name}/attitude_gt.npy", attitude)
-    np.save(f"output_dir/{args.name}/daytime_gt.npy", daytime)
+    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_directory"], args.name)
+    if not os.path.exists(f"{output_dir}"):
+        os.makedirs(f"{output_dir}")
+    np.save(f"{output_dir}/trajectory_gt.npy", trajectory)
+    np.save(f"{output_dir}/attitude_gt.npy", attitude)
+    np.save(f"{output_dir}/daytime_gt.npy", daytime)
 
     # Store args as json
-    with open(f"output_dir/{args.name}/args.json", "w") as jsonfile:
+    with open(f"{output_dir}/args.json", "w") as jsonfile:
         json.dump(args.__dict__, jsonfile, indent=4)
 
 
 if __name__ == "__main__":
-
     args = parse_args()
     generate_trajectory(args)
