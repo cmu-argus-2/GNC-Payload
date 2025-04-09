@@ -213,7 +213,7 @@ def get_valid_bounding_boxes(
 
 
 def generate_yolo_labels(
-    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str]
+    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str], pixel_batch_size: int = 1000
 ) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
@@ -225,6 +225,8 @@ def generate_yolo_labels(
     :param region_id: The MGRS region ID to generate YOLO label files for.
     :param file_prefixes: The common prefixes of the PNG and lat/lon .npy files to process.
     :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
+    :param pixel_batch_size: The number of pixels to process in each batch when finding the closest pixel to each
+                             bounding box corner. Smaller values will use less memory but may be slower.
     :return: The number of classes in the dataset.
     """
     assert len(file_prefixes) == len(
@@ -264,15 +266,27 @@ def generate_yolo_labels(
         ), f"Expected lat/lon shape to have 2 channels, but got {lat_lon.shape[2]}."
         pixel_coordinates_ecef = lat_lon_to_ecef(lat_lon).reshape(-1, 3)
 
-        x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[:, 0])
-        y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[:, 1])
-        z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[:, 2])
-        # surprisingly row_stack is actually faster than column_stack here, probably because of the overhead in
-        # creating the stacked array (https://chatgpt.com/share/67ce49e5-e1c8-800c-b931-b3862d7d299f)
-        distances = np.linalg.norm(np.row_stack((x_distances, y_distances, z_distances)), axis=0)
-        assert distances.shape == (4 * num_classes, height * width)
+        closest_pixel_indices = np.empty(4 * num_classes, dtype=int)
+        minimum_distances = np.full(4 * num_classes, np.inf)
+        for start_pixel_idx in range(0, height * width, pixel_batch_size):
+            end_pixel_idx = min(start_pixel_idx + pixel_batch_size, height * width)
+            pixel_slice = slice(start_pixel_idx, end_pixel_idx)
 
-        closest_pixel_indices = np.argmin(distances, axis=1)
+            x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[pixel_slice, 0])
+            y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[pixel_slice, 1])
+            z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[pixel_slice, 2])
+            # surprisingly axis=0 is actually faster than axis=-1 here, probably because of the overhead in
+            # creating the stacked array
+            distances = np.linalg.norm(np.stack((x_distances, y_distances, z_distances), axis=0), axis=0)
+            assert distances.shape == (4 * num_classes, end_pixel_idx - start_pixel_idx)
+
+            batch_closest_pixel_indices = np.argmin(distances, axis=1)
+            batch_minimum_distances = distances[np.arange(4 * num_classes), batch_closest_pixel_indices]
+
+            closer_mask = batch_minimum_distances < minimum_distances
+            closest_pixel_indices[closer_mask] = batch_closest_pixel_indices[closer_mask] + start_pixel_idx
+            minimum_distances[closer_mask] = batch_minimum_distances[closer_mask]
+
         closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
         closest_us = closest_us.reshape(num_classes, 4)
         closest_vs = closest_vs.reshape(num_classes, 4)
