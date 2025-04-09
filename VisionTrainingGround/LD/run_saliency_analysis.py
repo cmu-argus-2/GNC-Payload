@@ -143,8 +143,8 @@ def generate_saliency_map(
 
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
     height = (np.abs(max_lat - min_lat) / 360) * 2 * np.pi * R_EARTH / gsd
-    top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(max_lat) / gsd
-    bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(min_lat) / gsd
+    top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(max_lat)) / gsd
+    bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(min_lat)) / gsd
     height = int(np.ceil(height))
     width = int(np.ceil(np.maximum(top_width, bottom_width)))
 
