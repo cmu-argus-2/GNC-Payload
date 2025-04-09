@@ -250,9 +250,13 @@ def generate_yolo_labels(
 
     # TODO: upgrade workflow to parallelize this loop with multiprocessing
     for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
-        geotagged_image = GeotaggedImage.load(region_id, file_prefix)
-        height, width = geotagged_image.image.shape[:2]
+        try:
+            geotagged_image = GeotaggedImage.load(region_id, file_prefix)
+        except Exception:
+            print(f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. YOLO label not generated.")
+            continue
 
+        height, width = geotagged_image.image.shape[:2]
         pixel_coordinates_ecef = lat_lon_to_ecef(geotagged_image.lat_lon).reshape(-1, 3)
 
         x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[:, 0])

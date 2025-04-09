@@ -157,7 +157,12 @@ def generate_saliency_map(
     saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
     for file_prefix in file_prefixes:
-        geotagged_image = GeotaggedImage.load(region_id, file_prefix)
+        try:
+            geotagged_image = GeotaggedImage.load(region_id, file_prefix)
+        except Exception:
+            print(f"Warning: Failed to load image for: {region_id=}, {file_prefix=}")
+            continue
+
         success, img_saliency_map = saliency_computer.computeSaliency(
             cv2.cvtColor(geotagged_image.image, cv2.COLOR_RGB2BGR)
         )
