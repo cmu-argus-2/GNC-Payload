@@ -10,11 +10,12 @@ This script will generate/overwrite the following contents in the training direc
 """
 
 import argparse
+from dataclasses import dataclass
 import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count, Pool
-from typing import Generator, Tuple
+from typing import ClassVar, Generator, Tuple
 
 import cv2
 import numpy as np
@@ -29,6 +30,76 @@ from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.function_utils import unpack_and_call
 
 LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
+
+
+@dataclass
+class GeotaggedImage:
+    """
+    A class representing an image alongside lat/lon coordinates for each pixel.
+
+    Attributes:
+        image: A numpy array of shape CameraModel.RESOLUTION + (3,) containing the RGB image.
+        lat_lon: A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
+                 pixel, or np.nan if the pixel does not intersect the Earth.
+    """
+    IMAGE_SUFFIX: ClassVar[str] = ".png"
+    LAT_LON_SUFFIX: ClassVar[str] = "_lat_lon.npz"
+
+    image: np.ndarray
+    lat_lon: np.ndarray
+
+    def assert_invariants(self) -> None:
+        """
+        :raises AssertionError: If the image or lat/lon coordinates are invalid.
+        """
+        assert self.image is not None and self.lat_lon is not None
+        assert self.image.shape == CameraModel.OUTPUT_SHAPE
+        assert self.image.dtype == CameraModel.DTYPE
+        assert self.lat_lon.shape == CameraModel.RESOLUTION + (2,)
+        assert np.issubdtype(self.lat_lon.dtype, np.floating)
+
+    def save(self, region: str, file_prefix: str) -> None:
+        """
+        Save the image and lat/lon coordinates to the specified region and file prefix.
+
+        :param region: The MGRS region.
+        :param file_prefix: The prefix for the output files.
+        """
+        self.assert_invariants()
+
+        training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+        region_dir = os.path.join(training_dir, region)
+        os.makedirs(region_dir, exist_ok=True)
+
+        cv2.imwrite(
+            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"),
+            cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR),
+        )
+        np.savez_compressed(
+            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"),
+            lat_lon=self.lat_lon,
+        )
+
+    @staticmethod
+    def load(region: str, file_prefix: str) -> "GeotaggedImage":
+        """
+        Load the image and lat/lon coordinates from the specified region and file prefix.
+
+        :param region: The MGRS region.
+        :param file_prefix: The prefix for the output files.
+        :return: A GeotaggedImage object containing the loaded image and lat/lon coordinates.
+        """
+        training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+        region_dir = os.path.join(training_dir, region)
+
+        image = cv2.imread(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        lat_lon = np.load(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"))["lat_lon"]
+
+        geotagged_image = GeotaggedImage(image, lat_lon)
+        geotagged_image.assert_invariants()
+        return geotagged_image
 
 
 def parse_args() -> argparse.Namespace:
@@ -265,16 +336,8 @@ def generate_training_image(
         ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
     )
 
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    region_dir = os.path.join(training_dir, region)
-    os.makedirs(region_dir, exist_ok=True)
-    cv2.imwrite(
-        os.path.join(region_dir, f"{file_prefix}.png"),
-        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
-    )
-    np.savez_compressed(
-        os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon=lat_lon
-    )
+    geotagged_image = GeotaggedImage(frame.image, lat_lon)
+    geotagged_image.save(region, file_prefix)
 
 
 def main() -> None:
