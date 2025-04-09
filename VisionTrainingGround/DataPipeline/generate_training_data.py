@@ -343,7 +343,7 @@ def main() -> None:
             )
             start_time = perf_counter()
             with open(log_file_path, "w") as log_file:
-                log_file.write("Elapsed Time (s)\n, Number of Images Generated\n")
+                log_file.write("Elapsed Time (s), Number of Images Generated\n")
                 for i, _ in enumerate(results_iterator):
                     log_file.write(f"{perf_counter() - start_time}, {i + 1}\n")
     else:
