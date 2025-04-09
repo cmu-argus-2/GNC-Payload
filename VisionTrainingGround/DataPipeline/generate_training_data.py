@@ -317,6 +317,7 @@ def main() -> None:
     if total_images == 0:
         print("No training images to generate.")
         return
+    args.num_processes = min(args.num_processes, total_images)
 
     func = partial(
         generate_training_image,
