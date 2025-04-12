@@ -15,6 +15,7 @@ import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count, Pool
+from time import perf_counter, time
 from typing import ClassVar, Generator, Tuple
 
 import cv2
@@ -298,17 +299,20 @@ def generate_training_image(
                                [nominal_altitude - altitude_variation, nominal_altitude + altitude_variation].
     :param off_nadir_variation: The maximum variation in off-nadir angle, in degrees.
     """
+    # Without this the seed may be inherited from the calling process, leading to duplicate images
+    rng = np.random.default_rng(np.random.SeedSequence(int(time() * 1e6) ^ os.getpid()))
+
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region]
     min_lon -= lat_lon_buffer
     min_lat -= lat_lon_buffer
     max_lon += lat_lon_buffer
     max_lat += lat_lon_buffer
 
-    lat = np.random.uniform(min_lat, max_lat)
-    lon = np.random.uniform(min_lon, max_lon)
+    lat = rng.uniform(min_lat, max_lat)
+    lon = rng.uniform(min_lon, max_lon)
     lat = np.clip(lat, -90, 90)
     lon = np.clip(lon, -180, 180)
-    altitude = nominal_altitude + np.random.uniform(-altitude_variation, altitude_variation)
+    altitude = nominal_altitude + rng.uniform(-altitude_variation, altitude_variation)
 
     ecef_position = lat_lon_to_ecef(np.array([lat, lon]))
     ecef_position *= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
@@ -316,8 +320,8 @@ def generate_training_image(
 
     camera_manager = CameraModelManager()
     perturbed_camera_R_nominal_camera = Rotation.from_euler(
-        "ZX",
-        [np.random.uniform(0, 360), np.random.uniform(0, off_nadir_variation)],
+        "ZXZ",
+        [rng.uniform(0, 360), rng.uniform(0, off_nadir_variation), rng.uniform(0, 360)],
         degrees=True,
     ).as_matrix()
     nominal_body_R_nominal_camera = perturbed_body_R_perturbed_camera = camera_manager[
@@ -379,6 +383,7 @@ def main() -> None:
     if total_images == 0:
         print("No training images to generate.")
         return
+    args.num_processes = min(args.num_processes, total_images)
 
     func = partial(
         generate_training_image,
@@ -388,21 +393,25 @@ def main() -> None:
         off_nadir_variation=args.off_nadir_variation,
     )
     if args.num_processes > 1:
+        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
         with Pool(args.num_processes) as pool:
-            list(
-                tqdm(
-                    pool.imap_unordered(
-                        partial(
-                            unpack_and_call,
-                            func,
-                        ),
-                        get_requests_generator(),
-                        chunksize=1,
+            results_iterator = tqdm(
+                pool.imap_unordered(
+                    partial(
+                        unpack_and_call,
+                        func,
                     ),
-                    total=total_images,
-                    desc="Generating images",
-                )
+                    get_requests_generator(),
+                    chunksize=1,
+                ),
+                total=total_images,
+                desc="Generating images",
             )
+            start_time = perf_counter()
+            with open(log_file_path, "w") as log_file:
+                log_file.write("Elapsed Time (s), Number of Images Generated\n")
+                for i, _ in enumerate(results_iterator):
+                    log_file.write(f"{perf_counter() - start_time}, {i + 1}\n")
     else:
         for region, file_prefix in tqdm(
             get_requests_generator(), total=total_images, desc="Generating images"

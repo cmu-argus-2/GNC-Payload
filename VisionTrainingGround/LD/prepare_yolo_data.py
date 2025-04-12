@@ -213,7 +213,7 @@ def get_valid_bounding_boxes(
 
 
 def generate_yolo_labels(
-    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str]
+    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str], pixel_batch_size: int = 1000
 ) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
@@ -225,6 +225,8 @@ def generate_yolo_labels(
     :param region_id: The MGRS region ID to generate YOLO label files for.
     :param file_prefixes: The common prefixes of the PNG and lat/lon .npy files to process.
     :param yolo_label_paths: The paths to write the YOLO label files to. Must have the same length as file_prefixes.
+    :param pixel_batch_size: The number of pixels to process in each batch when finding the closest pixel to each
+                             bounding box corner. Smaller values will use less memory but may be slower.
     :return: The number of classes in the dataset.
     """
     assert len(file_prefixes) == len(
@@ -234,7 +236,7 @@ def generate_yolo_labels(
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
     bounding_boxes_lat_lon = LandmarkDetector.load_ground_truth(
-        os.path.join(training_dir, LandmarkDetector.get_LD_ground_truth_relative_path(region_id))
+        os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region_id))
     )
     num_classes = bounding_boxes_lat_lon.shape[0]
 
@@ -243,7 +245,7 @@ def generate_yolo_labels(
     top_right_lat_lon = np.column_stack((top_left_lat_lon[:, 0], bottom_right_lat_lon[:, 1]))
     bottom_left_lat_lon = np.column_stack((bottom_right_lat_lon[:, 0], top_left_lat_lon[:, 1]))
 
-    stacked_corners_lat_lon = np.stack(
+    stacked_corners_lat_lon = np.concatenate(
         (top_left_lat_lon, top_right_lat_lon, bottom_left_lat_lon, bottom_right_lat_lon), axis=0
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
@@ -259,15 +261,27 @@ def generate_yolo_labels(
         height, width = geotagged_image.image.shape[:2]
         pixel_coordinates_ecef = lat_lon_to_ecef(geotagged_image.lat_lon).reshape(-1, 3)
 
-        x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[:, 0])
-        y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[:, 1])
-        z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[:, 2])
-        # surprisingly row_stack is actually faster than column_stack here, probably because of the overhead in
-        # creating the stacked array (https://chatgpt.com/share/67ce49e5-e1c8-800c-b931-b3862d7d299f)
-        distances = np.linalg.norm(np.row_stack((x_distances, y_distances, z_distances)), axis=0)
-        assert distances.shape == (4 * num_classes, height * width)
+        closest_pixel_indices = np.empty(4 * num_classes, dtype=int)
+        minimum_distances = np.full(4 * num_classes, np.inf)
+        for start_pixel_idx in range(0, height * width, pixel_batch_size):
+            end_pixel_idx = min(start_pixel_idx + pixel_batch_size, height * width)
+            pixel_slice = slice(start_pixel_idx, end_pixel_idx)
 
-        closest_pixel_indices = np.argmin(distances, axis=1)
+            x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[pixel_slice, 0])
+            y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[pixel_slice, 1])
+            z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[pixel_slice, 2])
+            # surprisingly axis=0 is actually faster than axis=-1 here, probably because of the overhead in
+            # creating the stacked array
+            distances = np.linalg.norm(np.stack((x_distances, y_distances, z_distances), axis=0), axis=0)
+            assert distances.shape == (4 * num_classes, end_pixel_idx - start_pixel_idx)
+
+            batch_closest_pixel_indices = np.argmin(distances, axis=1)
+            batch_minimum_distances = distances[np.arange(4 * num_classes), batch_closest_pixel_indices]
+
+            closer_mask = batch_minimum_distances < minimum_distances
+            closest_pixel_indices[closer_mask] = batch_closest_pixel_indices[closer_mask] + start_pixel_idx
+            minimum_distances[closer_mask] = batch_minimum_distances[closer_mask]
+
         closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
         closest_us = closest_us.reshape(num_classes, 4)
         closest_vs = closest_vs.reshape(num_classes, 4)
@@ -329,7 +343,7 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
     test_indices = all_indices[train_cutoff:test_cutoff]
     val_indices = all_indices[test_cutoff:]
 
-    yolo_label_paths = np.full(num_files, "", dtype=str)
+    yolo_label_paths = [""] * num_files
     for split_indices, split_dir_name in zip(
         [train_indices, test_indices, val_indices], ["train", "test", "val"]
     ):
@@ -345,9 +359,8 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
             )
             yolo_label_paths[i] = os.path.join(labels_dir, f"{file_prefix}.txt")
 
-    yolo_label_paths = yolo_label_paths.tolist()
     assert "" not in yolo_label_paths
-    num_classes = generate_yolo_labels(region_dir, file_prefixes, yolo_label_paths)
+    num_classes = generate_yolo_labels(region_id, file_prefixes, yolo_label_paths)
 
     yolo_config = {
         "path": os.path.abspath(LD_training_dir),
@@ -385,7 +398,7 @@ def main():
         with Pool(args.num_processes) as pool:
             pool.map(func, regions)
     else:
-        map(func, regions)
+        list(map(func, regions))
 
 
 if __name__ == "__main__":
