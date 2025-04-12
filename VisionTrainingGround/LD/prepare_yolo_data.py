@@ -35,6 +35,7 @@ from typing import List
 
 import cv2
 import numpy as np
+from tqdm import tqdm
 import yaml
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -255,7 +256,9 @@ def generate_yolo_labels(
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
     # TODO: upgrade workflow to parallelize this loop with multiprocessing
-    for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
+    for file_prefix, yolo_label_path in tqdm(
+        zip(file_prefixes, yolo_label_paths), desc=f"Generating labels for {region_id}"
+    ):
         try:
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
         except Exception:
@@ -401,7 +404,7 @@ def main():
     regions = list(set(args.regions) - set(args.skip_regions))
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    for region in regions:
+    for region in tqdm(regions, desc="Setting up region directories"):
         LD_training_dir: str = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
         if not setup_LD_training_directory(LD_training_dir, args.overwrite):
             print(
@@ -416,7 +419,12 @@ def main():
     )
     if args.num_processes > 1:
         with Pool(args.num_processes) as pool:
-            pool.map(func, regions)
+            list(
+                tqdm(
+                    pool.imap_unordered(func, regions),
+                    desc="Generating images",
+                )
+            )
     else:
         list(map(func, regions))
 
