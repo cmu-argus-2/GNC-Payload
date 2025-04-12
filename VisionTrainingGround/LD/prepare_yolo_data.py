@@ -40,7 +40,7 @@ import yaml
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.landmark_detector import LandmarkDetector
-from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
+from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
 
 LD_TRAINING_DIR_NAME = "LD_training"
@@ -252,19 +252,14 @@ def generate_yolo_labels(
 
     # TODO: upgrade workflow to parallelize this loop with multiprocessing
     for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
-        image_path = os.path.join(region_dir, file_prefix + ".png")
-        image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        height, width = image.shape[:2]
+        try:
+            geotagged_image = GeotaggedImage.load(region_id, file_prefix)
+        except Exception:
+            print(f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. YOLO label not generated.")
+            continue
 
-        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))["lat_lon"]
-        assert (
-            lat_lon.shape[:2] == image.shape[:2]
-        ), f"Lat/lon shape {lat_lon.shape} does not match image shape {image.shape} for {file_prefix}."
-        assert (
-            lat_lon.shape[2] == 2
-        ), f"Expected lat/lon shape to have 2 channels, but got {lat_lon.shape[2]}."
-        pixel_coordinates_ecef = lat_lon_to_ecef(lat_lon).reshape(-1, 3)
+        height, width = geotagged_image.image.shape[:2]
+        pixel_coordinates_ecef = lat_lon_to_ecef(geotagged_image.lat_lon).reshape(-1, 3)
 
         closest_pixel_indices = np.empty(4 * num_classes, dtype=int)
         minimum_distances = np.full(4 * num_classes, np.inf)
@@ -291,7 +286,7 @@ def generate_yolo_labels(
         closest_us = closest_us.reshape(num_classes, 4)
         closest_vs = closest_vs.reshape(num_classes, 4)
 
-        valid_bounding_boxes = get_valid_bounding_boxes(image, closest_us, closest_vs)
+        valid_bounding_boxes = get_valid_bounding_boxes(geotagged_image.image, closest_us, closest_vs)
         closest_us = closest_us[valid_bounding_boxes, :]
         closest_vs = closest_vs[valid_bounding_boxes, :]
         class_ids = np.arange(num_classes)[valid_bounding_boxes]
