@@ -234,7 +234,6 @@ def generate_yolo_labels(
     ), "file_prefixes and yolo_label_paths must be the same length."
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    region_dir = os.path.join(training_dir, region_id)
     bounding_boxes_lat_lon = LandmarkDetector.load_ground_truth(
         os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region_id))
     )
