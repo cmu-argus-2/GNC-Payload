@@ -30,8 +30,6 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.function_utils import unpack_and_call
 
-LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
-
 
 @dataclass
 class GeotaggedImage:
@@ -43,6 +41,7 @@ class GeotaggedImage:
         lat_lon: A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
                  pixel, or np.nan if the pixel does not intersect the Earth.
     """
+
     IMAGE_SUFFIX: ClassVar[str] = ".png"
     LAT_LON_SUFFIX: ClassVar[str] = "_lat_lon.npz"
 
@@ -96,7 +95,9 @@ class GeotaggedImage:
         image = cv2.imread(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        lat_lon = np.load(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"))["lat_lon"]
+        lat_lon = np.load(
+            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")
+        )["lat_lon"]
 
         geotagged_image = GeotaggedImage(image, lat_lon)
         geotagged_image.assert_invariants()
@@ -207,10 +208,10 @@ def setup_region_directory(
 
     file_names = os.listdir(region_dir)
     existing_image_file_names = [
-        file_name for file_name in file_names if file_name.endswith(".png")
+        file_name for file_name in file_names if file_name.endswith(GeotaggedImage.IMAGE_SUFFIX)
     ]
     existing_lat_lon_file_names = [
-        file_name for file_name in file_names if file_name.endswith(LAT_LON_OUTPUT_FILE_SUFFIX)
+        file_name for file_name in file_names if file_name.endswith(GeotaggedImage.LAT_LON_SUFFIX)
     ]
     if len(existing_image_file_names) == 0 and len(existing_lat_lon_file_names) == 0:
         return True
@@ -220,53 +221,37 @@ def setup_region_directory(
             os.remove(os.path.join(region_dir, file_name))
         return True
 
-    def are_files_corrupted(common_file_name_: str) -> bool:
-        """
-        Check if the image and lat/lon files with the given common file name are corrupted.
-
-        :param common_file_name_: The common file name to check.
-        :return: True if the files are corrupted, False otherwise.
-        """
-        try:
-            img = cv2.imread(os.path.join(region_dir, f"{common_file_name_}.png"))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            lat_lon = np.load(
-                os.path.join(region_dir, f"{common_file_name_}{LAT_LON_OUTPUT_FILE_SUFFIX}")
-            )["lat_lon"]
-            if img is None or lat_lon is None:
-                return True
-
-            if img.shape != CameraModel.OUTPUT_SHAPE or img.dtype != CameraModel.DTYPE:
-                return True
-            if lat_lon.shape != (CameraModel.RESOLUTION, 2) or not np.issubdtype(
-                lat_lon.dtype, np.floating
-            ):
-                return True
-        except Exception:
-            return True
-        return False
-
     if resume:
-        existing_image_file_names = set([file_name[:-4] for file_name in existing_image_file_names])
+        existing_image_file_names = set(
+            [
+                file_name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
+                for file_name in existing_image_file_names
+            ]
+        )
         existing_lat_lon_file_names = set(
             [
-                file_name[: -len(LAT_LON_OUTPUT_FILE_SUFFIX)]
+                file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
                 for file_name in existing_lat_lon_file_names
             ]
         )
 
         # delete files without a counterpart
         for file_name in existing_image_file_names - existing_lat_lon_file_names:
-            os.remove(os.path.join(region_dir, f"{file_name}.png"))
+            os.remove(os.path.join(region_dir, f"{file_name}{GeotaggedImage.IMAGE_SUFFIX}"))
         for file_name in existing_lat_lon_file_names - existing_image_file_names:
-            os.remove(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"))
+            os.remove(os.path.join(region_dir, f"{file_name}{GeotaggedImage.LAT_LON_SUFFIX}"))
 
         if check_corrupted:
-            for common_file_name in existing_image_file_names & existing_lat_lon_file_names:
-                if are_files_corrupted(common_file_name):
-                    os.remove(os.path.join(region_dir, f"{common_file_name}.png"))
+            for common_file_name in tqdm(
+                existing_image_file_names & existing_lat_lon_file_names,
+                desc=f"Checking for corrupted files in {region_dir}",
+            ):
+                try:
+                    GeotaggedImage.load(region_dir, common_file_name)
+                except Exception:
+                    os.remove(os.path.join(region_dir, f"{common_file_name}{GeotaggedImage.IMAGE_SUFFIX}"))
                     os.remove(
-                        os.path.join(region_dir, f"{common_file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}")
+                        os.path.join(region_dir, f"{common_file_name}{GeotaggedImage.LAT_LON_SUFFIX}")
                     )
 
         return True
