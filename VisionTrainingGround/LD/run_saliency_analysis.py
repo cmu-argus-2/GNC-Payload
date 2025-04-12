@@ -103,7 +103,11 @@ def get_common_file_name_prefixes(input_dir: str) -> List[str]:
     :return: A list of common file name prefixes.
     """
     file_names = os.listdir(input_dir)
-    image_file_prefixes = {name[:-4] for name in file_names if name.endswith(".png")}
+    image_file_prefixes = {
+        name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
+        for name in file_names
+        if name.endswith(GeotaggedImage.IMAGE_SUFFIX)
+    }
     lat_lon_file_prefixes = {
         name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
         for name in file_names
