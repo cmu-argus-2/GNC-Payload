@@ -14,7 +14,7 @@ import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count, Pool
-from time import time
+from time import perf_counter, time
 from typing import Generator, Tuple
 
 import cv2
@@ -320,6 +320,7 @@ def main() -> None:
     if total_images == 0:
         print("No training images to generate.")
         return
+    args.num_processes = min(args.num_processes, total_images)
 
     func = partial(
         generate_training_image,
@@ -329,21 +330,25 @@ def main() -> None:
         off_nadir_variation=args.off_nadir_variation,
     )
     if args.num_processes > 1:
+        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
         with Pool(args.num_processes) as pool:
-            list(
-                tqdm(
-                    pool.imap_unordered(
-                        partial(
-                            unpack_and_call,
-                            func,
-                        ),
-                        get_requests_generator(),
-                        chunksize=1,
+            results_iterator = tqdm(
+                pool.imap_unordered(
+                    partial(
+                        unpack_and_call,
+                        func,
                     ),
-                    total=total_images,
-                    desc="Generating images",
-                )
+                    get_requests_generator(),
+                    chunksize=1,
+                ),
+                total=total_images,
+                desc="Generating images",
             )
+            start_time = perf_counter()
+            with open(log_file_path, "w") as log_file:
+                log_file.write("Elapsed Time (s), Number of Images Generated\n")
+                for i, _ in enumerate(results_iterator):
+                    log_file.write(f"{perf_counter() - start_time}, {i + 1}\n")
     else:
         for region, file_prefix in tqdm(
             get_requests_generator(), total=total_images, desc="Generating images"
