@@ -257,7 +257,9 @@ def generate_yolo_labels(
 
     # TODO: upgrade workflow to parallelize this loop with multiprocessing
     for file_prefix, yolo_label_path in tqdm(
-        zip(file_prefixes, yolo_label_paths), desc=f"Generating labels for {region_id}"
+        zip(file_prefixes, yolo_label_paths),
+        desc=f"Generating labels for {region_id}",
+        total=len(file_prefixes),
     ):
         try:
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
