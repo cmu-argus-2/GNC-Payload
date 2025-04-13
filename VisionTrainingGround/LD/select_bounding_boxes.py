@@ -24,6 +24,7 @@ from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_region_area
 from vision_inference.landmark_detector import LandmarkDetector
+from VisionTrainingGround.LD.run_saliency_analysis import SALIENCY_MAP_FILE_NAME
 
 
 def parse_args() -> argparse.Namespace:
@@ -147,12 +148,7 @@ def select_bounding_boxes_for_region(region: str, overwrite: bool, bounding_box_
             raise FileExistsError(f"Output file {bounding_boxes_file} already exists.")
         os.remove(bounding_boxes_file)
 
-    saliency_map = GeoTIFFData.load(
-        os.path.join(
-            training_dir,
-            LandmarkDetector.get_saliency_map_relative_path(region),
-        )
-    )
+    saliency_map = GeoTIFFData.load(os.path.join(training_dir, SALIENCY_MAP_FILE_NAME))
 
     height, width = saliency_map.image_data.shape[:2]
     gsd = np.sqrt(get_mgrs_region_area(region) / (height * width))
