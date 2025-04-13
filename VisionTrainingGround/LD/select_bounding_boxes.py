@@ -151,6 +151,9 @@ def select_bounding_boxes_for_region(
         os.remove(bounding_boxes_file)
 
     saliency_map_file = os.path.join(training_dir, region, SALIENCY_MAP_FILE_NAME)
+    if not os.path.exists(saliency_map_file):
+        print(f"Saliency map file {saliency_map_file} does not exist. Skipping region {region}.")
+        return
     saliency_map = GeoTIFFData.load(saliency_map_file)
 
     height, width = saliency_map.image_data.shape[:2]
