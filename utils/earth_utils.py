@@ -343,6 +343,7 @@ def get_mgrs_region_dimensions(region_id: str) -> tuple[float, float, float]:
 def get_mgrs_region_area(region_id: str) -> float:
     """
     Get the area of a specified MGRS region, in square meters.
+    Note that this approximates the Earth as a sphere.
 
     Parameters:
         region_id: The MGRS region identifier.
