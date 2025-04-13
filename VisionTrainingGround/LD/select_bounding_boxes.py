@@ -79,7 +79,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def find_best_bounding_boxes(
-    saliency_map: GeoTIFFData, window_size: int, num_boxes: int
+    saliency_map: GeoTIFFData, window_size: int, num_boxes: int, decay_exponent: float = 2.0
 ) -> np.ndarray:
     """
     Find the top saliency bounding boxes of the specified size within a saliency map.
@@ -89,6 +89,8 @@ def find_best_bounding_boxes(
     :param saliency_map: The saliency map to generate bounding boxes for.
     :param window_size: The size of the bounding boxes to find in the saliency map. Must be odd.
     :param num_boxes: The number of top saliency boxes to identify.
+    :param decay_exponent: The exponent to use for the decay function. Higher values will reduce the likelihood of
+                           selecting nearby bounding boxes.
     :return: A numpy array of shape (num_boxes, 6) containing (centroid_lat, centroid_lon, top_left_lat, top_left_lon,
              bottom_right_lat, bottom_right_lon) for each of the top saliency bounding boxes.
     """
@@ -115,13 +117,35 @@ def find_best_bounding_boxes(
     bounding_box_mean_saliencies[:, :half_window_size] = 0
     bounding_box_mean_saliencies[:, -half_window_size:] = 0
 
-    # use argpartition to avoid sorting the entire array
-    top_indices = np.argpartition(bounding_box_mean_saliencies, -num_boxes, axis=None)[-num_boxes:]
-    centroid_vs, centroid_us = np.unravel_index(top_indices, bounding_box_mean_saliencies.shape)
-    # still need to sort the best bounding boxes so that the class IDs are in descending order of saliency
-    sort_order = np.argsort(bounding_box_mean_saliencies[centroid_vs, centroid_us])[::-1]
-    centroid_vs = centroid_vs[sort_order]
-    centroid_us = centroid_us[sort_order]
+    delta_us, delta_vs = np.meshgrid(np.arange(window_size), np.arange(window_size))
+    distances = np.hypot(delta_us - half_window_size, delta_vs - half_window_size)
+    decay_grid = (distances / (np.sqrt(2) * half_window_size)) ** decay_exponent
+
+    centroid_us = np.empty(num_boxes, dtype=int)
+    centroid_vs = np.empty(num_boxes, dtype=int)
+    for i in range(num_boxes):
+        max_u, max_v = np.unravel_index(
+            np.argmax(bounding_box_mean_saliencies), bounding_box_mean_saliencies.shape
+        )
+        if np.isclose(bounding_box_mean_saliencies[max_u, max_v], 0):
+            print(
+                f"Warning: Fewer than {num_boxes} bounding boxes could be selected. "
+                f"Found {i} bounding boxes before stopping."
+            )
+            centroid_us = centroid_us[:i]
+            centroid_vs = centroid_vs[:i]
+            break
+
+        centroid_us[i] = max_u
+        centroid_vs[i] = max_v
+
+        bounding_box_mean_saliencies[
+            max_u - half_window_size : max_u + half_window_size + 1,
+            max_v - half_window_size : max_v + half_window_size + 1,
+        ] *= decay_grid
+
+    centroid_us = np.array(centroid_us)
+    centroid_vs = np.array(centroid_vs)
 
     top_left_us = centroid_us - half_window_size
     top_left_vs = centroid_vs - half_window_size
