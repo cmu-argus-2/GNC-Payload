@@ -403,7 +403,7 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
 
 def main():
     args = parse_args()
-    regions = list(set(args.regions) - set(args.skip_regions))
+    regions = sorted(set(args.regions) - set(args.skip_regions))
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in tqdm(regions, desc="Setting up region directories"):

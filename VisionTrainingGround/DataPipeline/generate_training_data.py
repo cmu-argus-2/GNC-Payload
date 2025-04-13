@@ -336,7 +336,7 @@ def main() -> None:
     args = parse_args()
     if args.overwrite and args.resume:
         raise ValueError("Cannot use --overwrite and --resume at the same time.")
-    regions = list(set(args.regions) - set(args.skip_regions))
+    regions = sorted(set(args.regions) - set(args.skip_regions))
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in tqdm(regions, desc="Setting up region directories"):

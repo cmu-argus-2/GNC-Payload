@@ -295,7 +295,7 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    regions = list(set(args.regions) - set(args.skip_regions))
+    regions = sorted(set(args.regions) - set(args.skip_regions))
     args.num_processes = min(args.num_processes, len(regions))
 
     func = partial(
