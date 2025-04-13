@@ -119,9 +119,9 @@ def find_best_bounding_boxes(
     bottom_right_vs = centroid_vs + half_window_size
 
     inverse_transform = ~saliency_map.transform
-    centroid_lon, centroid_lat = inverse_transform * (centroid_us, centroid_vs)
-    top_left_lon, top_left_lat = inverse_transform * (top_left_us, top_left_vs)
-    bottom_right_lon, bottom_right_lat = inverse_transform * (bottom_right_us, bottom_right_vs)
+    centroid_lat, centroid_lon = inverse_transform * (centroid_us, centroid_vs)
+    top_left_lat, top_left_lon = inverse_transform * (top_left_us, top_left_vs)
+    bottom_right_lat, bottom_right_lon = inverse_transform * (bottom_right_us, bottom_right_vs)
 
     bounding_boxes_lat_lon = np.column_stack(
         (centroid_lat, centroid_lon, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon)
