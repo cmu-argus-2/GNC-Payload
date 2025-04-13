@@ -79,7 +79,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def find_best_bounding_boxes(
-    saliency_map: GeoTIFFData, window_size: int, num_boxes: int, decay_exponent: float = 2.0
+    saliency_map: GeoTIFFData, window_size: int, num_boxes: int
 ) -> np.ndarray:
     """
     Find the top saliency bounding boxes of the specified size within a saliency map.
@@ -89,8 +89,6 @@ def find_best_bounding_boxes(
     :param saliency_map: The saliency map to generate bounding boxes for.
     :param window_size: The size of the bounding boxes to find in the saliency map. Must be odd.
     :param num_boxes: The number of top saliency boxes to identify.
-    :param decay_exponent: The exponent to use for the decay function. Higher values will reduce the likelihood of
-                           selecting nearby bounding boxes.
     :return: A numpy array of shape (num_boxes, 6) containing (centroid_lat, centroid_lon, top_left_lat, top_left_lon,
              bottom_right_lat, bottom_right_lon) for each of the top saliency bounding boxes.
     """
@@ -117,10 +115,6 @@ def find_best_bounding_boxes(
     bounding_box_mean_saliencies[:, :half_window_size] = 0
     bounding_box_mean_saliencies[:, -half_window_size:] = 0
 
-    delta_us, delta_vs = np.meshgrid(np.arange(window_size), np.arange(window_size))
-    distances = np.hypot(delta_us - half_window_size, delta_vs - half_window_size)
-    decay_grid = (distances / (np.sqrt(2) * half_window_size)) ** decay_exponent
-
     centroid_us = np.empty(num_boxes, dtype=int)
     centroid_vs = np.empty(num_boxes, dtype=int)
     for i in range(num_boxes):
@@ -139,10 +133,11 @@ def find_best_bounding_boxes(
         centroid_us[i] = max_u
         centroid_vs[i] = max_v
 
+        # prevent any overlap whatsoever with the current bounding box
         bounding_box_mean_saliencies[
-            max_v - half_window_size : max_v + half_window_size + 1,
-            max_u - half_window_size : max_u + half_window_size + 1,
-        ] *= decay_grid
+            max_v - window_size : max_v + window_size + 1,
+            max_u - window_size : max_u + window_size + 1,
+        ] = 0
 
     centroid_us = np.array(centroid_us)
     centroid_vs = np.array(centroid_vs)
