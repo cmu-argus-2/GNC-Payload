@@ -35,6 +35,7 @@ from typing import List
 
 import cv2
 import numpy as np
+from tqdm import tqdm
 import yaml
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -213,7 +214,10 @@ def get_valid_bounding_boxes(
 
 
 def generate_yolo_labels(
-    region_id: str, file_prefixes: List[str], yolo_label_paths: List[str], pixel_batch_size: int = 1000
+    region_id: str,
+    file_prefixes: List[str],
+    yolo_label_paths: List[str],
+    pixel_batch_size: int = 1000,
 ) -> int:
     """
     Generate YOLO labels in the form of .txt files for each image in the input directory.
@@ -234,9 +238,10 @@ def generate_yolo_labels(
     ), "file_prefixes and yolo_label_paths must be the same length."
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    region_dir = os.path.join(training_dir, region_id)
     bounding_boxes_lat_lon = LandmarkDetector.load_ground_truth(
-        os.path.join(training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region_id))
+        os.path.join(
+            training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region_id)
+        )
     )
     num_classes = bounding_boxes_lat_lon.shape[0]
 
@@ -251,11 +256,17 @@ def generate_yolo_labels(
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
     # TODO: upgrade workflow to parallelize this loop with multiprocessing
-    for file_prefix, yolo_label_path in zip(file_prefixes, yolo_label_paths):
+    for file_prefix, yolo_label_path in tqdm(
+        zip(file_prefixes, yolo_label_paths),
+        desc=f"Generating labels for {region_id}",
+        total=len(file_prefixes),
+    ):
         try:
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
         except Exception:
-            print(f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. YOLO label not generated.")
+            print(
+                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. YOLO label not generated."
+            )
             continue
 
         height, width = geotagged_image.image.shape[:2]
@@ -267,26 +278,40 @@ def generate_yolo_labels(
             end_pixel_idx = min(start_pixel_idx + pixel_batch_size, height * width)
             pixel_slice = slice(start_pixel_idx, end_pixel_idx)
 
-            x_distances = np.subtract.outer(stacked_corners_ecef[:, 0], pixel_coordinates_ecef[pixel_slice, 0])
-            y_distances = np.subtract.outer(stacked_corners_ecef[:, 1], pixel_coordinates_ecef[pixel_slice, 1])
-            z_distances = np.subtract.outer(stacked_corners_ecef[:, 2], pixel_coordinates_ecef[pixel_slice, 2])
+            x_distances = np.subtract.outer(
+                stacked_corners_ecef[:, 0], pixel_coordinates_ecef[pixel_slice, 0]
+            )
+            y_distances = np.subtract.outer(
+                stacked_corners_ecef[:, 1], pixel_coordinates_ecef[pixel_slice, 1]
+            )
+            z_distances = np.subtract.outer(
+                stacked_corners_ecef[:, 2], pixel_coordinates_ecef[pixel_slice, 2]
+            )
             # surprisingly axis=0 is actually faster than axis=-1 here, probably because of the overhead in
             # creating the stacked array
-            distances = np.linalg.norm(np.stack((x_distances, y_distances, z_distances), axis=0), axis=0)
+            distances = np.linalg.norm(
+                np.stack((x_distances, y_distances, z_distances), axis=0), axis=0
+            )
             assert distances.shape == (4 * num_classes, end_pixel_idx - start_pixel_idx)
 
             batch_closest_pixel_indices = np.argmin(distances, axis=1)
-            batch_minimum_distances = distances[np.arange(4 * num_classes), batch_closest_pixel_indices]
+            batch_minimum_distances = distances[
+                np.arange(4 * num_classes), batch_closest_pixel_indices
+            ]
 
             closer_mask = batch_minimum_distances < minimum_distances
-            closest_pixel_indices[closer_mask] = batch_closest_pixel_indices[closer_mask] + start_pixel_idx
+            closest_pixel_indices[closer_mask] = (
+                batch_closest_pixel_indices[closer_mask] + start_pixel_idx
+            )
             minimum_distances[closer_mask] = batch_minimum_distances[closer_mask]
 
         closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
         closest_us = closest_us.reshape(num_classes, 4)
         closest_vs = closest_vs.reshape(num_classes, 4)
 
-        valid_bounding_boxes = get_valid_bounding_boxes(geotagged_image.image, closest_us, closest_vs)
+        valid_bounding_boxes = get_valid_bounding_boxes(
+            geotagged_image.image, closest_us, closest_vs
+        )
         closest_us = closest_us[valid_bounding_boxes, :]
         closest_vs = closest_vs[valid_bounding_boxes, :]
         class_ids = np.arange(num_classes)[valid_bounding_boxes]
@@ -381,7 +406,7 @@ def main():
     regions = list(set(args.regions) - set(args.skip_regions))
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    for region in regions:
+    for region in tqdm(regions, desc="Setting up region directories"):
         LD_training_dir: str = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
         if not setup_LD_training_directory(LD_training_dir, args.overwrite):
             print(
@@ -396,7 +421,12 @@ def main():
     )
     if args.num_processes > 1:
         with Pool(args.num_processes) as pool:
-            pool.map(func, regions)
+            list(
+                tqdm(
+                    pool.imap_unordered(func, regions),
+                    desc="Generating images",
+                )
+            )
     else:
         list(map(func, regions))
 
