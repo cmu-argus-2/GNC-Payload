@@ -340,6 +340,22 @@ def get_mgrs_region_dimensions(region_id: str) -> tuple[float, float, float]:
     return region_height, region_top_width, region_bottom_width
 
 
+def get_mgrs_region_area(region_id: str) -> float:
+    """
+    Get the area of a specified MGRS region, in square meters.
+
+    Parameters:
+        region_id: The MGRS region identifier.
+
+    Returns:
+        The area of the specified region in square meters.
+    """
+    min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+
+    # Taking the definite integral of R_EARTH**2 * cos(lat) dlat dlon over the region yields the following formula.
+    return R_EARTH**2 * (max_lon - min_lon) * (np.sin(np.deg2rad(max_lat)) - np.sin(np.deg2rad(min_lat)))
+
+
 def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
     """
     Add Gaussian noise to a bearing measurement.
