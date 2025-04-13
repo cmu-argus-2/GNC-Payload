@@ -102,7 +102,7 @@ def get_common_file_name_prefixes(input_dir: str) -> List[str]:
     :param input_dir: The directory containing the PNGs and .npy files.
     :return: A list of common file name prefixes.
     """
-    file_names = os.listdir(input_dir)
+    file_names = sorted(os.listdir(input_dir))
     image_file_prefixes = {
         name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
         for name in file_names
