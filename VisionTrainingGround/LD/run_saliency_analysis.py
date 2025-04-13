@@ -18,7 +18,7 @@ import argparse
 import os
 from functools import partial
 from multiprocessing import Pool, cpu_count
-from typing import List
+from typing import Iterable, List
 
 import cv2
 import numpy as np
@@ -78,24 +78,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_common_file_name_prefixes(input_dir: str) -> List[str]:
+def get_common_file_name_prefixes(input_dir: str, ignore_names: Iterable[str] = ()) -> List[str]:
     """
     Get the common file name prefixes for PNG and .npy lat/lon files in the input directory.
     A warning is printed if there are PNG files without corresponding lat/lon files, or vice versa.
 
     :param input_dir: The directory containing the PNGs and .npy files.
+    :param ignore_names: An iterable of file names to ignore.
     :return: A list of common file name prefixes.
     """
     file_names = sorted(os.listdir(input_dir))
     image_file_prefixes = {
         name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
         for name in file_names
-        if name.endswith(GeotaggedImage.IMAGE_SUFFIX)
+        if name.endswith(GeotaggedImage.IMAGE_SUFFIX) and name not in ignore_names
     }
     lat_lon_file_prefixes = {
         name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
         for name in file_names
-        if name.endswith(GeotaggedImage.LAT_LON_SUFFIX)
+        if name.endswith(GeotaggedImage.LAT_LON_SUFFIX) and name not in ignore_names
     }
     common_file_prefixes = list(image_file_prefixes & lat_lon_file_prefixes)
 
