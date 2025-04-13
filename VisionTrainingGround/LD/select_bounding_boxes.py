@@ -150,7 +150,8 @@ def select_bounding_boxes_for_region(
             raise FileExistsError(f"Output file {bounding_boxes_file} already exists.")
         os.remove(bounding_boxes_file)
 
-    saliency_map = GeoTIFFData.load(os.path.join(training_dir, SALIENCY_MAP_FILE_NAME))
+    saliency_map_file = os.path.join(training_dir, region, SALIENCY_MAP_FILE_NAME)
+    saliency_map = GeoTIFFData.load(saliency_map_file)
 
     height, width = saliency_map.image_data.shape[:2]
     gsd = np.sqrt(get_mgrs_region_area(region) / (height * width))
