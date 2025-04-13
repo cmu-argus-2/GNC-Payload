@@ -146,7 +146,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--lat_lon_buffer",
         type=float,
-        default=0.0,
+        default=0.25,
         help="Extra buffer in lat/lon for each region, in degrees.",
     )
     parser.add_argument(
