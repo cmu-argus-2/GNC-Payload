@@ -12,7 +12,6 @@ This script will generate/overwrite the following contents in the training direc
 - /training_directory
   - /{region}
     - saliency_map.tif
-    - bounding_boxes.csv
 """
 
 import argparse
@@ -24,14 +23,11 @@ from typing import List
 import cv2
 import numpy as np
 from affine import Affine
-from brahe.constants import R_EARTH
-from scipy.ndimage import uniform_filter
 from tqdm import tqdm
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_region_dimensions
-from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
@@ -78,18 +74,6 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=50.0,
         help="The ground sample distance to use for the saliency map.",
-    )
-    parser.add_argument(
-        "--bounding_box_size",
-        type=int,
-        default=7200,
-        help="The side length of the bounding boxes to find in the saliency map, in meters.",
-    )
-    parser.add_argument(
-        "--num_boxes",
-        type=int,
-        default=50,
-        help="The number of top saliency bounding boxes to identify.",
     )
     return parser.parse_args()
 
@@ -192,60 +176,8 @@ def generate_saliency_map(
     return region_saliency_map
 
 
-def find_best_bounding_boxes(
-    saliency_map: GeoTIFFData, window_size: int, num_boxes: int
-) -> np.ndarray:
-    """
-    Find the top saliency bounding boxes of the specified size within a saliency map.
-
-    The returned bounding boxes are ordered from highest to lowest saliency, which also corresponds to the class IDs.
-
-    :param saliency_map: The saliency map to generate bounding boxes for.
-    :param window_size: The size of the bounding boxes to find in the saliency map. Must be odd.
-    :param num_boxes: The number of top saliency boxes to identify.
-    :return: A numpy array of shape (num_boxes, 6) containing (centroid_lat, centroid_lon, top_left_lat, top_left_lon,
-             bottom_right_lat, bottom_right_lon) for each of the top saliency bounding boxes.
-    """
-    if window_size % 2 == 0:
-        raise ValueError("Window size must be odd.")
-    half_window_size = window_size // 2
-
-    bounding_box_mean_saliencies = uniform_filter(
-        saliency_map.image_data[..., 0], size=window_size, mode="constant", cval=0
-    )
-
-    # ensure resulting bounding boxes are strictly within the GeoTIFF bounds
-    bounding_box_mean_saliencies[:half_window_size, :] = 0
-    bounding_box_mean_saliencies[-half_window_size:, :] = 0
-    bounding_box_mean_saliencies[:, :half_window_size] = 0
-    bounding_box_mean_saliencies[:, -half_window_size:] = 0
-
-    # use argpartition to avoid sorting the entire array
-    top_indices = np.argpartition(bounding_box_mean_saliencies, -num_boxes, axis=None)[-num_boxes:]
-    centroid_vs, centroid_us = np.unravel_index(top_indices, bounding_box_mean_saliencies.shape)
-    # still need to sort the best bounding boxes so that the class IDs are in descending order of saliency
-    sort_order = np.argsort(bounding_box_mean_saliencies[centroid_vs, centroid_us])[::-1]
-    centroid_vs = centroid_vs[sort_order]
-    centroid_us = centroid_us[sort_order]
-
-    top_left_us = centroid_us - half_window_size
-    top_left_vs = centroid_vs - half_window_size
-    bottom_right_us = centroid_us + half_window_size
-    bottom_right_vs = centroid_vs + half_window_size
-
-    inverse_transform = ~saliency_map.transform
-    centroid_lon, centroid_lat = inverse_transform * (centroid_us, centroid_vs)
-    top_left_lon, top_left_lat = inverse_transform * (top_left_us, top_left_vs)
-    bottom_right_lon, bottom_right_lat = inverse_transform * (bottom_right_us, bottom_right_vs)
-
-    bounding_boxes_lat_lon = np.column_stack(
-        (centroid_lat, centroid_lon, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon)
-    )
-    return bounding_boxes_lat_lon
-
-
 def run_saliency_analysis_for_region(
-    region: str, overwrite: bool, gsd: float, bounding_box_size: int, num_boxes: int
+    region: str, overwrite: bool, gsd: float
 ) -> None:
     """
     Run the saliency analysis for a single region.
@@ -253,41 +185,19 @@ def run_saliency_analysis_for_region(
     :param region: The MGRS region to generate the saliency map for.
     :param overwrite: Whether to overwrite the output file if it exists.
     :param gsd: The ground sample distance to use for the saliency map.
-    :param bounding_box_size: The side length of the bounding boxes to find in the saliency map, in meters.
-    :param num_boxes: The number of top saliency bounding boxes to identify.
     """
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
     saliency_map_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
-    bounding_boxes_file = os.path.join(
-        training_dir, LandmarkDetector.get_region_bounding_boxes_relative_path(region)
-    )
     if os.path.exists(saliency_map_file):
         if not overwrite:
             raise FileExistsError(f"Output file {saliency_map_file} already exists.")
         os.remove(saliency_map_file)
-    if os.path.exists(bounding_boxes_file):
-        if not overwrite:
-            raise FileExistsError(f"Output file {bounding_boxes_file} already exists.")
-        os.remove(bounding_boxes_file)
 
     print(f"Running saliency analysis for region {region}...")
 
     saliency_map = generate_saliency_map(region_dir, saliency_map_file, gsd, region)
     saliency_map.save()
-
-    window_size = bounding_box_size / gsd
-    # round to the nearest odd number of pixels
-    window_size = 2 * int(np.rint((window_size - 1) / 2)) + 1
-    bounding_boxes_lat_lon = find_best_bounding_boxes(saliency_map, window_size, num_boxes)
-
-    np.savetxt(
-        bounding_boxes_file,
-        bounding_boxes_lat_lon,
-        delimiter=",",
-        header="Centroid Latitude,Centroid Longitude,Top-Left Latitude,"
-        "Top-Left Longitude,Bottom-Right Latitude,Bottom-Right Longitude",
-    )
 
 
 def main() -> None:
@@ -302,8 +212,6 @@ def main() -> None:
         run_saliency_analysis_for_region,
         overwrite=args.overwrite,
         gsd=args.gsd,
-        bounding_box_size=args.bounding_box_size,
-        num_boxes=args.num_boxes,
     )
     if args.num_processes > 1:
         with Pool(args.num_processes) as pool:
