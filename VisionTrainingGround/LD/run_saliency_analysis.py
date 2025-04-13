@@ -145,7 +145,6 @@ def generate_saliency_map(
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
-    # Get the lat/lon coordinates of the images
     region_height, region_top_width, region_bottom_width = get_mgrs_region_dimensions(region_id)
     height = int(np.ceil(region_height / gsd))
     width = int(np.ceil(np.maximum(region_top_width, region_bottom_width) / gsd))
