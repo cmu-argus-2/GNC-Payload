@@ -8,6 +8,7 @@ from functools import cache
 import brahe
 import numpy as np
 from brahe import Epoch
+from brahe.constants import R_EARTH
 
 
 # TODO: use brahe constants instead of hardcoding
@@ -319,6 +320,24 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     del mgrs_grid["34X"]
     del mgrs_grid["36X"]
     return mgrs_grid
+
+
+def get_mgrs_region_dimensions(region_id: str) -> tuple[float, float, float]:
+    """
+    Get the height, the width of the top, and the width of the bottom of a specified MGRS region, in meters.
+
+    Parameters:
+        region_id: The MGRS region identifier.
+
+    Returns:
+        A tuple containing (region_height, region_top_width, region_bottom_width) for the specified region.
+    """
+    min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+
+    region_height = (np.abs(max_lat - min_lat) / 360) * 2 * np.pi * R_EARTH
+    region_top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(max_lat))
+    region_bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(min_lat))
+    return region_height, region_top_width, region_bottom_width
 
 
 def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:

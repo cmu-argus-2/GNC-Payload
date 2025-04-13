@@ -30,7 +30,7 @@ from tqdm import tqdm
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_region_dimensions
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 
@@ -145,12 +145,10 @@ def generate_saliency_map(
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
-    min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
-    height = (np.abs(max_lat - min_lat) / 360) * 2 * np.pi * R_EARTH / gsd
-    top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(max_lat)) / gsd
-    bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(min_lat)) / gsd
-    height = int(np.ceil(height))
-    width = int(np.ceil(np.maximum(top_width, bottom_width)))
+    # Get the lat/lon coordinates of the images
+    region_height, region_top_width, region_bottom_width = get_mgrs_region_dimensions(region_id)
+    height = int(np.ceil(region_height / gsd))
+    width = int(np.ceil(np.maximum(region_top_width, region_bottom_width) / gsd))
 
     region_saliency_map = GeoTIFFData(
         image_path=output_file,
