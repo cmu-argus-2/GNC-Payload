@@ -124,10 +124,10 @@ def find_best_bounding_boxes(
     centroid_us = np.empty(num_boxes, dtype=int)
     centroid_vs = np.empty(num_boxes, dtype=int)
     for i in range(num_boxes):
-        max_u, max_v = np.unravel_index(
+        max_v, max_u = np.unravel_index(
             np.argmax(bounding_box_mean_saliencies), bounding_box_mean_saliencies.shape
         )
-        if np.isclose(bounding_box_mean_saliencies[max_u, max_v], 0):
+        if np.isclose(bounding_box_mean_saliencies[max_v, max_u], 0):
             print(
                 f"Warning: Fewer than {num_boxes} bounding boxes could be selected. "
                 f"Found {i} bounding boxes before stopping."
@@ -140,8 +140,8 @@ def find_best_bounding_boxes(
         centroid_vs[i] = max_v
 
         bounding_box_mean_saliencies[
-            max_u - half_window_size : max_u + half_window_size + 1,
             max_v - half_window_size : max_v + half_window_size + 1,
+            max_u - half_window_size : max_u + half_window_size + 1,
         ] *= decay_grid
 
     centroid_us = np.array(centroid_us)
