@@ -94,6 +94,15 @@ def find_best_bounding_boxes(
     """
     if window_size % 2 == 0:
         raise ValueError("Window size must be odd.")
+    if np.prod(saliency_map.image_data.shape[:2]) < num_boxes:
+        raise ValueError(
+            "The number of bounding boxes requested is larger than the number of pixels in the saliency map."
+        )
+    if window_size > saliency_map.image_data.shape[0] or window_size > saliency_map.image_data.shape[1]:
+        raise ValueError(
+            "The bounding box size is larger than the saliency map dimensions. "
+            "Please select a smaller bounding box size."
+        )
     half_window_size = window_size // 2
 
     bounding_box_mean_saliencies = uniform_filter(
