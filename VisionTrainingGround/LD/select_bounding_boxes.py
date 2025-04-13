@@ -27,6 +27,8 @@ from utils.earth_utils import get_mgrs_region_area
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.LD.run_saliency_analysis import SALIENCY_MAP_FILE_NAME
 
+BOUNDING_BOXES_VISUALIZATION_FILE_NAME = "bounding_boxes.png"
+
 
 def parse_args() -> argparse.Namespace:
     """
@@ -232,7 +234,7 @@ def select_bounding_boxes_for_region(
     create_bounding_boxes_visualization(
         saliency_map,
         bounding_boxes_lat_lon,
-        os.path.join(training_dir, region, "bounding_boxes.png"),
+        os.path.join(training_dir, region, BOUNDING_BOXES_VISUALIZATION_FILE_NAME),
     )
 
 
