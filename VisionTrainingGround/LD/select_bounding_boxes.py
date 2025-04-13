@@ -130,7 +130,9 @@ def find_best_bounding_boxes(
     return bounding_boxes_lat_lon
 
 
-def select_bounding_boxes_for_region(region: str, overwrite: bool, bounding_box_size: int, num_boxes: int) -> None:
+def select_bounding_boxes_for_region(
+    region: str, overwrite: bool, bounding_box_size: int, num_boxes: int
+) -> None:
     """
     Select bounding boxes for the specified MGRS region.
 
