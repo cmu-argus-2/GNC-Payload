@@ -146,7 +146,12 @@ def generate_saliency_map(
         try:
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
         except Exception:
-            print(f"Warning: Failed to load image for: {region_id=}, {file_prefix=}")
+            print(
+                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping and removing bad files."
+            )
+            # Remove the files now since they're a pain to find later
+            os.remove(os.path.join(region_dir, file_prefix + GeotaggedImage.IMAGE_SUFFIX))
+            os.remove(os.path.join(region_dir, file_prefix + GeotaggedImage.LAT_LON_SUFFIX))
             continue
 
         success, img_saliency_map = saliency_computer.computeSaliency(
