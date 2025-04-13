@@ -17,6 +17,7 @@ import os
 from functools import partial
 from multiprocessing import Pool, cpu_count
 
+import cv2
 import numpy as np
 from scipy.ndimage import uniform_filter
 
@@ -158,6 +159,35 @@ def find_best_bounding_boxes(
     return bounding_boxes_lat_lon
 
 
+def create_bounding_boxes_visualization(
+        saliency_map: GeoTIFFData, bounding_boxes_lat_lon: np.ndarray, output_file_path: str
+) -> None:
+    """
+    Create a PNG visualization of the bounding boxes on the saliency map.
+
+    :param saliency_map: The saliency map to visualize.
+    :param bounding_boxes_lat_lon: The bounding boxes to draw on the saliency map.
+    :param output_file_path: The file path to save the visualization to.
+    """
+    visualization = cv2.cvtColor(np.rint(255 * saliency_map.image_data).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+    for *_, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon in bounding_boxes_lat_lon:
+        top_left_u, top_left_v, top_left_valid = saliency_map.get_pixel_coordinates(np.array([top_left_lat, top_left_lon]))
+        bottom_right_u, bottom_right_v, bottom_right_valid = saliency_map.get_pixel_coordinates(np.array([bottom_right_lat, bottom_right_lon]))
+        assert top_left_valid and bottom_right_valid, "Bounding box coordinates are outside the saliency map bounds."
+
+        cv2.rectangle(
+            visualization,
+            # these are already numpy ints, but OpenCV still complains
+            (int(top_left_u), int(top_left_v)),
+            (int(bottom_right_u), int(bottom_right_v)),
+            color=(255, 0, 0),
+            thickness=2,
+        )
+
+    cv2.imwrite(output_file_path, visualization)
+
+
 def select_bounding_boxes_for_region(
     region: str, overwrite: bool, bounding_box_size: int, num_boxes: int
 ) -> None:
@@ -198,6 +228,11 @@ def select_bounding_boxes_for_region(
         delimiter=",",
         header="Centroid Latitude,Centroid Longitude,Top-Left Latitude,"
         "Top-Left Longitude,Bottom-Right Latitude,Bottom-Right Longitude",
+    )
+    create_bounding_boxes_visualization(
+        saliency_map,
+        bounding_boxes_lat_lon,
+        os.path.join(training_dir, region, "bounding_boxes.png"),
     )
 
 
