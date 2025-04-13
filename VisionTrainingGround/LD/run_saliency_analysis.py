@@ -196,7 +196,8 @@ def run_saliency_analysis_for_region(
     saliency_map_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
     if os.path.exists(saliency_map_file):
         if not overwrite:
-            raise FileExistsError(f"Output file {saliency_map_file} already exists.")
+            print(f"Output file {saliency_map_file} already exists. Skipping.")
+            return
         os.remove(saliency_map_file)
 
     print(f"Running saliency analysis for region {region}...")
