@@ -12,13 +12,14 @@ import random
 import time
 from collections import defaultdict
 from io import BytesIO
+from tqdm.auto import tqdm
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import wandb
-from data_loader import CustomImageDataset
+from data_loader import MGRSImageDataset as ImageDataset
 from plotter import Plotter
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -125,9 +126,9 @@ class TrainRegionClassifier(BaseRegionClassifier):
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
-                transforms.RandomRotation(10),
+                # transforms.RandomRotation(10),
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
+                # transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
                 # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -135,13 +136,13 @@ class TrainRegionClassifier(BaseRegionClassifier):
             ]
         )
 
-        self.val_transform = transforms.Compose(
+        self.test_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
-                transforms.RandomRotation(10),
+                # transforms.RandomRotation(10),
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
+                # transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                 # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
@@ -149,25 +150,56 @@ class TrainRegionClassifier(BaseRegionClassifier):
         )
 
         # Load datasets with appropriate transforms
-        train_dataset = CustomImageDataset(
-            root_dir=data_path + "/train",
-            selected_classes=self.regions,
+        train_dataset = ImageDataset(
+            data_path,
+            selected_classes,
             transform=self.train_transform,
+            split='train'
         )
-        test_dataset = CustomImageDataset(
-            root_dir=data_path + "/test",
-            selected_classes=self.regions,
-            transform=self.val_transform,
+        val_dataset = ImageDataset(
+            data_path,
+            selected_classes,
+            transform=self.test_transform,
+            split='val'
         )
-        val_dataset = CustomImageDataset(
-            root_dir=data_path + "/val", selected_classes=self.regions, transform=self.val_transform
+        test_dataset = ImageDataset(
+            data_path,
+            selected_classes,
+            transform=self.test_transform,
+            split='test'
         )
 
-        # Create DataLoader objects for training and testing sets
-        self.train_loader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
-        self.test_loader = DataLoader(dataset=test_dataset, batch_size=16, shuffle=False)
-        self.val_loader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=True)
-        print("Init Dataloaders")
+        # Create data loaders
+        self.train_loader = DataLoader(
+            train_dataset,
+            batch_size=8,
+            shuffle=True,
+            num_workers=32,
+            pin_memory=True,
+            persistent_workers=True
+        )
+        
+        self.val_loader = DataLoader(
+            val_dataset,
+            batch_size=8,
+            shuffle=False,
+            num_workers=32,
+            pin_memory=True,
+            persistent_workers=True
+        )
+        
+        self.test_loader = DataLoader(
+            test_dataset,
+            batch_size=8,
+            shuffle=False,
+            num_workers=32,
+            pin_memory=True,
+            persistent_workers=True
+        )
+
+        print(f"Train dataset size: {len(train_dataset)}")
+        print(f"Validation dataset size: {len(val_dataset)}")
+        print(f"Test dataset size: {len(test_dataset)}")
 
     def train(self, epochs: int = 10, learning_rate: float = 1e-3) -> None:
         """
@@ -194,8 +226,22 @@ class TrainRegionClassifier(BaseRegionClassifier):
 
         for epoch in range(epochs):
             epoch_loss = 0.0  # Initialize epoch loss
+            total_images = len(self.train_loader.dataset)
+            processed_images = 0
+            
+            progress_bar = tqdm(
+                self.train_loader, 
+                desc=f"Epoch {epoch + 1}/{epochs}", 
+                leave=True,
+                unit="batch",
+                total=len(self.train_loader)
+            )
             # pylint: disable=unused-variable
-            for batch_idx, (data, targets) in enumerate(self.train_loader):
+            for batch_idx, (data, targets) in enumerate(progress_bar):
+                print("Completed batch:", batch_idx)
+                batch_size = data.size(0)
+                processed_images += batch_size
+                
                 data = data.to(self.device)
                 targets = targets.to(self.device).float()  # Ensure targets are float for BCE
                 scores = self.model(data)  # Model already applies sigmoid
@@ -203,15 +249,17 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                
+                # Update progress bar with image count and loss
+                progress_bar.set_postfix({
+                    'imgs': f'{processed_images}/{total_images}',
+                    'loss': f'{loss.item():.4f}'
+                })
+                
                 wandb.log({"batch_loss": loss.item()})
-                epoch_loss += loss.item() * data.size(0)  # Accumulate batch loss
+                epoch_loss += loss.item() * batch_size  # Accumulate batch loss
 
-                # Log file names and class labels during training
-                # with open('RCnet/results/training_results.txt', 'a') as f:
-                #     for img_name, label in self.train_loader.dataset.files:
-                #         f.write(f"{img_name}\t{label}\n")
-
-            epoch_loss /= len(self.train_loader.dataset)  # Compute average batch loss
+            epoch_loss /= total_images  # Compute average batch loss
             print(f"Epoch [{epoch+1}/{epochs}], Avg. Loss: {epoch_loss:.4f}")
             wandb.log({"epoch": epoch, "loss": epoch_loss})
             self.plotter.update_loss(epoch_loss)
@@ -263,7 +311,13 @@ class TrainRegionClassifier(BaseRegionClassifier):
         false_negatives = 0
 
         with torch.no_grad():  # No gradient is needed for validation
-            for images, labels in self.val_loader:  # Use the validation data loader
+            progress_bar = tqdm(
+                self.val_loader, 
+                desc="Validating", 
+                leave=True,
+                unit="batch"
+            )
+            for images, labels in progress_bar:  # Use the progress_bar instead of self.val_loader
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)  # Model already applies sigmoid

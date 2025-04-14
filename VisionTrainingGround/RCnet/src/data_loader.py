@@ -8,14 +8,17 @@ Classes:
                         and transformations.
 """
 
+import numpy as np
 import os
+import random
 import warnings
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
+from utils.earth_utils import get_MGRS_grid
 
 class CustomImageDataset(Dataset):
     """
@@ -93,3 +96,161 @@ class CustomImageDataset(Dataset):
             label_vector[class_idx] = 1  # Set corresponding class to 1 if it's a selected class
 
         return image, label_vector  # Return image and multi-hot vector
+
+class MGRSImageDataset(Dataset):
+    """A custom dataset for loading images with MGRS grid-based multi-hot encoding."""
+
+    def __init__(
+        self,
+        root_dir: str,
+        salient_regions: List[str],
+        transform: Optional[object] = None,
+        split: str = 'train',
+        train_ratio: float = 0.7,
+        val_ratio: float = 0.15,
+        seed: int = 42
+    ) -> None:
+        """
+        Args:
+            root_dir (str): Path to the dataset directory.
+            salient_regions (List[str]): List of MGRS regions to consider.
+            transform (Optional[object]): Optional transforms to apply to images.
+            split (str): One of 'train', 'val', or 'test'.
+            train_ratio (float): Ratio of data to use for training.
+            val_ratio (float): Ratio of data to use for validation.
+            seed (int): Random seed for reproducibility.
+        """
+        self.root_dir = root_dir
+        self.transform = transform
+        self.salient_regions = sorted(salient_regions)
+        
+        # Get the MGRS grid
+        self.mgrs_grid = get_MGRS_grid()
+        
+        # Create mapping from region to index
+        self.salient_region_indices = {region: i for i, region in enumerate(self.salient_regions)}
+        
+        # Set sigmoid parameters
+        self.sigmoid_params = self._calculate_sigmoid_params(0.2, 0.05, 0.3, 0.95)
+
+            
+        print(f"Sigmoid parameters: k={self.sigmoid_params['k']:.4f}, x0={self.sigmoid_params['x0']:.4f}")
+        
+        # Collect images and their corresponding lat/lon files
+        self.files = []
+        for region_dir in os.listdir(root_dir):
+            region_path = os.path.join(root_dir, region_dir)
+            if not os.path.isdir(region_path):
+                continue
+                
+            for img_file in os.listdir(region_path):
+                if img_file.endswith((".png", ".jpg")):
+                    img_path = os.path.join(region_path, img_file)
+                    base_name = os.path.splitext(img_file)[0]
+                    lat_lon_path = os.path.join(region_path, f"{base_name}_lat_lon.npz")
+                        
+                    if os.path.exists(lat_lon_path):
+                        self.files.append((img_path, lat_lon_path))
+                    else:
+                        warnings.warn(f"Lat/lon data file not found for {img_file}. Skipping.")
+        
+        # Set random seed for reproducibility
+        random.seed(seed)
+        
+        # Shuffle files
+        random.shuffle(self.files)
+        
+        # Calculate split sizes
+        total_size = len(self.files)
+        train_size = int(train_ratio * total_size)
+        val_size = int(val_ratio * total_size)
+        test_size = total_size - train_size - val_size
+        
+        # Split the data
+        if split == 'train':
+            self.files = self.files[:train_size]
+        elif split == 'val':
+            self.files = self.files[train_size:train_size + val_size]
+        else:  # test
+            self.files = self.files[train_size + val_size:]
+            
+        print(f"Total {split} images: {len(self.files)}")
+        
+        # Precompute region boundaries for fast lookup
+        self._precompute_region_boundaries()
+
+    def _precompute_region_boundaries(self):
+        """Precompute region boundaries for vectorized operations."""
+        # Extract only salient regions for faster processing
+        self.salient_boundaries = {}
+        for region in self.salient_regions:
+            if region in self.mgrs_grid:
+                min_lon, min_lat, max_lon, max_lat = self.mgrs_grid[region]
+                self.salient_boundaries[region] = (min_lon, min_lat, max_lon, max_lat)
+
+    def _calculate_sigmoid_params(self, x1, y1, x2, y2):
+        """Calculate the parameters for the sigmoid function based on two points."""
+        logit1 = np.log(y1 / (1 - y1))
+        logit2 = np.log(y2 / (1 - y2))
+        
+        k = (logit2 - logit1) / (x2 - x1)
+        x0 = x1 - logit1 / k
+        
+        return {'k': k, 'x0': x0}
+
+    def _custom_sigmoid(self, x):
+        """Apply a custom sigmoid function with the calculated parameters."""
+        k = self.sigmoid_params['k']
+        x0 = self.sigmoid_params['x0']
+        return 1 / (1 + np.exp(-k * (x - x0)))
+
+    def __len__(self) -> int:
+        return len(self.files)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        img_path, lat_lon_path = self.files[idx]
+        
+        # Load image
+        image = Image.open(img_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+        print("Transformed Image: ", img_path)
+        
+        # Load lat/lon data
+        lat_lon_data = np.load(lat_lon_path)
+        print("Loaded lat/lon data: ", lat_lon_path)
+        
+        # Get the lat/lon array directly - no need to create separate copies
+        lat_lon_array = lat_lon_data['lat_lon']
+        print("Accessed lat/lon data: ", lat_lon_path)
+        
+        total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
+        
+        # Vectorized approach to count pixels in each region
+        region_counts = {}
+        
+        # Only process salient regions instead of all regions
+        for region, (min_lon, min_lat, max_lon, max_lat) in self.salient_boundaries.items():
+            # Create masks for lat/lon within region bounds using the original array
+            lat_mask = (lat_lon_array[:, :, 0] >= min_lat) & (lat_lon_array[:, :, 0] < max_lat)
+            lon_mask = (lat_lon_array[:, :, 1] >= min_lon) & (lat_lon_array[:, :, 1] < max_lon)
+            
+            # Combined mask for pixels in this region
+            region_mask = lat_mask & lon_mask
+            
+            # Count pixels in this region
+            pixel_count = np.sum(region_mask)
+            if pixel_count > 0:
+                region_counts[region] = pixel_count
+        
+        # Create multi-hot encoded vector with sigmoid transformation
+        label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
+        for region, count in region_counts.items():
+            if region in self.salient_region_indices:
+                # Calculate fraction of pixels in this region
+                fraction = count / total_pixels
+                # Apply sigmoid transformation
+                idx = self.salient_region_indices[region]
+                label_vector[idx] = self._custom_sigmoid(fraction)
+        
+        return image, label_vector
