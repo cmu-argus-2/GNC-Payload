@@ -107,6 +107,7 @@ def find_best_bounding_boxes(
             "Please select a smaller bounding box size."
         )
     half_window_size = window_size // 2
+    height, width = saliency_map.image_data.shape[:2]
 
     bounding_box_mean_saliencies = uniform_filter(
         saliency_map.image_data[..., 0], size=window_size, mode="constant", cval=0
@@ -138,8 +139,8 @@ def find_best_bounding_boxes(
 
         # prevent any overlap whatsoever with the current bounding box
         bounding_box_mean_saliencies[
-            max_v - window_size : max_v + window_size + 1,
-            max_u - window_size : max_u + window_size + 1,
+            max(max_v - window_size, 0) : min(max_v + window_size + 1, height),
+            max(max_u - window_size, 0) : min(max_u + window_size + 1, width),
         ] = 0
 
     centroid_us = np.array(centroid_us)
