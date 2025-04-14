@@ -10,11 +10,13 @@ This script will generate/overwrite the following contents in the training direc
 """
 
 import argparse
+from dataclasses import dataclass
 import os
 from functools import partial
 from itertools import product
 from multiprocessing import cpu_count, Pool
-from typing import Generator, Tuple
+from time import perf_counter, time
+from typing import ClassVar, Generator, Tuple
 
 import cv2
 import numpy as np
@@ -28,7 +30,78 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.function_utils import unpack_and_call
 
-LAT_LON_OUTPUT_FILE_SUFFIX = "_lat_lon.npz"
+
+@dataclass
+class GeotaggedImage:
+    """
+    A class representing an image alongside lat/lon coordinates for each pixel.
+
+    Attributes:
+        image: A numpy array of shape CameraModel.RESOLUTION + (3,) containing the RGB image.
+        lat_lon: A numpy array of shape CameraModel.RESOLUTION + (2,) containing the latitudes and longitudes for each
+                 pixel, or np.nan if the pixel does not intersect the Earth.
+    """
+
+    IMAGE_SUFFIX: ClassVar[str] = ".png"
+    LAT_LON_SUFFIX: ClassVar[str] = "_lat_lon.npz"
+
+    image: np.ndarray
+    lat_lon: np.ndarray
+
+    def assert_invariants(self) -> None:
+        """
+        :raises AssertionError: If the image or lat/lon coordinates are invalid.
+        """
+        assert self.image is not None and self.lat_lon is not None
+        assert self.image.shape == CameraModel.OUTPUT_SHAPE
+        assert self.image.dtype == CameraModel.DTYPE
+        assert self.lat_lon.shape == CameraModel.RESOLUTION + (2,)
+        assert np.issubdtype(self.lat_lon.dtype, np.floating)
+
+    def save(self, region: str, file_prefix: str) -> None:
+        """
+        Save the image and lat/lon coordinates to the specified region and file prefix.
+
+        :param region: The MGRS region.
+        :param file_prefix: The prefix for the output files.
+        """
+        self.assert_invariants()
+
+        training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+        region_dir = os.path.join(training_dir, region)
+        os.makedirs(region_dir, exist_ok=True)
+
+        cv2.imwrite(
+            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"),
+            cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR),
+        )
+        np.savez_compressed(
+            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"),
+            lat_lon=self.lat_lon,
+        )
+
+    @staticmethod
+    def load(region: str, file_prefix: str) -> "GeotaggedImage":
+        """
+        Load the image and lat/lon coordinates from the specified region and file prefix.
+
+        :param region: The MGRS region.
+        :param file_prefix: The prefix for the output files.
+        :return: A GeotaggedImage object containing the loaded image and lat/lon coordinates.
+        """
+        training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+        region_dir = os.path.join(training_dir, region)
+
+        image = cv2.imread(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        lat_lon = np.load(
+            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")
+        )["lat_lon"]
+
+        geotagged_image = GeotaggedImage(image, lat_lon)
+        geotagged_image.assert_invariants()
+        return geotagged_image
 
 
 def parse_args() -> argparse.Namespace:
@@ -135,10 +208,10 @@ def setup_region_directory(
 
     file_names = os.listdir(region_dir)
     existing_image_file_names = [
-        file_name for file_name in file_names if file_name.endswith(".png")
+        file_name for file_name in file_names if file_name.endswith(GeotaggedImage.IMAGE_SUFFIX)
     ]
     existing_lat_lon_file_names = [
-        file_name for file_name in file_names if file_name.endswith(LAT_LON_OUTPUT_FILE_SUFFIX)
+        file_name for file_name in file_names if file_name.endswith(GeotaggedImage.LAT_LON_SUFFIX)
     ]
     if len(existing_image_file_names) == 0 and len(existing_lat_lon_file_names) == 0:
         return True
@@ -148,53 +221,37 @@ def setup_region_directory(
             os.remove(os.path.join(region_dir, file_name))
         return True
 
-    def are_files_corrupted(common_file_name_: str) -> bool:
-        """
-        Check if the image and lat/lon files with the given common file name are corrupted.
-
-        :param common_file_name_: The common file name to check.
-        :return: True if the files are corrupted, False otherwise.
-        """
-        try:
-            img = cv2.imread(os.path.join(region_dir, f"{common_file_name_}.png"))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            lat_lon = np.load(
-                os.path.join(region_dir, f"{common_file_name_}{LAT_LON_OUTPUT_FILE_SUFFIX}")
-            )["lat_lon"]
-            if img is None or lat_lon is None:
-                return True
-
-            if img.shape != CameraModel.OUTPUT_SHAPE or img.dtype != CameraModel.DTYPE:
-                return True
-            if lat_lon.shape != (CameraModel.RESOLUTION, 2) or not np.issubdtype(
-                lat_lon.dtype, np.floating
-            ):
-                return True
-        except Exception:
-            return True
-        return False
-
     if resume:
-        existing_image_file_names = set([file_name[:-4] for file_name in existing_image_file_names])
+        existing_image_file_names = set(
+            [
+                file_name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
+                for file_name in existing_image_file_names
+            ]
+        )
         existing_lat_lon_file_names = set(
             [
-                file_name[: -len(LAT_LON_OUTPUT_FILE_SUFFIX)]
+                file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
                 for file_name in existing_lat_lon_file_names
             ]
         )
 
         # delete files without a counterpart
         for file_name in existing_image_file_names - existing_lat_lon_file_names:
-            os.remove(os.path.join(region_dir, f"{file_name}.png"))
+            os.remove(os.path.join(region_dir, f"{file_name}{GeotaggedImage.IMAGE_SUFFIX}"))
         for file_name in existing_lat_lon_file_names - existing_image_file_names:
-            os.remove(os.path.join(region_dir, f"{file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}"))
+            os.remove(os.path.join(region_dir, f"{file_name}{GeotaggedImage.LAT_LON_SUFFIX}"))
 
         if check_corrupted:
-            for common_file_name in existing_image_file_names & existing_lat_lon_file_names:
-                if are_files_corrupted(common_file_name):
-                    os.remove(os.path.join(region_dir, f"{common_file_name}.png"))
+            for common_file_name in tqdm(
+                existing_image_file_names & existing_lat_lon_file_names,
+                desc=f"Checking for corrupted files in {region_dir}",
+            ):
+                try:
+                    GeotaggedImage.load(region_dir, common_file_name)
+                except Exception:
+                    os.remove(os.path.join(region_dir, f"{common_file_name}{GeotaggedImage.IMAGE_SUFFIX}"))
                     os.remove(
-                        os.path.join(region_dir, f"{common_file_name}{LAT_LON_OUTPUT_FILE_SUFFIX}")
+                        os.path.join(region_dir, f"{common_file_name}{GeotaggedImage.LAT_LON_SUFFIX}")
                     )
 
         return True
@@ -227,17 +284,20 @@ def generate_training_image(
                                [nominal_altitude - altitude_variation, nominal_altitude + altitude_variation].
     :param off_nadir_variation: The maximum variation in off-nadir angle, in degrees.
     """
+    # Without this the seed may be inherited from the calling process, leading to duplicate images
+    rng = np.random.default_rng(np.random.SeedSequence(int(time() * 1e6) ^ os.getpid()))
+
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region]
     min_lon -= lat_lon_buffer
     min_lat -= lat_lon_buffer
     max_lon += lat_lon_buffer
     max_lat += lat_lon_buffer
 
-    lat = np.random.uniform(min_lat, max_lat)
-    lon = np.random.uniform(min_lon, max_lon)
+    lat = rng.uniform(min_lat, max_lat)
+    lon = rng.uniform(min_lon, max_lon)
     lat = np.clip(lat, -90, 90)
     lon = np.clip(lon, -180, 180)
-    altitude = nominal_altitude + np.random.uniform(-altitude_variation, altitude_variation)
+    altitude = nominal_altitude + rng.uniform(-altitude_variation, altitude_variation)
 
     ecef_position = lat_lon_to_ecef(np.array([lat, lon]))
     ecef_position *= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
@@ -245,8 +305,8 @@ def generate_training_image(
 
     camera_manager = CameraModelManager()
     perturbed_camera_R_nominal_camera = Rotation.from_euler(
-        "ZX",
-        [np.random.uniform(0, 360), np.random.uniform(0, off_nadir_variation)],
+        "ZXZ",
+        [rng.uniform(0, 360), rng.uniform(0, off_nadir_variation), rng.uniform(0, 360)],
         degrees=True,
     ).as_matrix()
     nominal_body_R_nominal_camera = perturbed_body_R_perturbed_camera = camera_manager[
@@ -265,16 +325,8 @@ def generate_training_image(
         ecef_position, ecef_R_perturbed_body, camera_manager["x+"]
     )
 
-    training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    region_dir = os.path.join(training_dir, region)
-    os.makedirs(region_dir, exist_ok=True)
-    cv2.imwrite(
-        os.path.join(region_dir, f"{file_prefix}.png"),
-        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
-    )
-    np.savez_compressed(
-        os.path.join(region_dir, f"{file_prefix}{LAT_LON_OUTPUT_FILE_SUFFIX}"), lat_lon=lat_lon
-    )
+    geotagged_image = GeotaggedImage(frame.image, lat_lon)
+    geotagged_image.save(region, file_prefix)
 
 
 def main() -> None:
@@ -316,6 +368,7 @@ def main() -> None:
     if total_images == 0:
         print("No training images to generate.")
         return
+    args.num_processes = min(args.num_processes, total_images)
 
     func = partial(
         generate_training_image,
@@ -325,21 +378,25 @@ def main() -> None:
         off_nadir_variation=args.off_nadir_variation,
     )
     if args.num_processes > 1:
+        log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")
         with Pool(args.num_processes) as pool:
-            list(
-                tqdm(
-                    pool.imap_unordered(
-                        partial(
-                            unpack_and_call,
-                            func,
-                        ),
-                        get_requests_generator(),
-                        chunksize=1,
+            results_iterator = tqdm(
+                pool.imap_unordered(
+                    partial(
+                        unpack_and_call,
+                        func,
                     ),
-                    total=total_images,
-                    desc="Generating images",
-                )
+                    get_requests_generator(),
+                    chunksize=1,
+                ),
+                total=total_images,
+                desc="Generating images",
             )
+            start_time = perf_counter()
+            with open(log_file_path, "w") as log_file:
+                log_file.write("Elapsed Time (s), Number of Images Generated\n")
+                for i, _ in enumerate(results_iterator):
+                    log_file.write(f"{perf_counter() - start_time}, {i + 1}\n")
     else:
         for region, file_prefix in tqdm(
             get_requests_generator(), total=total_images, desc="Generating images"

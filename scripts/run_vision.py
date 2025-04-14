@@ -199,7 +199,12 @@ def process_landmark_to_bearing(
     return bearing_unit_vectors_body, landmark_positions_eci
 
 
-def save_region_classification_results(RC_reg2img, RC_img2reg, output_dir, name):
+def save_region_classification_results(
+    RC_reg2img: Dict[str, List[str]], 
+    RC_img2reg: Dict[str, List[str]], 
+    output_dir: str, 
+    name: str
+) -> None:
     """
     Save region classification results to files.
 

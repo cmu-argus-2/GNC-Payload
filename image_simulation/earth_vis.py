@@ -411,10 +411,17 @@ class EarthImageSimulator:
             inpaint_mask = EarthImageSimulator.trim_small_connected_components(inpaint_mask)
 
             if np.any(inpaint_mask):
-                image[inpaint_mask, :] = (
-                    EarthImageSimulator.BLUE_MARBLE_BRIGHTNESS_FACTOR
-                    * query_blue_marble_pixel_colors(lat_lon[inpaint_mask, :], self.blue_marble_month)
+                blue_marble_pixel_values = query_blue_marble_pixel_colors(
+                    lat_lon[inpaint_mask, :], self.blue_marble_month
                 )
+                blue_marble_pixel_values = np.clip(
+                    np.rint(
+                        EarthImageSimulator.BLUE_MARBLE_BRIGHTNESS_FACTOR * blue_marble_pixel_values
+                    ),
+                    0,
+                    255,
+                )
+                image[inpaint_mask, :] = blue_marble_pixel_values
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
