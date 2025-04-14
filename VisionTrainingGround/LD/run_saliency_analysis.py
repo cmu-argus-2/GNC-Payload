@@ -26,12 +26,13 @@ import numpy as np
 from affine import Affine
 from brahe.constants import R_EARTH
 from scipy.ndimage import uniform_filter
+from tqdm import tqdm
 
 from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_MGRS_grid
 from vision_inference.landmark_detector import LandmarkDetector
-from VisionTrainingGround.DataPipeline.generate_training_data import LAT_LON_OUTPUT_FILE_SUFFIX
+from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
 
@@ -101,12 +102,16 @@ def get_common_file_name_prefixes(input_dir: str) -> List[str]:
     :param input_dir: The directory containing the PNGs and .npy files.
     :return: A list of common file name prefixes.
     """
-    file_names = os.listdir(input_dir)
-    image_file_prefixes = {name[:-4] for name in file_names if name.endswith(".png")}
-    lat_lon_file_prefixes = {
-        name[: -len(LAT_LON_OUTPUT_FILE_SUFFIX)]
+    file_names = sorted(os.listdir(input_dir))
+    image_file_prefixes = {
+        name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
         for name in file_names
-        if name.endswith(LAT_LON_OUTPUT_FILE_SUFFIX)
+        if name.endswith(GeotaggedImage.IMAGE_SUFFIX)
+    }
+    lat_lon_file_prefixes = {
+        name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
+        for name in file_names
+        if name.endswith(GeotaggedImage.LAT_LON_SUFFIX)
     }
     common_file_prefixes = list(image_file_prefixes & lat_lon_file_prefixes)
 
@@ -142,8 +147,8 @@ def generate_saliency_map(
 
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
     height = (np.abs(max_lat - min_lat) / 360) * 2 * np.pi * R_EARTH / gsd
-    top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(max_lat) / gsd
-    bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(min_lat) / gsd
+    top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(max_lat)) / gsd
+    bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(min_lat)) / gsd
     height = int(np.ceil(height))
     width = int(np.ceil(np.maximum(top_width, bottom_width)))
 
@@ -156,36 +161,37 @@ def generate_saliency_map(
     region_saliency_map_counts = np.zeros((height, width), dtype=int)
     saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
 
-    for file_prefix in file_prefixes:
-        file_path = os.path.join(region_dir, file_prefix + ".png")
-        image = cv2.imread(file_path)
-        success, img_saliency_map = saliency_computer.computeSaliency(image)
+    for file_prefix in tqdm(file_prefixes, desc=f"Processing images for region {region_id}"):
+        try:
+            geotagged_image = GeotaggedImage.load(region_id, file_prefix)
+        except Exception:
+            print(f"Warning: Failed to load image for: {region_id=}, {file_prefix=}")
+            continue
+
+        success, img_saliency_map = saliency_computer.computeSaliency(
+            cv2.cvtColor(geotagged_image.image, cv2.COLOR_RGB2BGR)
+        )
 
         if not success:
-            print(f"Warning: Failed to compute saliency map for: {file_path}.")
+            print(f"Warning: Failed to compute saliency map for: {region_id=}, {file_prefix=}")
             continue
 
         assert (
             img_saliency_map.dtype == region_saliency_map.dtype
         ), f"Expected saliency map to have dtype {region_saliency_map.dtype}, but got {img_saliency_map.dtype}."
 
-        lat_lon = np.load(os.path.join(region_dir, file_prefix + LAT_LON_OUTPUT_FILE_SUFFIX))["lat_lon"]
-        assert (
-            lat_lon.shape[:2] == image.shape[:2]
-        ), f"Lat/lon shape {lat_lon.shape[:2]} does not match image shape {image.shape[:2]}."
-
-        us, vs, valid_mask = region_saliency_map.get_pixel_coordinates(lat_lon)
+        us, vs, valid_mask = region_saliency_map.get_pixel_coordinates(geotagged_image.lat_lon)
 
         # cannot use += because it won't work with repeated indices
         np.add.at(
             region_saliency_map.image_data,
-            (vs[valid_mask], us[valid_mask]),
+            (vs[valid_mask], us[valid_mask], 0),
             img_saliency_map[valid_mask],
         )
         np.add.at(region_saliency_map_counts, (vs[valid_mask], us[valid_mask]), 1)
 
-    nonzero = region_saliency_map_counts > 0
-    region_saliency_map.image_data[nonzero, :] /= region_saliency_map_counts[nonzero]
+    nonzero_mask = region_saliency_map_counts > 0
+    region_saliency_map.image_data[nonzero_mask, 0] /= region_saliency_map_counts[nonzero_mask]
     return region_saliency_map
 
 
@@ -268,6 +274,8 @@ def run_saliency_analysis_for_region(
             raise FileExistsError(f"Output file {bounding_boxes_file} already exists.")
         os.remove(bounding_boxes_file)
 
+    print(f"Running saliency analysis for region {region}...")
+
     saliency_map = generate_saliency_map(region_dir, saliency_map_file, gsd, region)
     saliency_map.save()
 
@@ -291,6 +299,7 @@ def main() -> None:
     """
     args = parse_args()
     regions = list(set(args.regions) - set(args.skip_regions))
+    args.num_processes = min(args.num_processes, len(regions))
 
     func = partial(
         run_saliency_analysis_for_region,
@@ -300,10 +309,11 @@ def main() -> None:
         num_boxes=args.num_boxes,
     )
     if args.num_processes > 1:
-        with Pool(min(args.num_processes, len(regions))) as pool:
+        with Pool(args.num_processes) as pool:
             pool.map(func, regions)
     else:
-        map(func, regions)
+        # we don't care about the results, just exhaust the iterator
+        list(map(func, regions))
 
 
 if __name__ == "__main__":
