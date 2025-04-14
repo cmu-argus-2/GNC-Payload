@@ -28,7 +28,7 @@ from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
-from vision_inference.numpy_dataloader import NumpyImageDataset
+from vision_inference.numpy_dataloader import ImageSimInference
 
 
 class RegionClassifier:
@@ -161,7 +161,7 @@ class RegionClassifier:
             None: Sets up the dataset and dataloader attributes for the class.
         """
         self.images_dir = images_dir
-        self.dataset = NumpyImageDataset(images_dir=images_dir, transform=self.transforms)
+        self.dataset = ImageSimInference(images_dir=images_dir, transform=self.transforms)
         self.dataloader = DataLoader(
             self.dataset, batch_size=16, shuffle=False, num_workers=num_workers
         )

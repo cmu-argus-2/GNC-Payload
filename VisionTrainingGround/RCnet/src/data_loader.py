@@ -12,6 +12,7 @@ import numpy as np
 import os
 import random
 import warnings
+import time
 from typing import List, Optional, Tuple, Dict
 
 import torch
@@ -219,11 +220,11 @@ class MGRSImageDataset(Dataset):
         # Load lat/lon data
         with np.load(lat_lon_path, mmap_mode='r') as lat_lon_data:
             print("Loaded lat/lon data: ", lat_lon_path)
-            
+            start_time = time.time()
             # Get the lat/lon array directly - no need to create separate copies
             lat_lon_array = lat_lon_data['lat_lon']
             print("Accessed lat/lon data: ", lat_lon_path)
-            
+            print("Time taken to access lat/lon data: ", time.time() - start_time)
             total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
             
             # Vectorized approach to count pixels in each region

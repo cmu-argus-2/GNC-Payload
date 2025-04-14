@@ -23,7 +23,7 @@ from PIL import Image
 from vision_inference.logger import Logger
 
 
-class NumpyImageDataset(Dataset):
+class ImageSimInference(Dataset):
     """
     Dataset class for processing numpy image files in batches.
     Includes brightness filtering similar to frame_processor logic.

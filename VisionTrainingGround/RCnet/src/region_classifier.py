@@ -174,7 +174,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             train_dataset,
             batch_size=8,
             shuffle=True,
-            num_workers=32,
+            num_workers=16,
             pin_memory=True,
             persistent_workers=True
         )
@@ -183,7 +183,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             val_dataset,
             batch_size=8,
             shuffle=False,
-            num_workers=32,
+            num_workers=16,
             pin_memory=True,
             persistent_workers=True
         )
@@ -192,7 +192,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             test_dataset,
             batch_size=8,
             shuffle=False,
-            num_workers=32,
+            num_workers=16,
             pin_memory=True,
             persistent_workers=True
         )
