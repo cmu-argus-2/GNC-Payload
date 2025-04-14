@@ -217,40 +217,40 @@ class MGRSImageDataset(Dataset):
         print("Transformed Image: ", img_path)
         
         # Load lat/lon data
-        lat_lon_data = np.load(lat_lon_path)
-        print("Loaded lat/lon data: ", lat_lon_path)
-        
-        # Get the lat/lon array directly - no need to create separate copies
-        lat_lon_array = lat_lon_data['lat_lon']
-        print("Accessed lat/lon data: ", lat_lon_path)
-        
-        total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
-        
-        # Vectorized approach to count pixels in each region
-        region_counts = {}
-        
-        # Only process salient regions instead of all regions
-        for region, (min_lon, min_lat, max_lon, max_lat) in self.salient_boundaries.items():
-            # Create masks for lat/lon within region bounds using the original array
-            lat_mask = (lat_lon_array[:, :, 0] >= min_lat) & (lat_lon_array[:, :, 0] < max_lat)
-            lon_mask = (lat_lon_array[:, :, 1] >= min_lon) & (lat_lon_array[:, :, 1] < max_lon)
+        with np.load(lat_lon_path, mmap_mode='r') as lat_lon_data:
+            print("Loaded lat/lon data: ", lat_lon_path)
             
-            # Combined mask for pixels in this region
-            region_mask = lat_mask & lon_mask
+            # Get the lat/lon array directly - no need to create separate copies
+            lat_lon_array = lat_lon_data['lat_lon']
+            print("Accessed lat/lon data: ", lat_lon_path)
             
-            # Count pixels in this region
-            pixel_count = np.sum(region_mask)
-            if pixel_count > 0:
-                region_counts[region] = pixel_count
-        
-        # Create multi-hot encoded vector with sigmoid transformation
-        label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
-        for region, count in region_counts.items():
-            if region in self.salient_region_indices:
-                # Calculate fraction of pixels in this region
-                fraction = count / total_pixels
-                # Apply sigmoid transformation
-                idx = self.salient_region_indices[region]
-                label_vector[idx] = self._custom_sigmoid(fraction)
+            total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
+            
+            # Vectorized approach to count pixels in each region
+            region_counts = {}
+            
+            # Only process salient regions instead of all regions
+            for region, (min_lon, min_lat, max_lon, max_lat) in self.salient_boundaries.items():
+                # Create masks for lat/lon within region bounds using the original array
+                lat_mask = (lat_lon_array[:, :, 0] >= min_lat) & (lat_lon_array[:, :, 0] < max_lat)
+                lon_mask = (lat_lon_array[:, :, 1] >= min_lon) & (lat_lon_array[:, :, 1] < max_lon)
+                
+                # Combined mask for pixels in this region
+                region_mask = lat_mask & lon_mask
+                
+                # Count pixels in this region
+                pixel_count = np.sum(region_mask)
+                if pixel_count > 0:
+                    region_counts[region] = pixel_count
+            
+            # Create multi-hot encoded vector with sigmoid transformation
+            label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
+            for region, count in region_counts.items():
+                if region in self.salient_region_indices:
+                    # Calculate fraction of pixels in this region
+                    fraction = count / total_pixels
+                    # Apply sigmoid transformation
+                    idx = self.salient_region_indices[region]
+                    label_vector[idx] = self._custom_sigmoid(fraction)
         
         return image, label_vector
