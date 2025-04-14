@@ -266,14 +266,7 @@ def generate_yolo_labels(
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
         except Exception:
             print(
-                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping generating YOLO label and removing bad files."
-            )
-            # Remove the files now since they're a pain to find later
-            os.remove(
-                os.path.join(training_dir, region_id, file_prefix + GeotaggedImage.IMAGE_SUFFIX)
-            )
-            os.remove(
-                os.path.join(training_dir, region_id, file_prefix + GeotaggedImage.LAT_LON_SUFFIX)
+                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping generating YOLO label for them."
             )
             continue
 

@@ -81,26 +81,40 @@ class GeotaggedImage:
         )
 
     @staticmethod
-    def load(region: str, file_prefix: str) -> "GeotaggedImage":
+    def load(region: str, file_prefix: str, delete_bad_files: bool = True) -> "GeotaggedImage":
         """
         Load the image and lat/lon coordinates from the specified region and file prefix.
 
         :param region: The MGRS region.
         :param file_prefix: The prefix for the output files.
+        :param delete_bad_files: Whether to delete the files if they are malformed. This is very useful since it will
+                                 take a long time to find which files are malformed later.
         :return: A GeotaggedImage object containing the loaded image and lat/lon coordinates.
         """
         training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
         region_dir = os.path.join(training_dir, region)
 
-        image = cv2.imread(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        img_path = os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}")
+        lat_lon_path = os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")
+        if not os.path.exists(img_path) or not os.path.exists(lat_lon_path):
+            raise FileNotFoundError(
+                f"Image or lat/lon file not found for region {region} with prefix {file_prefix}."
+            )
 
-        with np.load(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")) as data:
-            lat_lon = data["lat_lon"]
+        try:
+            image = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+            with np.load(lat_lon_path) as data:
+                lat_lon = data["lat_lon"]
 
-        geotagged_image = GeotaggedImage(image, lat_lon)
-        geotagged_image.assert_invariants()
-        return geotagged_image
+            geotagged_image = GeotaggedImage(image, lat_lon)
+            geotagged_image.assert_invariants()
+            return geotagged_image
+        except Exception:
+            if delete_bad_files:
+                print(f"Warning: malformed image or lat/lon file for {region=}, {file_prefix=}. Deleting.")
+                os.remove(img_path)
+                os.remove(lat_lon_path)
+            raise
 
 
 def parse_args() -> argparse.Namespace:
@@ -245,13 +259,7 @@ def setup_region_directory(
                 existing_image_file_names & existing_lat_lon_file_names,
                 desc=f"Checking for corrupted files in {region_dir}",
             ):
-                try:
-                    GeotaggedImage.load(region_dir, common_file_name)
-                except Exception:
-                    os.remove(os.path.join(region_dir, f"{common_file_name}{GeotaggedImage.IMAGE_SUFFIX}"))
-                    os.remove(
-                        os.path.join(region_dir, f"{common_file_name}{GeotaggedImage.LAT_LON_SUFFIX}")
-                    )
+                GeotaggedImage.load(region_dir, common_file_name)
 
         return True
 
