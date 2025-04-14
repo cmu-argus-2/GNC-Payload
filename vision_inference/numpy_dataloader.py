@@ -120,7 +120,12 @@ class NumpyImageDataset(Dataset):
         
         try:
             # Load numpy image file
-            image = np.load(image_path)
+            if image_path.endswith('.npy'):
+                image = np.load(image_path)
+            else:
+                image = cv2.imread(image_path)
+                if image is None:
+                    raise ValueError(f"Image {image_path} could not be loaded.")
 
             # Convert to PIL Image for transforms
             pil_image = Image.fromarray(image)
