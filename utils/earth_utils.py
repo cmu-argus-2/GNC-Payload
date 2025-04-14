@@ -325,6 +325,7 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
 def get_mgrs_region_dimensions(region_id: str) -> tuple[float, float, float]:
     """
     Get the height, the width of the top, and the width of the bottom of a specified MGRS region, in meters.
+    Note that this approximates the Earth as a sphere.
 
     Parameters:
         region_id: The MGRS region identifier.
