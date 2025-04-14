@@ -355,7 +355,7 @@ def get_mgrs_region_area(region_id: str) -> float:
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
 
     # Taking the definite integral of R_EARTH**2 * cos(lat) dlat dlon over the region yields the following formula.
-    return R_EARTH**2 * (max_lon - min_lon) * (np.sin(np.deg2rad(max_lat)) - np.sin(np.deg2rad(min_lat)))
+    return R_EARTH**2 * np.deg2rad(max_lon - min_lon) * (np.sin(np.deg2rad(max_lat)) - np.sin(np.deg2rad(min_lat)))
 
 
 def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
