@@ -43,6 +43,7 @@ from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
+from VisionTrainingGround.LD.select_bounding_boxes import BOUNDING_BOXES_VISUALIZATION_FILE_NAME
 
 LD_TRAINING_DIR_NAME = "LD_training"
 YOLO_CONFIG_FILE_NAME = "dataset.yaml"
@@ -265,7 +266,7 @@ def generate_yolo_labels(
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
         except Exception:
             print(
-                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. YOLO label not generated."
+                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping generating YOLO label for them."
             )
             continue
 
@@ -354,7 +355,7 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region_id)
     LD_training_dir = os.path.join(region_dir, LD_TRAINING_DIR_NAME)
-    file_prefixes = get_common_file_name_prefixes(region_dir)
+    file_prefixes = get_common_file_name_prefixes(region_dir, ignore_names=[BOUNDING_BOXES_VISUALIZATION_FILE_NAME])
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 
@@ -403,7 +404,7 @@ def prepare_yolo_data_for_region(region_id: str, test_fraction: float, val_fract
 
 def main():
     args = parse_args()
-    regions = list(set(args.regions) - set(args.skip_regions))
+    regions = sorted(set(args.regions) - set(args.skip_regions))
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in tqdm(regions, desc="Setting up region directories"):
