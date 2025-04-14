@@ -95,9 +95,8 @@ class GeotaggedImage:
         image = cv2.imread(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        lat_lon = np.load(
-            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")
-        )["lat_lon"]
+        with np.load(os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")) as data:
+            lat_lon = data["lat_lon"]
 
         geotagged_image = GeotaggedImage(image, lat_lon)
         geotagged_image.assert_invariants()
