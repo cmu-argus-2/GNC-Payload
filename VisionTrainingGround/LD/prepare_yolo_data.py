@@ -483,7 +483,7 @@ def main():
                         partial(unpack_and_call, generate_yolo_label), get_requests_generator()
                     ),
                     total=total_requests,
-                    desc="Generating images",
+                    desc="Generating YOLO label files",
                 )
             )
     else:
