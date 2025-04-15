@@ -5,7 +5,7 @@ This script expects to find the following contents in the training directory:
 - /training_directory
   - /{region}
     - 00000.png
-    - 00000_lat_lon.npy
+    - 00000_lat_lon.npz
     - ...
 
 This script will generate/overwrite the following contents in the training directory:
