@@ -11,7 +11,6 @@ import torch
 from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
 
 
-
 def parse_args():
     """
     Parse command-line arguments for training or evaluating the image classifier.
