@@ -76,7 +76,7 @@ def parse_args():
         "--version", type=str, required=False, default="yolov8s", help="The YOLO version to use."
     )
     parser.add_argument(
-        "--epochs", type=int, required=False, default=300, help="The number of training epochs."
+        "--epochs", type=int, required=False, default=100, help="The number of training epochs."
     )
     return parser.parse_args()
 
