@@ -150,7 +150,7 @@ def main() -> None:
     Script entry point.
     """
     args = parse_args()
-    regions = list(set(args.regions) - set(args.skip_regions))
+    regions = sorted(set(args.regions) - set(args.skip_regions))
 
     for region in regions:
         train_yolo(region, args.overwrite, args.version, args.epochs)
