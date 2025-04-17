@@ -66,7 +66,7 @@ def parse_args():
         help="Whether to overwrite the output file if it exists.",
     )
     parser.add_argument(
-        "--version", type=str, required=False, default="yolov8n", help="The YOLO version to use."
+        "--version", type=str, required=False, default="yolov8s", help="The YOLO version to use."
     )
     parser.add_argument(
         "--epochs", type=int, required=False, default=300, help="The number of training epochs."
