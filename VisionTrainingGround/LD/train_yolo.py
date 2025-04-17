@@ -130,7 +130,7 @@ def train_yolo(
     results = model.train(
         data=yolo_config_path,
         # The result files are saved in project/name
-        project=region_dir,
+        project=TRAINING_LOG_DIR_NAME,
         name=TRAINING_LOG_DIR_NAME,
         # Image augmentation parameters
         degrees=0,
@@ -146,6 +146,11 @@ def train_yolo(
         resume=False,
         epochs=epochs,
         device=device,
+    )
+
+    shutil.move(
+        os.path.join(__file__, "../", TRAINING_LOG_DIR_NAME),
+        training_log_dir,
     )
 
 
