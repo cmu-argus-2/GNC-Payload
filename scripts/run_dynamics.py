@@ -49,16 +49,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--lat",
         type=float,
+        # No default value. If not provided, it will be generated randomly within the SSO bounds.
         help="Starting latitude of the spacecraft",
     )
     parser.add_argument(
         "--lon",
         type=float,
+        default=np.random.uniform(-180, 180),
         help="Starting longitude of the spacecraft",
     )
     parser.add_argument(
         "--altitude",
         type=float,
+        default=510e3 + np.random.uniform(-20e3, 20e3),
         help="Starting altitude of the spacecraft [m]",
     )
     parser.add_argument(
@@ -70,12 +73,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start_date",
         type=float,
+        # Start date between 2024-01-01 and 2025-01-01 (leap year so 366 days)
+        default=round(np.random.uniform(60310, 60676), 1),
         help="Start date of the spacecraft mission [MJD]",
     )
     parser.add_argument(
         "--northwards",
         type=bool,
-        default=True,
+        default=np.random.choice([True, False]),
         help="Whether the spacecraft is moving northwards. If False, the spacecraft will move southwards.",
     )
     parser.add_argument(
@@ -106,34 +111,11 @@ def generate_trajectory(args) -> None:
 
     :return: None
     """
-
-    # Check if altitude is provided and if not, generate a random altitude
-    # Then check that if a latitude is given, it is within the calculated sso bounds
-    if args.altitude is None:
-        args.altitude = 510e3 + np.random.uniform(-20e3, 20e3)
-        if args.lat is None:
-            max_lat = get_max_sso_latitude(args.altitude)
-            args.lat = np.random.uniform(-max_lat, max_lat)
-        else:
-            max_lat = get_max_sso_latitude(args.altitude)
-            if abs(args.lat) > max_lat:
-                raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-
+    max_lat = get_max_sso_latitude(args.altitude)
+    if args.lat is not None and abs(args.lat) > max_lat:
+        raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
     else:
-        max_lat = get_max_sso_latitude(args.altitude)
-        if args.lat is not None and abs(args.lat) > max_lat:
-            raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-        else:
-            args.lat = np.random.uniform(-max_lat, max_lat)
-
-    if args.lon is None:
-        args.lon = np.random.uniform(-180, 180)
-
-    # Check if start date is provided and if not, generate a random start date
-    # Start date between 2024-01-01 and 2025-01-01 (leap year so 366 days)
-    if args.start_date is None:
-        # Get random start date and round to 1 decimal place
-        args.start_date = round(np.random.uniform(60310, 60676), 1)
+        args.lat = np.random.uniform(-max_lat, max_lat)
 
     config = load_config()
     config["solver"]["world_update_rate"] = args.frequency  # Hz
