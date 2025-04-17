@@ -94,13 +94,13 @@ def train_yolo(
     - Saves the trained model.
 
     Arguments:
-    - region (str): The MGRS region to train the model for.
-    - overwrite (bool): Whether to overwrite the output files if they exist.
-    - version (str): The YOLO model version to use.
-    - epochs (int): The number of epochs for training.
+    - region: The MGRS region to train the model for.
+    - overwrite: Whether to overwrite the output files if they exist.
+    - version: The YOLO model version to use.
+    - epochs: The number of epochs for training.
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
+    print(f"Using {device=}")
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
@@ -125,7 +125,7 @@ def train_yolo(
     )
     # pylint: disable=unused-variable
     results = model.train(
-        data=yolo_config_path,  # Dataset path from argument
+        data=yolo_config_path,
         # The result files are saved in project/name
         project=region_dir,
         name=TRAINING_LOG_DIR_NAME,
@@ -137,11 +137,11 @@ def train_yolo(
         perspective=0,
         # Training parameters
         imgsz=LandmarkDetector.IMAGE_SIZE,
-        plots=True,  # Plot the results
-        save=True,  # Save the trained model
-        resume=False,  # Do not resume training
-        epochs=epochs,  # Number of epochs for training
-        device=device,  # Set device to cuda or cpu
+        plots=True,
+        save=True,
+        resume=False,
+        epochs=epochs,
+        device=device,
     )
 
 
