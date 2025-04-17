@@ -140,6 +140,7 @@ def train_yolo(
         perspective=0,
         # Training parameters
         imgsz=LandmarkDetector.IMAGE_SIZE,
+        batch=2,
         plots=True,
         save=True,
         resume=False,
