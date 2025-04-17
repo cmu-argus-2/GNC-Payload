@@ -119,12 +119,14 @@ def train_yolo(
         name=os.path.splitext(os.path.basename(output_file))[
             0
         ],  # The result files are saved in project/name
-        degrees=180,  # Image augmentation parameters
-        scale=0.3,
-        fliplr=0.0,
-        imgsz=LandmarkDetector.IMAGE_SIZE,
+        # Image augmentation parameters
+        degrees=0,
+        scale=0,
+        fliplr=0,
         mosaic=0,
-        perspective=0.0001,
+        perspective=0,
+        # Training parameters
+        imgsz=LandmarkDetector.IMAGE_SIZE,
         plots=True,  # Plot the results
         save=True,  # Save the trained model
         resume=False,  # Do not resume training
