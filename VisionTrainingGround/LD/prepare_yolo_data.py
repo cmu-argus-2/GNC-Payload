@@ -328,7 +328,7 @@ def generate_yolo_label(
     pixel_batch_size: int = 1000,
 ) -> None:
     """
-    Generate a YOLO label .txt files for the specified region and file prefix.
+    Generate a YOLO label .txt file for the specified region and file prefix.
 
     The .txt file contains one line for each bounding box that is entirely contained within the image.
     The line is formatted as follows, with all coordinates normalized to the range [0, 1]:
