@@ -31,6 +31,7 @@ import os
 import shutil
 
 import torch
+from tqdm import tqdm
 from ultralytics import YOLO
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -154,7 +155,7 @@ def main() -> None:
     args = parse_args()
     regions = sorted(set(args.regions) - set(args.skip_regions))
 
-    for region in regions:
+    for region in tqdm(regions, desc="Training YOLO models"):
         train_yolo(region, args.overwrite, args.version, args.epochs)
 
 
