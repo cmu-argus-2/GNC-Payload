@@ -189,8 +189,6 @@ def setup_LD_training_directory(
         split_label_file_names = [
             file_name for file_name in os.listdir(labels_dir) if file_name.endswith(".txt")
         ]
-        split_img_file_names_list.append(split_img_file_names)
-        split_label_file_names_list.append(split_label_file_names)
 
         if not overwrite and not resume:
             if len(split_img_file_names) > 0 or len(split_label_file_names) > 0:
@@ -200,6 +198,11 @@ def setup_LD_training_directory(
                 os.remove(os.path.join(images_dir, img_file_name))
             for label_file_name in split_label_file_names:
                 os.remove(os.path.join(labels_dir, label_file_name))
+            split_img_file_names = []
+            split_label_file_names = []
+
+        split_img_file_names_list.append(split_img_file_names)
+        split_label_file_names_list.append(split_label_file_names)
 
     file_prefixes = get_common_file_name_prefixes(
         os.path.join(training_dir, region_id), ignore_names=[BOUNDING_BOXES_VISUALIZATION_FILE_NAME]
