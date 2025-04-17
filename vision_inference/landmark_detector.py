@@ -29,6 +29,7 @@ from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
+from sensors.camera_model import CameraModel
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -126,6 +127,12 @@ class LandmarkDetections:
             == len(self.class_ids)
             == len(self.confidences)
         ), "All arrays should have the same length."
+
+        assert (
+            np.all(self.pixel_coordinates >= 0)
+            and np.all(self.pixel_coordinates[:, 0] <= CameraModel.IMAGE_WIDTH - 1)
+            and np.all(self.pixel_coordinates[:, 1] <= CameraModel.IMAGE_HEIGHT - 1)
+        ), "pixel_coordinates should be within image bounds."
 
     @staticmethod
     def stack(detections: List["LandmarkDetections"]) -> "LandmarkDetections":
@@ -268,7 +275,11 @@ class LandmarkDetector:
                 class_ids = landmarks.cls.cpu().numpy().astype(int)
                 confidences = landmarks.conf.cpu().numpy()
 
-                valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
+                valid_indices = (
+                    np.all(xywh >= 0, axis=1)
+                    & (xywh[:, 0] <= CameraModel.IMAGE_WIDTH - 1)
+                    & (xywh[:, 1] <= CameraModel.IMAGE_HEIGHT - 1)
+                )
                 if not np.all(valid_indices):
                     Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
                     if not np.any(valid_indices):
