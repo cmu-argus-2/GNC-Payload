@@ -26,6 +26,7 @@ This scipy will generate/overwrite the following contents in the training direct
 
 import argparse
 import os
+import shutil
 
 import torch
 from ultralytics import YOLO
@@ -33,6 +34,9 @@ from ultralytics import YOLO
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
+
+
+TRAINING_LOG_DIR_NAME = "yolo_training_results"
 
 
 def parse_args():
@@ -91,7 +95,7 @@ def train_yolo(
 
     Arguments:
     - region (str): The MGRS region to train the model for.
-    - overwrite (bool): Whether to overwrite the output file if it exists.
+    - overwrite (bool): Whether to overwrite the output files if they exist.
     - version (str): The YOLO model version to use.
     - epochs (int): The number of epochs for training.
     """
@@ -99,26 +103,32 @@ def train_yolo(
     print(f"Using device: {device}")
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
+    region_dir = os.path.join(training_dir, region)
+    training_log_dir = os.path.join(region_dir, TRAINING_LOG_DIR_NAME)
     output_file = os.path.join(
         training_dir, LandmarkDetector.get_LD_model_weights_relative_path(region)
     )
+
     if os.path.exists(output_file):
         if not overwrite:
             raise FileExistsError(f"Output file {output_file} already exists.")
 
         os.remove(output_file)
+    if os.path.exists(training_log_dir):
+        if not overwrite:
+            raise FileExistsError(f"Training log directory {training_log_dir} already exists.")
+        shutil.rmtree(training_log_dir)
 
     model = YOLO(f"{version}.pt")
     yolo_config_path = os.path.join(
-        training_dir, region, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
+        region_dir, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
     )
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,  # Dataset path from argument
-        project=os.path.dirname(os.path.abspath(output_file)),
-        name=os.path.splitext(os.path.basename(output_file))[
-            0
-        ],  # The result files are saved in project/name
+        # The result files are saved in project/name
+        project=region_dir,
+        name=TRAINING_LOG_DIR_NAME,
         # Image augmentation parameters
         degrees=0,
         scale=0,
