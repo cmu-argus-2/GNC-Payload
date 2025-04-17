@@ -299,6 +299,7 @@ class LandmarkDetector:
                 )
 
             landmark_detections = LandmarkDetections.stack(landmark_detections)
+            landmark_detections.assert_invariants()
 
             if len(landmark_detections) == 0:
                 Logger.log(
