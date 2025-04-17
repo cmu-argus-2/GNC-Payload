@@ -104,7 +104,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def generate_trajectory(args) -> None:
+def generate_trajectory(args: argparse.Namespace) -> None:
     """
     Generate the trajectory of a spacecraft using the dynamics model.
     :param args: The command line arguments.
