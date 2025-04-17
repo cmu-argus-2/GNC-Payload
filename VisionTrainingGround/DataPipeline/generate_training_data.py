@@ -5,7 +5,7 @@ This script will generate/overwrite the following contents in the training direc
 - /training_directory
   - /{region}
     - 00000.png
-    - 00000_lat_lon.npy
+    - 00000_lat_lon.npz
     - ...
 """
 
