@@ -33,6 +33,7 @@ import brahe
 import numpy as np
 import quaternion
 from brahe.epoch import Epoch
+from tqdm import tqdm
 
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
@@ -150,7 +151,7 @@ def generate_trajectory(args: argparse.Namespace) -> None:
         use_sun_grav=False,
     )
 
-    for _ in range(0, N - 1):
+    for _ in tqdm(range(0, N - 1)):
         state = data_manager.latest_state
         q = data_manager.latest_attitude
 
