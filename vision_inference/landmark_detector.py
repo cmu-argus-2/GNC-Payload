@@ -28,6 +28,7 @@ from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
+from sensors.camera_model import CameraModel
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -149,8 +150,7 @@ class LandmarkDetector:
     """
 
     CONFIDENCE_THRESHOLD = 0.5
-    # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
-    IMAGE_SIZE = (1088, 1920)
+    IMAGE_SIZE = CameraModel.RESOLUTION
 
     def __init__(self, region_id: str):
         """

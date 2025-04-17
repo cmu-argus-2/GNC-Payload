@@ -122,7 +122,7 @@ def train_yolo(
         degrees=180,  # Image augmentation parameters
         scale=0.3,
         fliplr=0.0,
-        imgsz=576,
+        imgsz=LandmarkDetector.IMAGE_SIZE,
         mosaic=0,
         perspective=0.0001,
         plots=True,  # Plot the results
