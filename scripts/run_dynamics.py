@@ -112,10 +112,12 @@ def generate_trajectory(args) -> None:
     :return: None
     """
     max_lat = get_max_sso_latitude(args.altitude)
-    if args.lat is not None and abs(args.lat) > max_lat:
-        raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-    else:
+    if args.lat is None:
         args.lat = np.random.uniform(-max_lat, max_lat)
+    elif abs(args.lat) > max_lat:
+        raise ValueError(
+            f"Latitude must be between -{max_lat} and {max_lat} for an SSO orbit at an altitude of {args.altitude} m."
+        )
 
     config = load_config()
     config["solver"]["world_update_rate"] = args.frequency  # Hz
