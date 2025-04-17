@@ -22,6 +22,8 @@ This scipy will generate/overwrite the following contents in the training direct
 - /training_directory
   - /{region}
     - yolo_model_weights.pt
+    - yolo_training_results
+      - ...
 """
 
 import argparse
