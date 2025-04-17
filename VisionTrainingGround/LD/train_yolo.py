@@ -102,7 +102,7 @@ def train_yolo(
     - epochs: The number of epochs for training.
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using {device=}")
+    print(f"Using {device=} for training {region=}")
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
