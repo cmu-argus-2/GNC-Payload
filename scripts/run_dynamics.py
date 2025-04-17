@@ -183,5 +183,4 @@ def generate_trajectory(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    generate_trajectory(args)
+    generate_trajectory(parse_args())
