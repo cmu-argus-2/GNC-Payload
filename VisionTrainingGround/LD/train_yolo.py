@@ -127,8 +127,8 @@ def train_yolo(
     results = model.train(
         data=yolo_config_path,
         # The result files are saved in os.path.join(__file__, "../", project, name)
-        project=TRAINING_LOG_DIR_NAME,
-        name=f"{TRAINING_LOG_DIR_NAME}_{time()}",
+        project=f"{TRAINING_LOG_DIR_NAME}_{region}",
+        name=f"{TRAINING_LOG_DIR_NAME}_{region}_{time()}",
         # Image augmentation parameters
         degrees=0,
         scale=0,
@@ -146,7 +146,7 @@ def train_yolo(
     )
 
     # Move the logs from the directory that they are saved into by YOLO, to where we actually want them
-    output_log_dir = os.path.join(__file__, "../", TRAINING_LOG_DIR_NAME)
+    output_log_dir = os.path.join(__file__, "../", f"{TRAINING_LOG_DIR_NAME}_{region}")
     for directory in os.listdir(output_log_dir):
         shutil.move(
             os.path.join(output_log_dir, directory),
@@ -163,7 +163,11 @@ def main() -> None:
     regions = sorted(set(args.regions) - set(args.skip_regions))
 
     for region in tqdm(regions, desc="Training YOLO models"):
-        train_yolo(region, args.overwrite, args.version, args.epochs)
+        try:
+            train_yolo(region, args.overwrite, args.version, args.epochs)
+        except Exception as e:
+            print(f"Error training YOLO model for {region}: {e}")
+            continue
 
 
 if __name__ == "__main__":
