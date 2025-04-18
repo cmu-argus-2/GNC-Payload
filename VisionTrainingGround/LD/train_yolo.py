@@ -30,6 +30,7 @@ import argparse
 import os
 import shutil
 
+from time import time
 import torch
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -117,10 +118,6 @@ def train_yolo(
             raise FileExistsError(f"Output file {output_file} already exists.")
 
         os.remove(output_file)
-    if os.path.exists(training_log_dir):
-        if not overwrite:
-            raise FileExistsError(f"Training log directory {training_log_dir} already exists.")
-        shutil.rmtree(training_log_dir)
 
     model = YOLO(f"{version}.pt")
     yolo_config_path = os.path.join(
@@ -129,9 +126,9 @@ def train_yolo(
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,
-        # The result files are saved in project/name
+        # The result files are saved in os.path.join(__file__, "../", project, name)
         project=TRAINING_LOG_DIR_NAME,
-        name=TRAINING_LOG_DIR_NAME,
+        name=f"{TRAINING_LOG_DIR_NAME}_{time()}",
         # Image augmentation parameters
         degrees=0,
         scale=0,
@@ -148,10 +145,14 @@ def train_yolo(
         device=device,
     )
 
-    shutil.move(
-        os.path.join(__file__, "../", TRAINING_LOG_DIR_NAME),
-        training_log_dir,
-    )
+    # Move the logs from the directory that they are saved into by YOLO, to where we actually want them
+    output_log_dir = os.path.join(__file__, "../", TRAINING_LOG_DIR_NAME)
+    for directory in os.listdir(output_log_dir):
+        shutil.move(
+            os.path.join(output_log_dir, directory),
+            os.path.join(training_log_dir, directory),
+        )
+    shutil.rmtree(output_log_dir)
 
 
 def main() -> None:
