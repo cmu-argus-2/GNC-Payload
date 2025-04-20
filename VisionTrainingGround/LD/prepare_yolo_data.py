@@ -406,8 +406,8 @@ def generate_yolo_label(
         minimum_distances[closer_mask] = batch_minimum_distances[closer_mask]
 
     closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
-    closest_us = closest_us.reshape(num_classes, 4)
-    closest_vs = closest_vs.reshape(num_classes, 4)
+    closest_us = closest_us.reshape(4, num_classes).T
+    closest_vs = closest_vs.reshape(4, num_classes).T
 
     valid_bounding_boxes = get_valid_bounding_boxes(geotagged_image.image, closest_us, closest_vs)
     closest_us = closest_us[valid_bounding_boxes, :]
