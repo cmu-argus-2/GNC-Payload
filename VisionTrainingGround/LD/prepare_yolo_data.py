@@ -271,9 +271,9 @@ def get_valid_bounding_boxes(
 
     :param image: The image to check the bounding boxes against.
     :param closest_us: A numpy array of shape (N, 4) containing the u-coordinates of the closest pixel to the top left,
-                       top right, bottom left, and bottom right corners of the bounding box, respectively.
+                       top right, bottom right, and bottom left corners of the bounding box, respectively.
     :param closest_vs: A numpy array of shape (N, 4) containing the v-coordinates of the closest pixel to the top left,
-                       top right, bottom left, and bottom right corners of the bounding box, respectively.
+                       top right, bottom right, and bottom left corners of the bounding box, respectively.
     :param minimum_data_threshold: The minimum fraction of the bounding box that must contain nonzero data for it to be
                                    considered valid. Must be in the range [0, 1].
     :return: A boolean numpy array of shape (N,) indicating which bounding boxes are valid.
@@ -358,7 +358,8 @@ def generate_yolo_label(
     bottom_left_lat_lon = np.column_stack((bottom_right_lat_lon[:, 0], top_left_lat_lon[:, 1]))
 
     stacked_corners_lat_lon = np.concatenate(
-        (top_left_lat_lon, top_right_lat_lon, bottom_left_lat_lon, bottom_right_lat_lon), axis=0
+        # must be in a circular order for cv2.fillPoly to work correctly
+        (top_left_lat_lon, top_right_lat_lon, bottom_right_lat_lon, bottom_left_lat_lon), axis=0
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
