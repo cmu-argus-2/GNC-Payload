@@ -146,13 +146,14 @@ def train_yolo(
     )
 
     # Move the logs from the directory that they are saved into by YOLO, to where we actually want them
-    output_log_dir = os.path.join(__file__, "../", f"{TRAINING_LOG_DIR_PREFIX}_{region}")
-    for directory in os.listdir(output_log_dir):
-        shutil.move(
-            os.path.join(output_log_dir, directory),
-            os.path.join(training_log_dir, directory),
-        )
-    shutil.rmtree(output_log_dir)
+    # TODO: figure out why this isn't working
+    # output_log_dir = os.path.join(__file__, "../", f"{TRAINING_LOG_DIR_PREFIX}_{region}")
+    # for directory in os.listdir(output_log_dir):
+    #     shutil.move(
+    #         os.path.join(output_log_dir, directory),
+    #         os.path.join(training_log_dir, directory),
+    #     )
+    # shutil.rmtree(output_log_dir)
 
 
 def main() -> None:
