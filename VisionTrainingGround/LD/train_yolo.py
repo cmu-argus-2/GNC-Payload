@@ -40,7 +40,7 @@ from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
 
-TRAINING_LOG_DIR_NAME = "yolo_training_results"
+TRAINING_LOG_DIR_PREFIX = "yolo_training_results"
 
 
 def parse_args():
@@ -108,7 +108,7 @@ def train_yolo(
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
-    training_log_dir = os.path.join(region_dir, TRAINING_LOG_DIR_NAME)
+    training_log_dir = os.path.join(region_dir, TRAINING_LOG_DIR_PREFIX)
     output_file = os.path.join(
         training_dir, LandmarkDetector.get_LD_model_weights_relative_path(region)
     )
@@ -127,8 +127,8 @@ def train_yolo(
     results = model.train(
         data=yolo_config_path,
         # The result files are saved in os.path.join(__file__, "../", project, name)
-        project=f"{TRAINING_LOG_DIR_NAME}_{region}",
-        name=f"{TRAINING_LOG_DIR_NAME}_{region}_{time()}",
+        project=f"{TRAINING_LOG_DIR_PREFIX}_{region}",
+        name=f"{TRAINING_LOG_DIR_PREFIX}_{region}_{time()}",
         # Image augmentation parameters
         degrees=0,
         scale=0,
@@ -146,7 +146,7 @@ def train_yolo(
     )
 
     # Move the logs from the directory that they are saved into by YOLO, to where we actually want them
-    output_log_dir = os.path.join(__file__, "../", f"{TRAINING_LOG_DIR_NAME}_{region}")
+    output_log_dir = os.path.join(__file__, "../", f"{TRAINING_LOG_DIR_PREFIX}_{region}")
     for directory in os.listdir(output_log_dir):
         shutil.move(
             os.path.join(output_log_dir, directory),
