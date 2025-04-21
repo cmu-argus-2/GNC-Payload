@@ -30,6 +30,7 @@ import argparse
 import os
 import shutil
 
+import numpy as np
 from time import time
 import torch
 from tqdm import tqdm
@@ -136,7 +137,8 @@ def train_yolo(
         mosaic=0,
         perspective=0,
         # Training parameters
-        imgsz=LandmarkDetector.IMAGE_SIZE,
+        # Ultralytics YOLO only supports training on square images, so it will pad the image to (4608, 4608) with gray
+        imgsz=np.max(LandmarkDetector.IMAGE_SIZE),
         batch=2,
         plots=True,
         save=True,
