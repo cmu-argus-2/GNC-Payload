@@ -196,34 +196,34 @@ def intersect_ellipsoid(
 # Define MGRS latitude bands and UTM exceptions
 # TODO: consolidate functionality between this and the get_MGRS_grid function
 mgrs_latitude_bands = [
-    {"name": "C", "min_lat": -80, "max_lat": -72},
-    {"name": "D", "min_lat": -72, "max_lat": -64},
-    {"name": "E", "min_lat": -64, "max_lat": -56},
-    {"name": "F", "min_lat": -56, "max_lat": -48},
-    {"name": "G", "min_lat": -48, "max_lat": -40},
-    {"name": "H", "min_lat": -40, "max_lat": -32},
-    {"name": "J", "min_lat": -32, "max_lat": -24},
-    {"name": "K", "min_lat": -24, "max_lat": -16},
-    {"name": "L", "min_lat": -16, "max_lat": -8},
-    {"name": "M", "min_lat": -8, "max_lat": 0},
-    {"name": "N", "min_lat": 0, "max_lat": 8},
-    {"name": "P", "min_lat": 8, "max_lat": 16},
-    {"name": "Q", "min_lat": 16, "max_lat": 24},
-    {"name": "R", "min_lat": 24, "max_lat": 32},
-    {"name": "S", "min_lat": 32, "max_lat": 40},
-    {"name": "T", "min_lat": 40, "max_lat": 48},
-    {"name": "U", "min_lat": 48, "max_lat": 56},
-    {"name": "V", "min_lat": 56, "max_lat": 64},
-    {"name": "W", "min_lat": 64, "max_lat": 72},
-    {"name": "X", "min_lat": 72, "max_lat": 84},  # X spans 12° latitude
+    {"name": b"C", "min_lat": -80, "max_lat": -72},
+    {"name": b"D", "min_lat": -72, "max_lat": -64},
+    {"name": b"E", "min_lat": -64, "max_lat": -56},
+    {"name": b"F", "min_lat": -56, "max_lat": -48},
+    {"name": b"G", "min_lat": -48, "max_lat": -40},
+    {"name": b"H", "min_lat": -40, "max_lat": -32},
+    {"name": b"J", "min_lat": -32, "max_lat": -24},
+    {"name": b"K", "min_lat": -24, "max_lat": -16},
+    {"name": b"L", "min_lat": -16, "max_lat": -8},
+    {"name": b"M", "min_lat": -8, "max_lat": 0},
+    {"name": b"N", "min_lat": 0, "max_lat": 8},
+    {"name": b"P", "min_lat": 8, "max_lat": 16},
+    {"name": b"Q", "min_lat": 16, "max_lat": 24},
+    {"name": b"R", "min_lat": 24, "max_lat": 32},
+    {"name": b"S", "min_lat": 32, "max_lat": 40},
+    {"name": b"T", "min_lat": 40, "max_lat": 48},
+    {"name": b"U", "min_lat": 48, "max_lat": 56},
+    {"name": b"V", "min_lat": 56, "max_lat": 64},
+    {"name": b"W", "min_lat": 64, "max_lat": 72},
+    {"name": b"X", "min_lat": 72, "max_lat": 84},  # X spans 12° latitude
 ]
 
 mgrs_utm_exceptions = [
-    {"zone": 32, "min_lon": 3, "max_lon": 12, "bands": ["V"]},  # Norway
-    {"zone": 31, "min_lon": 0, "max_lon": 9, "bands": ["X"]},  # Svalbard
-    {"zone": 33, "min_lon": 9, "max_lon": 21, "bands": ["X"]},  # Svalbard
-    {"zone": 35, "min_lon": 21, "max_lon": 33, "bands": ["X"]},  # Svalbard
-    {"zone": 37, "min_lon": 33, "max_lon": 42, "bands": ["X"]},  # Svalbard
+    {"zone": 32, "min_lon": 3, "max_lon": 12, "bands": [b"V"]},  # Norway
+    {"zone": 31, "min_lon": 0, "max_lon": 9, "bands": [b"X"]},  # Svalbard
+    {"zone": 33, "min_lon": 9, "max_lon": 21, "bands": [b"X"]},  # Svalbard
+    {"zone": 35, "min_lon": 21, "max_lon": 33, "bands": [b"X"]},  # Svalbard
+    {"zone": 37, "min_lon": 33, "max_lon": 42, "bands": [b"X"]},  # Svalbard
 ]
 
 
@@ -231,13 +231,18 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     """
     Vectorized computation of MGRS region identifiers for given latitude and longitude coordinates.
 
+    Note that the output will have a dtype of "S3", meaning each element is an ascii encoded string with a maximum
+    length of 3 bytes. You can convert individual elements to regular strings using str(element, encoding="ascii") or
+    convert the entire array to regular strings using np.char.decode(mgrs_regions, encoding="ascii").
+
     Parameters:
         lat_lon: A numpy array of shape (..., 2) containing latitudes and longitudes in degrees. May contain np.nan.
 
     Returns:
-        A numpy array of MGRS region identifiers with shape lat_lon.shape[:-1], unless lat_lon.shape == (2,) in which
-        case the output will be shape (1,). Output elements will be None if either the latitude or longitude is np.nan,
-        or if the coordinates correspond to polar regions that are not covered by the MGRS.
+        A numpy array of MGRS region identifiers with dtype "S3" and shape lat_lon.shape[:-1], unless
+        lat_lon.shape == (2,) in which case the output will be shape (1,). Output elements will be b"" if either the
+        latitude or longitude is np.nan, or if the coordinates correspond to polar regions that are not covered by the
+        MGRS.
     """
     assert lat_lon.shape[-1] == 2, "Input must have shape (..., 2)"
     if len(lat_lon.shape) == 1:
@@ -257,7 +262,7 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     lat_flat, lon_flat = lat_lon[valid_indices, :].T
 
     # Determine latitude bands
-    lat_bands = np.empty(len(lat_flat), dtype=str)
+    lat_bands = np.empty(len(lat_flat), dtype="S1")
     seen_mask = np.zeros(len(lat_flat), dtype=bool)
     for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
@@ -275,9 +280,10 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
             & np.isin(lat_bands, exception["bands"])
         )
         utm_zones[mask] = exception["zone"]
-    utm_zones = utm_zones.astype(str)
+    assert np.all(utm_zones >= 1) and np.all(utm_zones <= 60)
+    utm_zones = np.char.zfill(utm_zones.astype("S2"), 2)
 
-    mgrs_regions = np.full(valid_indices.shape, None, dtype=object)
+    mgrs_regions = np.full(valid_indices.shape, b"", dtype="S3")
     mgrs_regions[valid_indices] = np.char.add(utm_zones, lat_bands)
     return mgrs_regions
 
