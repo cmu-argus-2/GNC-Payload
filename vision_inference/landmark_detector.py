@@ -163,8 +163,7 @@ class LandmarkDetector:
     """
 
     CONFIDENCE_THRESHOLD = 0.5
-    # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
-    IMAGE_SIZE = (1088, 1920)
+    IMAGE_SIZE = CameraModel.RESOLUTION
 
     def __init__(self, region_id: str):
         """

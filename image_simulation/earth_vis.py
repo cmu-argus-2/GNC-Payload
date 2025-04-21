@@ -394,11 +394,11 @@ class EarthImageSimulator:
 
         # TODO: see if we can avoid calculating this for every pixel
         mgrs_regions = calculate_mgrs_zones(lat_lon)
-        present_regions = np.unique(mgrs_regions[mgrs_regions != None])
+        present_regions = np.unique(mgrs_regions[mgrs_regions != b""])
 
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
         for region in present_regions:
-            geotiff_data = self.cache.load_geotiff_data(region)
+            geotiff_data = self.cache.load_geotiff_data(str(region, encoding="ascii"))
             if geotiff_data is None:
                 continue
 
