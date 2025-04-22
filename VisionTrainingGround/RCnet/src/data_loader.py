@@ -139,10 +139,19 @@ class MGRSImageDataset(Dataset):
         
         # Collect images and their corresponding lat/lon files
         self.files = []
+        self.region_label_cache = {}
+        self.region_label_updated = {} # To check if labels are updated
         for region_dir in os.listdir(root_dir):
             region_path = os.path.join(root_dir, region_dir)
             if not os.path.isdir(region_path):
                 continue
+
+            cache_path = os.path.join(region_path, f"vector_labels.npz")
+            if os.path.exists(cache_path):
+                self.region_label_cache[region_dir] = dict(np.load(cache_path))
+            else:
+                self.region_label_cache[region_dir] = {}
+            self.region_label_updated[region_dir] = False
                 
             for img_file in os.listdir(region_path):
                 if img_file.endswith((".png", ".jpg")):
@@ -180,6 +189,11 @@ class MGRSImageDataset(Dataset):
         # Precompute region boundaries for fast lookup
         self._precompute_region_boundaries()
 
+    def _parse_region_and_id(self, img_path: str) -> Tuple[str, str]:
+        region = os.path.basename(os.path.dirname(img_path))
+        img_id = os.path.splitext(os.path.basename(img_path))[0]
+        return region, img_id
+
     def _precompute_region_boundaries(self):
         """Precompute region boundaries for vectorized operations."""
         # Extract only salient regions for faster processing
@@ -207,51 +221,53 @@ class MGRSImageDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.files)
+        
+    def _compute_label(self, lat_lon_path: str) -> torch.Tensor:
+        with np.load(lat_lon_path, mmap_mode='r') as lat_lon_data:
+            start = time.time()
+            lat_lon_array = lat_lon_data['lat_lon']  # shape: (H, W, 2)
+            end = time.time()
+            print(f"Loaded lat/lon data in {end - start:.4f} seconds")
+            total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
+            lat = lat_lon_array[:, :, 0]
+            lon = lat_lon_array[:, :, 1]
+
+            label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
+            start = time.time()
+            # Vectorized processing for each region
+            for region, (min_lon, min_lat, max_lon, max_lat) in self.salient_boundaries.items():
+                mask = (
+                    (lat >= min_lat) & (lat < max_lat) &
+                    (lon >= min_lon) & (lon < max_lon)
+                )
+                pixel_count = mask.sum()
+                if pixel_count > 0:
+                    idx = self.salient_region_indices[region]
+                    fraction = pixel_count.item() / total_pixels
+                    label_vector[idx] = self._custom_sigmoid(fraction)
+            end = time.time()
+            print(f"Computed label vector in {end - start:.4f} seconds")
+            return label_vector
+
+
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img_path, lat_lon_path = self.files[idx]
-        
+        region, img_id = self._parse_region_and_id(img_path)
+
         # Load image
         image = Image.open(img_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
-        print("Transformed Image: ", img_path)
-        
-        # Load lat/lon data
-        with np.load(lat_lon_path, mmap_mode='r') as lat_lon_data:
-            print("Loaded lat/lon data: ", lat_lon_path)
-            start_time = time.time()
-            # Get the lat/lon array directly - no need to create separate copies
-            lat_lon_array = lat_lon_data['lat_lon']
-            print("Accessed lat/lon data: ", lat_lon_path)
-            print("Time taken to access lat/lon data: ", time.time() - start_time)
-            total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
-            
-            # Vectorized approach to count pixels in each region
-            region_counts = {}
-            
-            # Only process salient regions instead of all regions
-            for region, (min_lon, min_lat, max_lon, max_lat) in self.salient_boundaries.items():
-                # Create masks for lat/lon within region bounds using the original array
-                lat_mask = (lat_lon_array[:, :, 0] >= min_lat) & (lat_lon_array[:, :, 0] < max_lat)
-                lon_mask = (lat_lon_array[:, :, 1] >= min_lon) & (lat_lon_array[:, :, 1] < max_lon)
-                
-                # Combined mask for pixels in this region
-                region_mask = lat_mask & lon_mask
-                
-                # Count pixels in this region
-                pixel_count = np.sum(region_mask)
-                if pixel_count > 0:
-                    region_counts[region] = pixel_count
-            
-            # Create multi-hot encoded vector with sigmoid transformation
-            label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
-            for region, count in region_counts.items():
-                if region in self.salient_region_indices:
-                    # Calculate fraction of pixels in this region
-                    fraction = count / total_pixels
-                    # Apply sigmoid transformation
-                    idx = self.salient_region_indices[region]
-                    label_vector[idx] = self._custom_sigmoid(fraction)
-        
+
+        # Try loading label
+        if img_id in self.region_label_cache[region]:
+            print(f"Loading label from cache for {img_id}")
+            label_vector = torch.from_numpy(self.region_label_cache[region][img_id]).float()
+        else:
+            label_vector = self._compute_label(lat_lon_path)
+            vec_np = label_vector.numpy()
+            self.region_label_cache[region][img_id] = vec_np
+            self.region_label_updated[region] = True
+
         return image, label_vector

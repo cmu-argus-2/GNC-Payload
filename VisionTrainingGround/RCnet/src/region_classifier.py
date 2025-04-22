@@ -174,27 +174,27 @@ class TrainRegionClassifier(BaseRegionClassifier):
             train_dataset,
             batch_size=8,
             shuffle=True,
-            num_workers=16,
-            pin_memory=True,
-            persistent_workers=True
+            num_workers=0, # Do not use multiple workers, we hit I/O limits on the HDD
+            pin_memory=False,
+            # persistent_workers=True
         )
         
         self.val_loader = DataLoader(
             val_dataset,
             batch_size=8,
             shuffle=False,
-            num_workers=16,
-            pin_memory=True,
-            persistent_workers=True
+            num_workers=0,
+            pin_memory=False,
+            # persistent_workers=True
         )
         
         self.test_loader = DataLoader(
             test_dataset,
             batch_size=8,
             shuffle=False,
-            num_workers=16,
-            pin_memory=True,
-            persistent_workers=True
+            num_workers=0,
+            pin_memory=False,
+            # persistent_workers=True
         )
 
         print(f"Train dataset size: {len(train_dataset)}")
@@ -264,12 +264,18 @@ class TrainRegionClassifier(BaseRegionClassifier):
             wandb.log({"epoch": epoch, "loss": epoch_loss})
             self.plotter.update_loss(epoch_loss)
 
-            if epoch % 2 == 0:
-                self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
-                self.validate()
+            # if epoch % 2 == 0:
+            self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
+            self.validate()
             if epoch == epochs - 1:
                 test_accuracy = self.evaluate()
                 wandb.log({"test_accuracy": test_accuracy})
+
+            for region, was_updated in self.train_loader.dataset.region_label_updated.items():
+                if was_updated:
+                    cache_path = os.path.join(self.train_loader.dataset.root_dir, region, "vector_labels.npz")
+                    np.savez(cache_path, **self.train_loader.dataset.region_label_cache[region])
+                    self.train_loader.dataset.region_label_updated[region] = False  # Reset flag
 
         if self.save_plot_flag:
             self.plotter.save_plot(self.save_plot_path)
