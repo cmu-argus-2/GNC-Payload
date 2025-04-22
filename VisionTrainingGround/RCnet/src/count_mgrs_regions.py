@@ -100,7 +100,7 @@ def setup_region_dir(region_id: str, overwrite: bool, resume: bool) -> bool:
             os.remove(os.path.join(region_dir, file_name))
         return True
 
-    return False
+    return True
 
 
 def count_mgrs_regions(region_id: str, file_prefix: str) -> None:
@@ -111,17 +111,20 @@ def count_mgrs_regions(region_id: str, file_prefix: str) -> None:
     :param file_prefix: The file prefix for the geotagged image.
     """
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    lat_lon_path = os.path.join(training_dir, region_id, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}")
+    lat_lon_path = os.path.join(
+        training_dir, region_id, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"
+    )
     with np.load(lat_lon_path) as data:
         lat_lon = data["lat_lon"]
 
     mgrs_regions = calculate_mgrs_zones(lat_lon)
     present_regions = np.unique(mgrs_regions)
     counts = {
-        str(region, encoding="ascii"): np.sum(mgrs_regions == region) for region in present_regions
+        str(region, encoding="ascii"): int(np.sum(mgrs_regions == region))
+        for region in present_regions
     }
 
-    output_path = os.path.join(training_dir, region_id, f"{region_id}{MGRS_COUNTS_SUFFIX}")
+    output_path = os.path.join(training_dir, region_id, f"{file_prefix}{MGRS_COUNTS_SUFFIX}")
     with open(output_path, "w") as f:
         json.dump(counts, f, indent=4)
 
@@ -138,7 +141,9 @@ def main() -> None:
 
     for region in tqdm(regions, desc="Setting up region directories"):
         if not setup_region_dir(region, args.overwrite, args.resume):
-            print(f"Output files for {region} already exist. Set --overwrite to clear any existing data.")
+            print(
+                f"Output files for {region} already exist. Set --overwrite to clear any existing data."
+            )
             return
 
     def get_requests_generator() -> Generator[Tuple[str, str], None, None]:
@@ -151,7 +156,7 @@ def main() -> None:
 
             file_prefixes_generator = (
                 file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
-                for file_name in os.listdir(region_dir)
+                for file_name in sorted(os.listdir(region_dir))
                 if file_name.endswith(GeotaggedImage.LAT_LON_SUFFIX)
             )
             if args.resume:
@@ -166,8 +171,8 @@ def main() -> None:
             for file_prefix in file_prefixes_generator:
                 yield region, file_prefix
 
+    total_requests = sum(1 for _ in get_requests_generator())
     if args.num_processes > 1:
-        total_requests = sum(1 for _ in get_requests_generator())
         with Pool(args.num_processes) as pool:
             list(
                 tqdm(
@@ -181,7 +186,13 @@ def main() -> None:
                 )
             )
     else:
-        list(starmap(count_mgrs_regions, get_requests_generator()))
+        list(
+            tqdm(
+                starmap(count_mgrs_regions, get_requests_generator()),
+                desc="Counting MGRS regions",
+                total=total_requests,
+            )
+        )
 
 
 if __name__ == "__main__":
