@@ -429,18 +429,19 @@ def main():
     Main function to process multiple regions and generate results.
     """
     # Base paths
-    base_dir = "/home/argus/Arvind/GNC-Payload/VisionTrainingGround/LD"
+    base_dir = "/mnt/sdb2/training2/" # "/home/argus/Arvind/GNC-Payload/VisionTrainingGround/LD"
     output_dir = base_dir + "/error_analysis_results"
     config = load_config()
-    regions = config["vision"]["salient_mgrs_region_ids"]
+    # regions = config["vision"]["salient_mgrs_region_ids"]
+    regions = ["10S"]
     print(f"Loaded {len(regions)} regions from config")
     print(f"Regions to analyze: {', '.join(regions)}")
     # Collect stats for each region
     all_stats = {}
     for region in regions:
-        # Construct paths for this region
-        data_path = os.path.join(base_dir, "datasets" ,region + "_dataset", "dataset.yaml")
-        model_path = os.path.join(base_dir, "runs", "yolov8x_" + region + "_n100" , "weights", "best.pt")
+        # Construct paths for this region sftp://172.24.58.65/mnt/sdb2/training2/10S/LD_training
+        data_path = os.path.join(base_dir ,region, "LD_training", "dataset.yaml")
+        model_path = os.path.join(base_dir, region, "yolo_training_results_" + region, "yolo_training_results_10S_1745206457.2350676", "weights", "best.pt")
         
         # Skip if files don't exist
         if not os.path.exists(data_path):
