@@ -152,7 +152,7 @@ class LandmarkDetections:
             pixel_coordinates=np.row_stack([det.pixel_coordinates for det in detections]),
             latlons=np.row_stack([det.latlons for det in detections]),
             class_ids=np.concatenate([det.class_ids for det in detections]),
-            region_ids=np.concatenate([d.region_ids for d in detections]),
+            region_ids=np.concatenate([det.region_ids for det in detections]),
             confidences=np.concatenate([det.confidences for det in detections]),
         )
 
