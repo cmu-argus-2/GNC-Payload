@@ -134,6 +134,8 @@ class CameraModel:
         # since it'll be cached anyway, we can just look up the desired values
         ray_directions_body = self.ray_directions_body()
         u, v = pixel_coords.T
+        u = np.clip(u, 0, CameraModel.IMAGE_WIDTH - 1)
+        v = np.clip(v, 0, CameraModel.IMAGE_HEIGHT - 1)
 
         # Get integer and fractional parts
         u0 = np.floor(u).astype(int)
