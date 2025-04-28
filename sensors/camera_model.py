@@ -123,6 +123,7 @@ class CameraModel:
     def pixel_to_bearing_unit_vector(self, pixel_coords: np.ndarray) -> np.ndarray:
         """
         Converts pixel coordinates to bearing unit vectors in the body frame.
+        Note that the output will be incorrect for any pixel coordinates outside the image bounds.
 
         Parameters:
             pixel_coords: An array of shape (N, 2) with pixel coordinates.
