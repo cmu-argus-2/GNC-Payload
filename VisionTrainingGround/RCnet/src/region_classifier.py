@@ -172,7 +172,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         # Create data loaders
         self.train_loader = DataLoader(
             train_dataset,
-            batch_size=8,
+            batch_size=128,
             shuffle=True,
             num_workers=0, # Do not use multiple workers, we hit I/O limits on the HDD
             pin_memory=False,
@@ -181,7 +181,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         
         self.val_loader = DataLoader(
             val_dataset,
-            batch_size=8,
+            batch_size=128,
             shuffle=False,
             num_workers=0,
             pin_memory=False,
@@ -190,7 +190,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         
         self.test_loader = DataLoader(
             test_dataset,
-            batch_size=8,
+            batch_size=128,
             shuffle=False,
             num_workers=0,
             pin_memory=False,
@@ -270,12 +270,6 @@ class TrainRegionClassifier(BaseRegionClassifier):
             if epoch == epochs - 1:
                 test_accuracy = self.evaluate()
                 wandb.log({"test_accuracy": test_accuracy})
-
-            for region, was_updated in self.train_loader.dataset.region_label_updated.items():
-                if was_updated:
-                    cache_path = os.path.join(self.train_loader.dataset.root_dir, region, "vector_labels.npz")
-                    np.savez(cache_path, **self.train_loader.dataset.region_label_cache[region])
-                    self.train_loader.dataset.region_label_updated[region] = False  # Reset flag
 
         if self.save_plot_flag:
             self.plotter.save_plot(self.save_plot_path)
