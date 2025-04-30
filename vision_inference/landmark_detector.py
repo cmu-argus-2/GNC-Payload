@@ -172,7 +172,7 @@ class LandmarkDetector:
         """
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
         models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.region_id = region_id
         try:
             self.model = YOLO(
@@ -184,6 +184,8 @@ class LandmarkDetector:
         except Exception as e:
             Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
         Logger.log("INFO", f"Model device: {self.model.device}")
 
@@ -212,7 +214,6 @@ class LandmarkDetector:
             The relative path to the bounding box coordinates file.
         """
         return os.path.join(region_id, "bounding_boxes.csv")
-
 
     @staticmethod
     def load_ground_truth(ground_truth_path: str) -> np.ndarray:
