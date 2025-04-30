@@ -14,8 +14,7 @@ from tqdm import tqdm
 import pandas as pd
 from PIL import Image
 from utils.config_utils import load_config
-from pathlib import Path
-
+import glob
 
 def read_ground_truth(label_path, img_size):
     """
@@ -432,16 +431,23 @@ def main():
     base_dir = "/mnt/sdb2/training2/" # "/home/argus/Arvind/GNC-Payload/VisionTrainingGround/LD"
     output_dir = base_dir + "/error_analysis_results"
     config = load_config()
-    # regions = config["vision"]["salient_mgrs_region_ids"]
-    regions = ["10S"]
+    regions = config["vision"]["salient_mgrs_region_ids"]
+    # regions = ["10S"]
     print(f"Loaded {len(regions)} regions from config")
     print(f"Regions to analyze: {', '.join(regions)}")
     # Collect stats for each region
     all_stats = {}
     for region in regions:
-        # Construct paths for this region sftp://172.24.58.65/mnt/sdb2/training2/10S/LD_training
+        # Construct paths for this region
         data_path = os.path.join(base_dir ,region, "LD_training", "dataset.yaml")
-        model_path = os.path.join(base_dir, region, "yolo_training_results_" + region, "yolo_training_results_10S_1745206457.2350676", "weights", "best.pt")
+        model_dir_pattern = os.path.join(base_dir, region, "yolo_training_results_" + region, "*")
+        model_dirs = glob.glob(model_dir_pattern)
+        if len(model_dirs) == 0:
+            print(f"Skipping region {region}: No model directory found")
+            continue
+        model_dir = model_dirs[0]  # assume there is only one
+
+        model_path = os.path.join(model_dir, "weights", "best.pt")
         
         # Skip if files don't exist
         if not os.path.exists(data_path):
