@@ -99,7 +99,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--duration",
         type=float,
-        default=2700,
+        default=3 * 90 * 60,
         help="Duration of the spacecraft mission [s]",
     )
     return parser.parse_args()
