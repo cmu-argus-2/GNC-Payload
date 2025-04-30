@@ -21,6 +21,7 @@ import torch
 import wandb
 from data_loader import MGRSImageDataset as ImageDataset
 from plotter import Plotter
+from sklearn.metrics import ConfusionMatrixDisplay, multilabel_confusion_matrix
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -511,5 +512,27 @@ class TrainRegionClassifier(BaseRegionClassifier):
             print(f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
             print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
             print(f"Total Inf time:{tot_time}")
+            # Generate binary predictions
+            all_preds = (all_features > 0.5).astype(int)
+
+            # Compute per-class confusion matrices
+            conf_matrices = multilabel_confusion_matrix(all_labels, all_preds)
+
+            # Plot and log confusion matrices
+            fig, axs = plt.subplots(nrows=int(np.ceil(len(conf_matrices) / 5)), ncols=5, figsize=(20, 12))
+            axs = axs.flatten()
+            for i, cm in enumerate(conf_matrices):
+                disp = ConfusionMatrixDisplay(cm, display_labels=["0", "1"])
+                disp.plot(ax=axs[i], colorbar=False)
+                axs[i].set_title(self.regions[i])
+            for j in range(i + 1, len(axs)):
+                axs[j].axis('off')
+            plt.tight_layout()
+
+            conf_path = os.path.join(os.path.dirname(output_file), "confusion_matrices.png")
+            plt.savefig(conf_path)
+            plt.close()
+
+            wandb.log({"confusion_matrices": wandb.Image(conf_path)})
 
             return f1_score * 100
