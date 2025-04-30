@@ -139,7 +139,7 @@ def run_landmark_detection(
             detector = LandmarkDetector(region_id=region)
 
             # Run batch detection
-            LD_results = detector.batch_detect_landmarks(
+            LD_results = detector.npy_detect_landmarks(
                 npy_paths=[
                     os.path.join(output_dir, args.name, INPUT_DIR, img_path)
                     for img_path in image_paths
