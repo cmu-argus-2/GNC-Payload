@@ -21,10 +21,9 @@ The script will generate (append in the args.json case) the following contents i
 
         - args.json
 """
-
+import argparse
 import json
 import os
-from argparse import ArgumentParser
 from functools import partial
 from multiprocessing import cpu_count, Pool
 
@@ -41,8 +40,10 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.function_utils import unpack_and_call
 
 
-def parse_args() -> ArgumentParser:
-    parser = ArgumentParser()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the image simulator at periodic intervals along the saved trajectory.",
+    )
     parser.add_argument(
         "--name",
         type=str,
@@ -96,7 +97,7 @@ def generate_image(
     )
 
 
-def image_vis(args) -> None:
+def image_vis(args: argparse.Namespace) -> None:
     """
     Visualize earth for a set of positions and attitudes using all available cameras.
     :param: args
@@ -167,6 +168,4 @@ def image_vis(args) -> None:
 
 
 if __name__ == "__main__":
-
-    args = parse_args()
-    image_vis(args)
+    image_vis(parse_args())
