@@ -33,7 +33,7 @@ import numpy as np
 from brahe.epoch import Epoch
 from tqdm import tqdm
 
-from image_simulation.earth_vis import EarthImageSimulator
+from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
 from utils.brahe_utils import increment_epoch
 from utils.config_utils import USER_CONFIG_PATH, load_config
@@ -84,7 +84,9 @@ def generate_image(
     :param output_dir: The directory to save the generated image.
     """
     earth_image_sim = EarthImageSimulator(
-        geotiff_cache=None, inpaint_blue_marble=True, blue_marble_month=None
+        geotiff_cache=GeoTIFFCache(max_cache_size=0),
+        inpaint_blue_marble=True,
+        blue_marble_month=None,
     )
     camera_model_manager = CameraModelManager()
     camera_model = camera_model_manager[camera_name]
