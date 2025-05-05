@@ -57,6 +57,11 @@ def parse_args() -> argparse.Namespace:
         help="Rate at which measurements should be taken",
     )
     parser.add_argument(
+        "--skip_night",
+        action="store_true",
+        help="Whether to skip generating images that are over the dark half of the Earth.",
+    )
+    parser.add_argument(
         "--num_processes",
         type=int,
         default=int(0.5 * cpu_count()),
@@ -145,7 +150,7 @@ def image_vis(args: argparse.Namespace) -> None:
     requests = []
     for i, state in enumerate(trajectory_gt):
         # Only run the earth image visualizer if it's a measurement step and daytime
-        if i % args.meas_rate == 0 and daytime_gt[i]:
+        if i % args.meas_rate == 0 and (not args.skip_night and daytime_gt[i]):
             curr_epoch = increment_epoch(starting_epoch, i * dt)
             ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
             position_ecef = ecef_R_eci @ state[0:3]
