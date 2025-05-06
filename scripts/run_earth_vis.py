@@ -24,10 +24,11 @@ The script will generate (append in the args.json case) the following contents i
         - args.json
 """
 import argparse
+import gc
 import json
 import os
 from functools import partial
-from multiprocessing import cpu_count, Pool
+from multiprocessing import Pool, cpu_count
 
 import brahe
 import cv2
@@ -46,18 +47,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the image simulator at periodic intervals along the saved trajectory.",
     )
-    parser.add_argument(
-        "--name",
-        type=str,
-        default="test",
-        help="Name of the experiment",
-    )
-    parser.add_argument(
-        "--meas_rate",
-        type=int,
-        default=120,
-        help="Rate at which measurements should be taken",
-    )
+    parser.add_argument("--name", type=str, default="test", help="Name of the experiment")
+    parser.add_argument("--meas_rate", type=int, default=120, help="Measurement rate")
     parser.add_argument(
         "--skip_night",
         action="store_true",
@@ -69,22 +60,24 @@ def parse_args() -> argparse.Namespace:
         default=int(0.8 * cpu_count()),
         help="Number of processes to use for image generation",
     )
-
     return parser.parse_args()
 
 
-def generate_image(
-    position: np.ndarray, attitude: np.ndarray, camera_name: str, index: int, output_dir: str
-) -> None:
-    """
-    Generate an image and lat/lon .npy file for a given position, attitude, and camera model.
+def generate_image(index: int, camera_name: str, output_dir: str, args_json_path: str):
+    # Load only inside worker
+    trajectory = np.load(os.path.join(output_dir, "trajectory_gt.npy"))
+    attitude = np.load(os.path.join(output_dir, "attitude_gt.npy"))
+    with open(args_json_path, "r") as jsonfile:
+        arg_data = json.load(jsonfile)
 
-    :param position: The position of the spacecraft in ECEF coordinates.
-    :param attitude: A numpy array of shape (3, 3) representing the rotation matrix from body to ECEF frame.
-    :param camera_name: The name of the camera model to use.
-    :param index: The index in the trajectory that the image corresponds to.
-    :param output_dir: The directory to save the generated image.
-    """
+    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(arg_data["start_date"]))
+    dt = 1 / arg_data["frequency"]
+
+    curr_epoch = increment_epoch(starting_epoch, index * dt)
+    ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
+    position_ecef = ecef_R_eci @ trajectory[index, 0:3]
+    attitude_matrix = attitude[index]
+
     earth_image_sim = EarthImageSimulator(
         geotiff_cache=GeoTIFFCache(max_cache_size=0),
         inpaint_blue_marble=True,
@@ -93,88 +86,56 @@ def generate_image(
     camera_model_manager = CameraModelManager()
     camera_model = camera_model_manager[camera_name]
 
-    frame, lat_lon = earth_image_sim.simulate_image_for_training(position, attitude, camera_model)
+    frame, lat_lon = earth_image_sim.simulate_image_for_training(
+        position_ecef, attitude_matrix, camera_model
+    )
 
     suffix = f"{index}_{camera_name}"
+    image_dir = os.path.join(output_dir, "images")
+    os.makedirs(image_dir, exist_ok=True)
     cv2.imwrite(
-        os.path.join(output_dir, str(index), f"img_{suffix}.png"),
-        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
+        os.path.join(image_dir, f"img_{suffix}.png"), cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR)
     )
-    np.save(
-        os.path.join(output_dir, str(index), f"lat_lon_{suffix}.npy"),
-        lat_lon,
-    )
+    np.savez_compressed(os.path.join(image_dir, f"lat_lon_{suffix}.npz"), lat_lon=lat_lon)
+    del trajectory, attitude, camera_model, earth_image_sim, frame, lat_lon
+    gc.collect()
 
 
-def image_vis(args: argparse.Namespace) -> None:
-    """
-    Visualize earth for a set of positions and attitudes using all available cameras.
-    :param: args
-    """
+def request_generator(trajectory_len, meas_rate):
+    for i in range(trajectory_len):
+        if i % meas_rate == 0:
+            for camera_name in CameraModelManager.CAMERA_NAMES:
+                yield (i, camera_name)
+
+
+def image_vis(args):
     output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_dir"], args.name)
-    if (
-        not os.path.exists(f"{output_dir}/ground_truth.npz")
-    ):
+    args_json_path = os.path.join(output_dir, "args.json")
+
+    if not os.path.exists(f"{output_dir}/ground_truth.npz"):
         raise FileNotFoundError(
-            f"One of the required files in {args.name} does not exist. Please run the trajectory generation script first."
+            "Missing input files, please run the trajectory generation script first."
         )
-    data = np.load(f"{output_dir}/ground_truth.npz")
-    trajectory_gt = data["trajectory"]
-    attitude_gt = data["attitude"]
-    daytime_gt = data["daytime"]
 
-    try:
-        with open(f"{output_dir}/args.json", "r") as jsonfile:
-            arg_data = json.load(jsonfile)
+    with open(args_json_path, "r") as jsonfile:
+        arg_data = json.load(jsonfile)
 
-    except Exception as e:
-        raise ValueError(f"Error in args.json in {args.name}: {e}")
-
-    # Check that if a name was provided it matches the one in the json file
-    assert (
-        arg_data["name"] == args.name
-    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
-
-    # Store args as part of json
     arg_data["meas_rate"] = args.meas_rate
     arg_data["num_processes"] = args.num_processes
 
-    with open(f"{output_dir}/args.json", "w") as jsonfile:
+    with open(args_json_path, "w") as jsonfile:
         json.dump(arg_data, jsonfile, indent=4)
 
-    # Set the starting epoch and dt based on the args.json file
-    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(arg_data["start_date"]))
-    dt = 1 / arg_data["frequency"]
+    trajectory_len = np.load(f"{output_dir}/ground_truth.npz")["trajectory"].shape[0]
 
-    if not os.path.exists(f"{output_dir}/images"):
-        os.makedirs(f"{output_dir}/images")
+    func = partial(generate_image, output_dir=output_dir, args_json_path=args_json_path)
+    requests = request_generator(trajectory_len, args.meas_rate)
 
-    requests = []
-    for i, state in enumerate(trajectory_gt):
-        # Only run the earth image visualizer if it's a measurement step and daytime
-        if i % args.meas_rate == 0 and (not args.skip_night and daytime_gt[i]):
-            
-            # Get the current epoch and position in ECEF coordinates
-            curr_epoch = increment_epoch(starting_epoch, i * dt)
-            ecef_R_eci = brahe.frames.rECItoECEF(curr_epoch)
-            position_ecef = ecef_R_eci @ state[0:3]
-            
-            # Create the directory for the current timestep images to be stored 
-            os.makedirs(f"{output_dir}/images/{i}", exist_ok=True)
-
-            for camera_name in CameraModelManager.CAMERA_NAMES:
-                requests.append((position_ecef, attitude_gt[i], camera_name, i))
-
-    func = partial(generate_image, output_dir=f"{output_dir}/images")
     with Pool(args.num_processes) as pool:
         list(
             tqdm(
-                pool.imap_unordered(
-                    partial(unpack_and_call, func),
-                    requests,
-                    chunksize=1,
-                ),
-                total=len(requests),
+                pool.imap_unordered(partial(unpack_and_call, func), requests, chunksize=1),
+                total=sum(1 for _ in request_generator(trajectory_len, args.meas_rate)),
                 desc="Generating images",
             )
         )
