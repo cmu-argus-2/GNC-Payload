@@ -54,8 +54,6 @@ def sun_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
     :return: sun gravity acceleration
     """
     return accel_thirdbody_sun(epc=epoch, x_eci=r_sat*1e3) / 1e3
-    # r_sun = brahe.ephemerides.sun_position(epc=epoch) / 1e3
-    # tmp2 = third_body_acceleration(r_sat=r_sat, r_body=r_sun, mu=GM_SUN)
 
 
 def sun_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
@@ -81,9 +79,6 @@ def moon_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
     :return: moon gravity acceleration
     """
     return accel_thirdbody_moon(epc=epoch, x_eci=r_sat*1e3) / 1e3
-    # r_moon = brahe.ephemerides.moon_position(epc=epoch) / 1e3
-    # tmp2 = third_body_acceleration(r_sat=r_sat, r_body=r_moon, mu=GM_MOON)
-    # return tmp
 
 
 def moon_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
