@@ -12,7 +12,7 @@ satellite:
       rw_orientation : [[0,0,1]] # spin axis of each reaction wheel in the body frame
       I_rw : 6.5e-16              # kg.m^2 inertia of each reaction wheel
       m_rw: 0.002                # kg mass of each reaction wheel
-      max_torque : 1e-9          # N.m maximum torque that can be applied by each reaction wheel
+      max_torque : 1e-6          # N.m maximum torque that can be applied by each reaction wheel
       max_speed : 600            # rad/s maximum speed that can be achieved by each reaction wheel
 
       # Magnetorquers
