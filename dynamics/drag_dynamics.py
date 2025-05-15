@@ -9,7 +9,7 @@ from brahe import R_EARTH, Epoch
 from utils.earth_utils import density_harris_priester
 
 REF_HEIGHT = 600  # km
-NOMINAL_DENSITY = 1e-21  # kg/m^3
+NOMINAL_DENSITY = 1e-5  # kg/m^3
 R_EARTH = R_EARTH / 1e3  # km
 
 

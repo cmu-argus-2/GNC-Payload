@@ -271,8 +271,8 @@ class Dynamics:
 
         # Compute J2 either using autodiff or manually
         if self.use_j2 and not np.isclose(np.linalg.norm(x[0:3]), 0):
-            # da_J2_gt_dr = j2_derivative_manual(x[:3])
-            da_J2_gt_dr = j2_jacobian_auto(x[0:3])
+            da_J2_gt_dr = j2_jacobian_manual(x[:3])
+            # da_J2_gt_dr = j2_jacobian_auto(x[0:3])
 
             da_dr += da_J2_gt_dr
 
