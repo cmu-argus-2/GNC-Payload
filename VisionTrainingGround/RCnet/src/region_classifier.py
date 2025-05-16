@@ -21,7 +21,7 @@ import torch
 import wandb
 from data_loader import MGRSImageDataset as ImageDataset
 from plotter import Plotter
-from sklearn.metrics import ConfusionMatrixDisplay, multilabel_confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay,confusion_matrix
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -387,7 +387,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         class_images = {i: [] for i in range(len(self.regions))}  # Store images per class
         tot_time = 0
         with torch.no_grad():
-            for batch in self.test_loader:
+            for batch in tqdm(self.test_loader, desc="Evaluating", leave=False):
                 images, labels = batch
                 images = images.to(self.device)
                 labels = labels.to(self.device)
@@ -513,26 +513,79 @@ class TrainRegionClassifier(BaseRegionClassifier):
             print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
             print(f"Total Inf time:{tot_time}")
             # Generate binary predictions
-            all_preds = (all_features > 0.5).astype(int)
+            # all_preds = (all_features > 0.5).astype(int)
 
-            # Compute per-class confusion matrices
-            conf_matrices = multilabel_confusion_matrix(all_labels, all_preds)
+            # save labels and preds
+            # data = np.load(os.path.join(os.path.dirname(output_file), "predictions.npz"))  # update this path if needed
+            # all_preds = data["predictions"]
+            # all_labels = data["labels"]
 
-            # Plot and log confusion matrices
-            fig, axs = plt.subplots(nrows=int(np.ceil(len(conf_matrices) / 5)), ncols=5, figsize=(20, 12))
-            axs = axs.flatten()
-            for i, cm in enumerate(conf_matrices):
-                disp = ConfusionMatrixDisplay(cm, display_labels=["0", "1"])
-                disp.plot(ax=axs[i], colorbar=False)
-                axs[i].set_title(self.regions[i])
-            for j in range(i + 1, len(axs)):
-                axs[j].axis('off')
-            plt.tight_layout()
+            # num_classes = all_labels.shape[1]
+            # multi_label_cm = np.zeros((num_classes, num_classes), dtype=int)
 
-            conf_path = os.path.join(os.path.dirname(output_file), "confusion_matrices.png")
-            plt.savefig(conf_path)
-            plt.close()
+            # # Iterate over all samples
+            # for true_vec, pred_vec in zip(all_labels, all_preds):
+            #     true_indices = np.where(true_vec == 1)[0]
+            #     pred_indices = np.where(pred_vec == 1)[0]
+            #     for ti in true_indices:
+            #         for pi in pred_indices:
+            #             multi_label_cm[ti, pi] += 1
 
-            wandb.log({"confusion_matrices": wandb.Image(conf_path)})
+            # fig, ax = plt.subplots(figsize=(12, 12))
+            # disp = ConfusionMatrixDisplay(multi_label_cm, display_labels=self.regions)
+            # disp.plot(ax=ax, xticks_rotation=90, cmap='Blues', colorbar=False)
+            # ax.set_title("Multi-label Confusion Matrix")
+            # summary_cm_path = os.path.join(os.path.dirname(output_file), "multi_label_confusion_matrix.png")
+            # plt.savefig(summary_cm_path)
+            # plt.close()
 
-            return f1_score * 100
+            # wandb.log({"multi_label_confusion_matrix": wandb.Image(summary_cm_path)})
+            # cls_10s = self.regions.index("10S")
+            # cls_10t = self.regions.index("10T")
+
+            # def get_group(vec, cls_10s, cls_10t):
+            #     has_10s = vec[cls_10s] == 1
+            #     has_10t = vec[cls_10t] == 1
+            #     if has_10s and has_10t:
+            #         return 2  # both
+            #     elif has_10s:
+            #         return 0  # only 10S
+            #     elif has_10t:
+            #         return 1  # only 10T
+            #     else:
+            #         return 3  # other
+
+            # # Ensure binary
+            # all_preds = (all_preds > 0.5).astype(int)
+            # all_labels = (all_labels > 0.5).astype(int)
+
+            # # Initialize 4x4 matrix
+            # matrix_4x4 = np.zeros((4, 4), dtype=int)
+
+            # for true_vec, pred_vec in zip(all_labels, all_preds):
+            #     gt_group = get_group(true_vec, cls_10s, cls_10t)
+            #     pred_group = get_group(pred_vec, cls_10s, cls_10t)
+            #     matrix_4x4[gt_group, pred_group] += 1
+
+            # row_labels = ["GT: only 10S", "GT: only 10T", "GT: both", "GT: other"]
+            # col_labels = ["Pred: only 10S", "Pred: only 10T", "Pred: both", "Pred: other"]
+
+            # fig, ax = plt.subplots(figsize=(8, 6))
+            # im = ax.imshow(matrix_4x4, cmap='Blues')
+
+            # # Annotate
+            # for i in range(4):
+            #     for j in range(4):
+            #         ax.text(j, i, matrix_4x4[i, j], ha="center", va="center", color="black")
+
+            # ax.set_xticks(np.arange(4))
+            # ax.set_yticks(np.arange(4))
+            # ax.set_xticklabels(col_labels, rotation=45, ha="right")
+            # ax.set_yticklabels(row_labels)
+            # ax.set_title("Custom 4x4 Confusion Matrix (10S vs 10T)")
+            # plt.tight_layout()
+            # plt.savefig("RCnet/results/custom_10s_10t_matrix.png")
+            # plt.show()
+            # wandb.log({"custom_10S_10T_matrix": wandb.Image("RCnet/results/custom_10s_10t_matrix.png")})
+            # # return f1_score * 100
+            # return 0.0  # Placeholder for actual accuracy calculation
