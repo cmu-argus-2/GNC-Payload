@@ -7,12 +7,14 @@ Drag still needs to be treated separately.
 from functools import partial
 from typing import Callable
 
+import brahe
 import numpy as np
 import quaternion
 from brahe.constants import GM_EARTH
 from brahe.epoch import Epoch
 from brahe.orbit_dynamics import gravity, srp
 
+from dynamics.srp_dynamics import srp_acceleration
 from dynamics.drag_dynamics import drag_dynamics
 from dynamics.third_body_dynamics import moon_gravity, sun_gravity
 from utils.math_utils import G
@@ -31,6 +33,7 @@ class BraheDynamics:
         use_drag: bool,
         use_sun_grav: bool,
         use_moon_grav: bool,
+        use_srp: bool,
     ) -> None:
         """
         Initialize the Dynamics class.
@@ -39,24 +42,28 @@ class BraheDynamics:
         :param use_drag: Whether to use drag in the dynamics.
         :param use_sun_grav: Whether to use the sun's gravity in the dynamics.
         :param use_moon_grav: Whether to use the moon's gravity in the dynamics.
+        :param use_srp: Whether to use solar radiation pressure in the dynamics.
         :return: None
         """
         self.use_drag = use_drag
         self.use_sun_grav = use_sun_grav
         self.use_moon_grav = use_moon_grav
+        self.use_srp = use_srp
         self.drag_const = (
             -0.5
             * config["satellite"]["Cd"]
             * config["satellite"]["area"]
             / config["satellite"]["mass"]
         )
+        self.area = config["satellite"]["area"]
+        self.mass = config["satellite"]["mass"]
 
     @property
     def require_epoch(self) -> bool:
         """
         :return: True if the configured perturbations require the current time epoch, False otherwise.
         """
-        return self.use_drag or self.use_sun_grav or self.use_moon_grav
+        return self.use_drag or self.use_sun_grav or self.use_moon_grav or self.use_srp
 
     def RK4(self, x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> np.ndarray:
         """
@@ -126,6 +133,16 @@ class BraheDynamics:
             a_moon_gt = moon_gravity(r_sat=x[0:3], epoch=epoch)
 
             updated_a += a_moon_gt
+
+        # Compute solar radiation pressure
+        if self.use_srp:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute solar radiation pressure")
+            a_srp_gt = srp_acceleration(
+                r_sat=x[0:3], area=self.area, mass=self.mass, epoch=epoch
+            )
+
+            updated_a += a_srp_gt
 
         q_dot = 0.5 * G(q) @ w
 

@@ -106,6 +106,7 @@ def run_simulation(trial) -> None:
         use_drag=True,
         use_sun_grav=True,
         use_moon_grav=True,
+        use_srp=True,
     )
 
     ekf_dynamics = EKFDynamics(
