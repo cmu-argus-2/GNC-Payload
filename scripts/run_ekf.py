@@ -129,14 +129,14 @@ def run_simulation(args) -> None:
             f"One of the required files in {args.name} does not exist. Please run the trajectory generation script first."
         )
 
-    trajectory_gt = np.load(f"output_dir/{args.name}/trajectory_gt.npy")
+    trajectory_gt = np.load(f"output_dir/{args.name}/trajectory_gt.npy") / 1e3  # Convert to km
     attitude_gt = np.load(f"output_dir/{args.name}/attitude_gt.npy")
     # Set the initial rotation matrix to identity
 
     data_manager.push_next_state(trajectory_gt[0], attitude_gt[0])
 
     # Apply error to init_rot and ensure orthonormality
-    noisy_rot = attitude_gt[0] + np.random.normal(0, 1e-2, (3, 3))
+    noisy_rot = attitude_gt[0] + np.random.normal(0, 1e-3, (3, 3))
     noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
 
     # Assert orthonormality
@@ -157,15 +157,15 @@ def run_simulation(args) -> None:
     rot = np.array(angular_velocity)
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(16) * 1e-12
+    Q = np.eye(16) * 1e-16
     # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-9
+    Q[6:9, 6:9] = np.eye(3) * 1e-12
     # Bias uncertainty also larger
-    Q[13:16, 13:16] = np.eye(3) * 1e-9
+    Q[13:16, 13:16] = np.eye(3) * 1e-12
 
     P = np.eye(16)
-    P[0:3, 0:3] *= 5
-    P[3:6, 3:6] *= 5
+    P[0:3, 0:3] *= 5e-3
+    P[3:6, 3:6] *= 5e-3
     P[6:9, 6:9] *= 1e-4
     P[9:10, 9:10] *= 1e-4
     P[10:13, 10:13] *= 1e-4
@@ -173,8 +173,8 @@ def run_simulation(args) -> None:
 
     ekf_dynamics = EKFDynamics(
         config=config,
-        use_drag=False,
-        use_j2=False,
+        use_drag=True,
+        use_j2=True,
         use_j34=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
@@ -188,9 +188,9 @@ def run_simulation(args) -> None:
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=trajectory_gt[0][0:3] + np.random.normal(0, 5000, 3),
-        v=trajectory_gt[0][3:6] + np.random.normal(0, 10, 3),
-        ua=np.random.normal(0, 1e-5, 3) * ua_scale,
+        r=trajectory_gt[0][0:3] + np.random.normal(0, 10, 3),
+        v=trajectory_gt[0][3:6] + np.random.normal(0, 1e-2, 3),
+        ua=np.random.normal(0, 1e-8, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
@@ -216,7 +216,7 @@ def run_simulation(args) -> None:
         data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
 
         if t % meas_rate == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[:3]
+            data_manager.latest_epoch, data_manager.latest_state[:3]*1e3
         ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(

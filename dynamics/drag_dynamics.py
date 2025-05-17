@@ -8,8 +8,9 @@ from brahe import R_EARTH, Epoch
 # pylint: disable=import-error
 from utils.earth_utils import density_harris_priester
 
-REF_HEIGHT = 600e3  # m
-NOMINAL_DENSITY = 1e-13  # kg/m^3
+REF_HEIGHT = 600  # km
+NOMINAL_DENSITY = 1e-5  # kg/m^3
+R_EARTH = R_EARTH / 1e3  # km
 
 
 def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.ndarray:
@@ -23,7 +24,7 @@ def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     :return: drag acceleration
     """
 
-    density = density_harris_priester(x=x, epoch=latest_epoch)
+    density = density_harris_priester(x=x*1e3, epoch=latest_epoch)
     v_norm = np.linalg.norm(x[3:6])
 
     if np.isclose(v_norm, 0):
@@ -55,7 +56,7 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     if np.isclose(v_norm, 0):
         return np.zeros((3, 3))
 
-    density = density_harris_priester(x=x, epoch=latest_epoch)
+    density = density_harris_priester(x=x*1e3, epoch=latest_epoch)
 
     da_drag_dv = density * drag_const * ((np.eye(3) * v_norm) - np.outer(x[3:6], x[3:6]) / v_norm)
 

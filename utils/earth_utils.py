@@ -405,7 +405,7 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
         epoch: Epoch of the satellite state vector.
 
     Returns:
-        Density [kg/m^3].
+        Density [kg/km^3].
     """
 
     # Harris-Priester Constants
@@ -633,8 +633,8 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     # Density computation
     density = d_min + (d_max - d_min) * c_psi2**HP_N_PRM
 
-    # Convert from g/km^3 to kg/m^3
-    density *= 1.0e-12
+    # Convert from g/km^3 to kg/km^3
+    density *= 1.0e-3
 
     # Finished
     return density
