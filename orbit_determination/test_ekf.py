@@ -12,6 +12,7 @@ import numpy as np
 import quaternion
 from brahe.epoch import Epoch
 
+from dynamics.brahe_dynamics import BraheDynamics
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.ekf import EKF
@@ -100,6 +101,14 @@ def run_simulation(trial) -> None:
         use_sun_grav=True,
         use_moon_grav=True,
     )
+    brahe_dynamics = BraheDynamics(
+        config=config,
+        use_drag=True,
+        use_sun_grav=True,
+        use_moon_grav=True,
+        use_srp=True,
+    )
+
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=False,
@@ -156,11 +165,14 @@ def run_simulation(trial) -> None:
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
         gyro_meas, _ = imu.update(w, np.zeros((3)))
         imu_gyro_bias = imu.get_bias()[0]
-
-        next_state = ground_truth_dynamics.perturbed_f(
-            x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
+        x_state = np.concatenate(
+            [x[0:6], quaternion.as_float_array(quaternion.from_rotation_matrix(q))]
         )
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
+
+        next_state = brahe_dynamics.perturbed_f(
+            x=x_state, dt=dt, w=w, epoch=data_manager.latest_epoch
+        )
+        next_quat = quaternion.as_quat_array(next_state[6:10])
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
@@ -314,11 +326,11 @@ def run_simulation(trial) -> None:
 
     # plt.figure()
 
-    # plt.plot(gyro_bias_error)
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Gyro bias error [rad/s]")
-    # plt.title("EKF Gyro Bias Error")
+    plt.plot(gyro_bias_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Gyro bias error [rad/s]")
+    plt.title("EKF Gyro Bias Error")
 
     # plt.figure()
 
@@ -341,7 +353,7 @@ def run_simulation(trial) -> None:
     # plt.ylabel("Drag estimate")
     # plt.title("EKF Drag Estimate")
 
-    # plt.show()
+    plt.show()
 
 
 if __name__ == "__main__":
