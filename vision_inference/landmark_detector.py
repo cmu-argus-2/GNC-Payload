@@ -26,6 +26,7 @@ from typing import Dict, List, Sequence
 import numpy as np
 import torch
 from PIL import Image
+import cv2
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
@@ -324,10 +325,9 @@ class LandmarkDetector:
                     verbose=False,
                 )
                 inference_time = perf_counter() - start_time
-
-                assert len(results_sequence) == len(
-                    frames
-                ), "Mismatch between number of frames and results."
+                if len(results_sequence) != len(batch):
+                    Logger.log("ERROR", f"Mismatch: YOLO returned {len(results_sequence)} results for a batch of {len(batch)}")
+                    continue
 
                 landmark_detections.extend(
                     [
@@ -347,17 +347,17 @@ class LandmarkDetector:
             )
 
             # Logging details for each detected landmark
-            for frame, detections in zip(frames, landmark_detections):
-                Logger.log(
-                    "INFO",
-                    f"{frame.debug_str} class_id\tpixel_coordinates\tlatlon\tconfidence",
-                )
-                for (x, y), (lat, lon), class_id, confidence in detections:
-                    Logger.log(
-                        "INFO",
-                        f"{frame.debug_str} "
-                        f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
-                    )
+            # for frame, detections in zip(frames, landmark_detections):
+            #     Logger.log(
+            #         "INFO",
+            #         f"{frame.debug_str} class_id\tpixel_coordinates\tlatlon\tconfidence",
+            #     )
+                # for (x, y), (lat, lon), class_id, region_id, confidence in detections:
+                #     Logger.log(
+                #         "INFO",
+                #         f"{frame.debug_str} "
+                #         f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
+                #     )
 
             return landmark_detections
 
@@ -365,15 +365,17 @@ class LandmarkDetector:
             Logger.log("ERROR", f"Detection process failed: {e}")
             raise
 
-    def npy_detect_landmarks(
+
+    def png_detect_landmarks(
         self,
-        npy_paths: List[str],
+        png_paths: List[str],
+        batch_size: int = 1,
     ) -> Dict[str, LandmarkDetections]:
         """
-        Perform GPU-accelerated landmark detection on multiple NumPy (.npy) files.
+        Perform GPU-accelerated landmark detection on multiple PNG image files.
 
         Args:
-            npy_paths: List of paths to numpy files containing images for landmark detection
+            png_paths: List of paths to PNG files for landmark detection
 
         Returns:
             Dictionary mapping file paths to their corresponding LandmarkDetections
@@ -385,28 +387,36 @@ class LandmarkDetector:
 
         results = {}
 
-        Logger.log("INFO", f"Processing {len(npy_paths)} NumPy files in batches...")
+        Logger.log("INFO", f"Processing {len(png_paths)} PNG files in batches...")
 
         # Load and prepare images
         images = []
         valid_paths = []
 
-        for npy_path in npy_paths:
+        for png_path in png_paths:
             try:
-                images.append(np.load(npy_path))
-                valid_paths.append(os.path.basename(npy_path))
+                # Use cv2 to read PNG files
+                image = cv2.imread(png_path)
+                if image is None:
+                    raise ValueError(f"Failed to load image: {png_path}")
+                # Convert from BGR to RGB for consistency with the rest of the pipeline
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                images.append(image)
+                valid_paths.append(os.path.basename(png_path))
             except Exception as e:
-                Logger.log("ERROR", f"Error loading NumPy file {npy_path}: {e}")
-                results[os.path.basename(npy_path)] = LandmarkDetections.empty()
+                Logger.log("ERROR", f"Error loading PNG file {png_path}: {e}")
+                results[os.path.basename(png_path)] = LandmarkDetections.empty()
 
         if len(images) == 0:
-            raise ValueError("None of the NumPy files could be loaded!")
-
+            raise ValueError("None of the PNG files could be loaded!")
+        for img in images:
+            assert img.ndim == 3 and img.shape[2] == 3, "Image must be RGB"
         frames = [
             Frame(image=image, camera_name="x+", timestamp=datetime.now())
             for image in images
         ]
-        landmark_detections = self.detect_landmarks(frames)
+        
+        landmark_detections = self.detect_landmarks(frames, batch_size=batch_size)
 
         results.update({
             valid_path: landmark_detection
@@ -418,7 +428,7 @@ class LandmarkDetector:
         total_landmarks = sum(len(detections) for detections in results.values())
 
         Logger.log(
-            "INFO", f"Batch processing complete: {len(results)}/{len(npy_paths)} files processed"
+            "INFO", f"Batch processing complete: {len(results)}/{len(png_paths)} files processed"
         )
         Logger.log(
             "INFO",

@@ -194,9 +194,18 @@ class RegionClassifier:
             reg2img = defaultdict(list)
             batch_start_time = perf_counter()
 
-            # Process each batch
+            # Import tqdm for progress tracking
+            from tqdm import tqdm
+            total_batches = len(self.dataloader)
+            
+            # Process each batch with tqdm progress bar
             with torch.no_grad():
-                for batch_idx, (images, paths) in enumerate(self.dataloader):
+                for batch_idx, (images, paths) in tqdm(
+                    enumerate(self.dataloader), 
+                    total=total_batches,
+                    desc="Classifying regions",
+                    unit="batch"
+                ):
                     images = images.to(self.device)
 
                     # Forward pass
@@ -214,16 +223,10 @@ class RegionClassifier:
                             img2reg[image_name].append(region)
                             reg2img[region].append(image_name)
 
-                    if (batch_idx + 1) % 5 == 0:
-                        Logger.log(
-                            "INFO",
-                            f"Processed {(batch_idx + 1) * self.dataloader.batch_size} images",
-                        )
-
             total_time = perf_counter() - batch_start_time
             Logger.log(
                 "INFO",
-                f"Batch classification completed. Processed {len(images)} images, and classified {len(img2reg)} of them in {total_time:.2f} seconds",
+                f"Batch classification completed. Processed {len(self.dataset)} images, and classified {len(img2reg)} of them in {total_time:.2f} seconds",
             )
             return reg2img, img2reg
 

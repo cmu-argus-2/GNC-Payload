@@ -15,23 +15,15 @@ The script expects to find the following contents in the output directory:
 The script will generate (append in the args.json case) the following contents in the output directory:
 - /output_dir
     - /experiment_name
-        - ekf_state_data_.pkl
         - args.json
-
-The state data contains a dictionary with the following fields:
-    - timestep: The time step
-    - prior_position: The prior position estimate
-    - prior_velocity: The prior velocity estimate
-    - prior_attitude: The prior attitude estimate
-    - prior_covariance: The prior covariance estimate
-    - posterior_position: The posterior position estimate
-    - posterior_velocity: The posterior velocity estimate
-    - posterior_attitude: The posterior attitude estimate
-    - posterior_covariance: The posterior covariance estimate
-    - gyro_bias_estimate: The estimated gyro bias
-    - gyro_bias: The actual gyro bias
-    - unmodelled_acceleration: The unmodelled acceleration estimate
-    - drag_scalar_estimate: The drag scalar estimate
+        - /ekf_data
+            - pos_state
+            - vel_state
+            - ua_state
+            - pos_cov_trace
+            - gyro_bias_state
+            - actual_bias
+            - drag_scalar_state
 
 """
 
@@ -44,19 +36,20 @@ from time import time
 import brahe
 import numpy as np
 import quaternion
-from brahe.epoch import Epoch
+# from brahe import Epoch
 
 from dynamics.ekf_dynamics import EKFDynamics
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
+    SimulatedMLStoredLandmarkBearingSensor,
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
-from utils.config_utils import load_config
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.orbit_utils import is_over_daytime
 
 # pylint: disable=too-many-locals
@@ -87,9 +80,11 @@ def run_simulation(args) -> None:
     :return: None
     """
 
+    user_config = load_config(USER_CONFIG_PATH)
+    output_basedir = os.path.join(user_config["output_dir"], args.name)
     # Load json
     try:
-        with open(f"output_dir/{args.name}/args.json", "r") as jsonfile:
+        with open(os.path.join(output_basedir,"args.json"),"r") as jsonfile:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
@@ -115,22 +110,23 @@ def run_simulation(args) -> None:
     config["mission"]["duration"] = mission_duration  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
-    starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
+    starting_epoch = brahe.Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
-    landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
+    landmark_bearing_sensor = SimulatedMLStoredLandmarkBearingSensor(output_basedir)
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    if not os.path.exists(f"output_dir/{args.name}/trajectory_gt.npy") or not os.path.exists(
-        f"output_dir/{args.name}/attitude_gt.npy"
-    ):
+    trajectory_dir = os.path.join(output_basedir,"trajectory_gt.npy")
+    attitude_dir = os.path.join(output_basedir,"attitude_gt.npy")
+
+    if not os.path.exists(trajectory_dir) or not os.path.exists(attitude_dir):
         raise FileNotFoundError(
             f"One of the required files in {args.name} does not exist. Please run the trajectory generation script first."
         )
 
-    trajectory_gt = np.load(f"output_dir/{args.name}/trajectory_gt.npy")
-    attitude_gt = np.load(f"output_dir/{args.name}/attitude_gt.npy")
+    trajectory_gt = np.load(trajectory_dir)
+    attitude_gt = np.load(attitude_dir)
     # Set the initial rotation matrix to identity
 
     data_manager.push_next_state(trajectory_gt[0], attitude_gt[0])
@@ -201,6 +197,15 @@ def run_simulation(args) -> None:
         gyro_bias_scale=gyro_bias_scale,
     )
 
+    pos_state = []
+    vel_state = []
+    ua_state = []
+    pos_cov_trace = []
+    gyro_bias_state = []
+    actual_bias = []
+    drag_scalar_state = []
+
+
     for t in range(0, N - 1):
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
         # One rotation every 10 seconds to model a relatively slow wobble
@@ -242,24 +247,31 @@ def run_simulation(args) -> None:
         else:
             ekf.no_measurement()
 
-        state_data = {
-            "timestep": t,
-            "prior_position": ekf.r_p,
-            "prior_velocity": ekf.v_p,
-            "prior_attitude": ekf.q_p,
-            "prior_covariance": ekf.P_p,
-            "posterior_position": ekf.r_m,
-            "posterior_velocity": ekf.v_m,
-            "posterior_attitude": ekf.q_m,
-            "posterior_covariance": ekf.P_m,
-            "gyro_bias_estimate": ekf.w_b,
-            "gyro_bias": imu_gyro_bias,
-            "unmodelled_acceleration": ekf.ua,
-            "drag_scalar_estimate": ekf.drag_est,
-        }
-        # Save the state data to a file
-        with open(f"output_dir/{args.name}/ekf_state_data_.pkl", "ab") as file:
-            pickle.dump(state_data, file)
+        pos_state.append(ekf.r_m)
+        vel_state.append(ekf.v_m)
+        ua_state.append(ekf.ua/ua_scale)
+        pos_cov_trace.append(np.trace(ekf.P_m[0:3,0:3]))
+        gyro_bias_state.append(ekf.w_b / gyro_bias_scale)
+        actual_bias.append(imu_gyro_bias)
+        drag_scalar_state.append(ekf.drag_est)
+
+    pos_state = np.array(pos_state)
+    vel_state = np.array(vel_state)
+    ua_state = np.array(ua_state)
+    pos_cov_trace = np.array(pos_cov_trace)
+    gyro_bias_state = np.array(gyro_bias_state)
+    actual_bias = np.array(actual_bias)
+    drag_scalar_state = np.array(drag_scalar_state)
+
+    ekf_dir = os.path.join(output_basedir,"ekf_data")
+    os.makedirs(ekf_dir, exist_ok=True)
+    np.save(os.path.join(ekf_dir,"pos_state.npy"),pos_state)
+    np.save(os.path.join(ekf_dir,"vel_state.npy"),vel_state)
+    np.save(os.path.join(ekf_dir,"ua_state.npy"),ua_state)
+    np.save(os.path.join(ekf_dir,"pos_cov_trace.npy"),pos_cov_trace)
+    np.save(os.path.join(ekf_dir,"gyro_bias_state.npy"),gyro_bias_state)
+    np.save(os.path.join(ekf_dir,"actual_bias.npy"),actual_bias)
+    np.save(os.path.join(ekf_dir,"drag_scalar_state.npy"),drag_scalar_state)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
