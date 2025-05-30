@@ -53,6 +53,7 @@ from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.orbit_utils import is_over_daytime
+from vision_inference.logger import Logger
 
 # pylint: disable=too-many-locals
 
@@ -243,8 +244,8 @@ def run_simulation(args) -> None:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
-            print(f"Total measurements so far: {data_manager.measurement_count}")
-            print(f"Completion: {100 * t / N:.2f}%")
+            Logger.log("INFO", f"Total measurements so far: {data_manager.measurement_count}")
+            Logger.log("INFO", f" Run completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -259,7 +260,7 @@ def run_simulation(args) -> None:
                 )
             else:
                 ekf.no_measurement()
-                print("No measurements made in measurement step")
+                Logger.log("INFO", "No measurements made in measurement step")
         else:
             ekf.no_measurement()
 

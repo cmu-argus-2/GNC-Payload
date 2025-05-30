@@ -4,13 +4,6 @@
 # Jetson would receive as input in the form of camera imagery and ground-truth states that we use in
 # the EKF.
 
-# Process: Run dynamics, run vision 
-# Source conda
-# source ~/.bashrc
-# conda init bash
-# TODO: Set the correct conda environment for the Jetson
-# conda activate sat_env_vision
-
 # filepath: /home/argus/Arvind/GNC-Payload/scripts/run_prep.sh
 bash -i -c "
     conda activate sat_env_vision

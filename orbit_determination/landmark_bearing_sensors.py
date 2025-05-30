@@ -18,6 +18,7 @@ from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
 from vision_inference.landmark_detector import LandmarkDetector
+from vision_inference.logger import Logger
 from vision_inference.ml_pipeline import MLPipeline
 
 
@@ -365,7 +366,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             with np.load(file_path) as data:
                 bearing_vectors = data["bearing_vectors"]
                 landmark_positions = data["landmark_positions"]
-                print(f"Loaded bearing vectors for camera {camera_name} at timestep {timestep}: {landmark_positions.shape}")
+                Logger.log("INFO", f"Loaded bearing vectors with shape: {bearing_vectors.shape} for camera {camera_name} at timestep {timestep}")
 
             if bearing_vectors.ndim == 1:
                 bearing_vectors = np.expand_dims(bearing_vectors, axis=0)
@@ -374,7 +375,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             return bearing_vectors, landmark_positions
 
         except:
-            print(f"No measurements found for camera {camera_name} at timestep {timestep}")
+            Logger.log("INFO", " No measurements found for camera {camera_name} at timestep {timestep}.")
             return np.zeros((0,3)), np.zeros((0,3))
 
 

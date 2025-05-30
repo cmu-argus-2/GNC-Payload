@@ -59,7 +59,7 @@ class RegionClassifier:
             # Load Custom model weights if required
             if load_weights:
                 self.model.load_state_dict(
-                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
+                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device, weights_only=False)
                 )
                 self.model.eval()
                 Logger.log("INFO", "Model loaded successfully.")
