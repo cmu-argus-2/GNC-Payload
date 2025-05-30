@@ -16,27 +16,30 @@ What the script expects to find:
 - /output_dir
     - /experiment_name
         - /images                  # Input directory containing camera images
-            - img_<timestep>_<camera_name>.npy
-            - img_<timestep>_<camera_name>.npy
-            - ...
+            - <timestep>
+                - img_<timestep>_<camera_name>.npy
+                - img_<timestep>_<camera_name>.npy
+                - ...
 
 What the script will generate:
 - /output_dir
     - /experiment_name
         - /vis_inf
-            - /region_classification
-                - region_to_images.json
-                - image_to_regions.json
-            - /landmark_detections
-                - inf_<timestep>_<camera_name>.npz
-            - /bearing_vectors
-                - landmarks_<timestep>_<camera_name>.npz
+            -/<timestep>
+                - /region_classification
+                    - region_to_images.json
+                    - image_to_regions.json
+                - /landmark_detections
+                    - inf_<timestep>_<camera_name>.npz
+                - /bearing_vectors
+                    - landmarks_<timestep>_<camera_name>.npz
 
 How to use:
-    python run_vision.py --name <experiment_name> [--num_workers <n>] [--batch_ld <n>] [--batch_rc <n>]
+    python run_vision.py --name <experiment_name> --timestep <timestep> [--num_workers <n>] [--batch_ld <n>] [--batch_rc <n>]
 
 Required arguments:
     --name: Experiment name used to organize inputs and outputs
+    --timestep: Timestep index to process images for
 
 Optional arguments:
     --num_workers: Number of worker processes for data loading (default: 0)
@@ -94,7 +97,7 @@ def run_region_classification(args: argparse.Namespace, output_dir: str) -> Dict
     classifier = RegionClassifier(load_weights=True)
 
     # Prepare image directory path
-    images_dir = os.path.join(output_dir, args.name, INPUT_DIR)
+    images_dir = os.path.join(output_dir, args.name, INPUT_DIR, str(args.timestep))
 
     # Create image directory if it doesn't exist
     if not os.path.exists(images_dir):
@@ -141,7 +144,7 @@ def run_landmark_detection(
             # Run batch detection
             LD_results = detector.png_detect_landmarks(
                 png_paths=[
-                    os.path.join(output_dir, args.name, INPUT_DIR, img_path)
+                    os.path.join(output_dir, args.name, INPUT_DIR, str(args.timestep), img_path)
                     for img_path in image_paths
                 ],
                 batch_size=args.batch_ld,
@@ -203,7 +206,7 @@ def save_region_classification_results(
     RC_reg2img: Dict[str, List[str]], 
     RC_img2reg: Dict[str, List[str]], 
     output_dir: str, 
-    name: str
+    args: argparse.Namespace
 ) -> None:
     """
     Save region classification results to files.
@@ -212,9 +215,9 @@ def save_region_classification_results(
         RC_reg2img: Dict mapping regions to image paths
         RC_img2reg: Dict mapping image paths to regions
         output_dir: Base output directory
-        name: Experiment name for subdirectory
+        args: Command line arguments
     """
-    save_dir = os.path.join(output_dir, name, OUTPUT_DIR, "region_classification")
+    save_dir = os.path.join(output_dir, args.name, OUTPUT_DIR, str(args.timestep), "region_classification")
     os.makedirs(save_dir, exist_ok=True)
 
     # Save both dictionaries as JSON
@@ -230,7 +233,7 @@ def save_region_classification_results(
 def save_landmark_detections(
     LD_results: Dict[str, LandmarkDetections], 
     output_dir: str, 
-    name: str
+    args: argparse.Namespace
 ) -> None:
     """
     Save landmark detection results to binary files efficiently.
@@ -238,12 +241,12 @@ def save_landmark_detections(
     Args:
         LD_results: Dict mapping image filename to LandmarkDetections object
         output_dir: Base output directory
-        name: Experiment name for subdirectory
+        args: Command line arguments
 
     Returns:
         None
     """
-    save_dir = os.path.join(output_dir, name, OUTPUT_DIR, "landmark_detections")
+    save_dir = os.path.join(output_dir, args.name, OUTPUT_DIR, str(args.timestep), "landmark_detections")
     os.makedirs(save_dir, exist_ok=True)
 
     for img_name, detections in LD_results.items():
@@ -289,7 +292,7 @@ def save_bearing_vectors_and_positions(
         camera_name: Camera name (e.g., "x+")
     """
     # Create the output directory structure
-    bearing_dir = os.path.join(output_dir, experiment_name, OUTPUT_DIR, "bearing_vectors")
+    bearing_dir = os.path.join(output_dir, experiment_name, OUTPUT_DIR, str(timestep), "bearing_vectors")
     os.makedirs(bearing_dir, exist_ok=True)
 
     # Create filename based on the timestep and camera name
@@ -332,6 +335,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--batch_rc", type=int, default=8, help="Batch size for region classification inference"
     )
+
+    parser.add_argument(
+        "--timestep",
+        type=int,
+        required=True,
+        help="Timestep index to process images for",
+    )
     return parser.parse_args()
 
 
@@ -360,9 +370,9 @@ def main():
     #         if i >= 4:
     #             break
 
-    save_region_classification_results(RC_reg2img, RC_img2reg, config["output_dir"], args.name)
+    save_region_classification_results(RC_reg2img, RC_img2reg, config["output_dir"], args)
 
-    rc_dir = os.path.join(output_basedir, OUTPUT_DIR, "region_classification")
+    rc_dir = os.path.join(output_basedir, OUTPUT_DIR, str(args.timestep), "region_classification")
 
     # Load region to images mapping
     with open(os.path.join(rc_dir, "region_to_images.json"), "r") as f:
@@ -392,7 +402,7 @@ def main():
                 )
                 break
 
-    save_landmark_detections(LD_results, config["output_dir"], args.name)
+    save_landmark_detections(LD_results, config["output_dir"], args)
 
     # Initialize camera models
     camera_manager = CameraModelManager()

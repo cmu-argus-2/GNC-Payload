@@ -19,9 +19,10 @@ day (1) or night (0) side of the earth. We also store the arguments used to gene
 
 - /output_dir
     - /experiment_name
-        - trajectory_gt.npy
-        - attitude_gt.npy
-        - daytime_gt.npy
+        - ground_truth.npz
+            - trajectory
+            - attitude
+            - daytime
         - args.json
 """
 
@@ -39,6 +40,7 @@ from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.config_utils import load_config, USER_CONFIG_PATH
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state, is_over_daytime
+from vision_inference.logger import Logger
 
 
 def parse_args() -> argparse.Namespace:
@@ -171,12 +173,16 @@ def generate_trajectory(args: argparse.Namespace) -> None:
     attitude = data_manager.eci_Rs_body
     daytime = np.array(daytime)
 
-    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_directory"], args.name)
+    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_dir"], args.name)
     if not os.path.exists(f"{output_dir}"):
+        Logger.log("INFO", f"Creating output directory: {output_dir}")
         os.makedirs(f"{output_dir}")
-    np.save(f"{output_dir}/trajectory_gt.npy", trajectory)
-    np.save(f"{output_dir}/attitude_gt.npy", attitude)
-    np.save(f"{output_dir}/daytime_gt.npy", daytime)
+    np.savez_compressed(
+        f"{output_dir}/ground_truth.npz",
+        trajectory=trajectory,
+        attitude=attitude,
+        daytime=daytime
+    )
 
     # Store args as json
     with open(f"{output_dir}/args.json", "w") as jsonfile:

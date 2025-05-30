@@ -55,6 +55,16 @@ class CameraModel:
         # and to avoid needing to call hash(self) in the cache implementation
         self.ray_directions_body = cache(self.ray_directions_body)
 
+    @property
+    def get_camera_name(self) -> str:
+        """
+        Get the name of the camera.
+
+        Returns:
+            The name of the camera.
+        """
+        return self.camera_name
+
     def get_camera_position(
         self, body_position: np.ndarray, frame_R_body: np.ndarray
     ) -> np.ndarray:

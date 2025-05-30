@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple
 
 import brahe
+import cv2
 import numpy as np
 from brahe import R_EARTH, Epoch
 from scipy.spatial.transform import Rotation
@@ -277,6 +278,8 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         cubesat_position: np.ndarray,
         eci_R_body: np.ndarray,
         camera_model: CameraModel,
+        index: int,
+        output_dir: str,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -295,7 +298,18 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         ecef_R_body = ecef_R_eci @ eci_R_body
 
         # simulate image
-        frame = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body, camera_model)
+        frame, lat_lon = self.earth_image_simulator.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
+        camera_name = camera_model.get_camera_name()
+        suffix = f"{index}_{camera_name}"
+
+        cv2.imwrite(
+        os.path.join(output_dir, f"img_{suffix}.png"),
+        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
+        )
+        np.save(
+        os.path.join(output_dir, f"lat_lon_{suffix}.npy"),
+        lat_lon
+        )
 
         if np.all(frame.image == 0):
             print("No image detected")
@@ -340,21 +354,23 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
 
     def __init__(self, output_basedir) -> None:
         # Set up paths to stored data
-        VIS_INF_DIR = "vis_inf"
-        self.bearing_dir = os.path.join(output_basedir, VIS_INF_DIR, "bearing_vectors")
+        self.VIS_INF_DIR = "vis_inf"
+        self.base_bearing_dir = output_basedir
 
     def load_measurements(self, timestep, camera_name):
         # Load the bearing vectors and landmark positions from the stored data
         base_name = f"{timestep}_{camera_name}"
-        file_path = os.path.join(self.bearing_dir, f"landmarks_{base_name}.npz")
+        file_path = os.path.join(self.base_bearing_dir, self.VIS_INF_DIR, str(timestep), "bearing_vectors", f"landmarks_{base_name}.npz")
         try:
             with np.load(file_path) as data:
                 bearing_vectors = data["bearing_vectors"]
                 landmark_positions = data["landmark_positions"]
+                print(f"Loaded bearing vectors for camera {camera_name} at timestep {timestep}: {landmark_positions.shape}")
 
             if bearing_vectors.ndim == 1:
                 bearing_vectors = np.expand_dims(bearing_vectors, axis=0)
                 landmark_positions = np.expand_dims(landmark_positions, axis=0)
+            
             return bearing_vectors, landmark_positions
 
         except:
