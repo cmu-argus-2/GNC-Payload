@@ -19,10 +19,10 @@ Date: [Creation or Last Update Date]
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from itertools import batched
 from time import perf_counter
 from typing import Dict, List, Sequence
 
+from more_itertools import batched
 import numpy as np
 import torch
 from PIL import Image
