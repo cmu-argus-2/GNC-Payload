@@ -51,7 +51,7 @@ class CustomImageDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
 
-        # Get all available class names
+        # Get all available class namesk
         all_classes = sorted(os.listdir(root_dir))
         print("Selected Classes", selected_classes)
         # If selected_classes is not provided, use all available classes and show a warning

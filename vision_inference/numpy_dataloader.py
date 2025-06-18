@@ -126,7 +126,7 @@ class NumpyImageDataset(Dataset):
         
         try:
             # Load image file
-            if image_path.endswith('.npy'):
+            if image_path.endswith('.npy') or image_path.endswith('.npz'):
                 image = np.load(image_path)
             else:
                 image = cv2.imread(image_path)

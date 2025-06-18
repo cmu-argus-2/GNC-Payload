@@ -307,13 +307,13 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         os.path.join(output_dir, f"img_{suffix}.png"),
         cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
         )
-        np.save(
-        os.path.join(output_dir, f"lat_lon_{suffix}.npy"),
+        np.savez_compressed(
+        os.path.join(output_dir, f"lat_lon_{suffix}.npz"),
         lat_lon
         )
 
         if np.all(frame.image == 0):
-            print("No image detected")
+            Logger.log("INFO", "No image detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         # run the ML pipeline on the image
@@ -375,7 +375,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             return bearing_vectors, landmark_positions
 
         except:
-            Logger.log("INFO", " No measurements found for camera {camera_name} at timestep {timestep}.")
+            Logger.log("INFO", f"No measurements found for camera {camera_name} at timestep {timestep}.")
             return np.zeros((0,3)), np.zeros((0,3))
 
 

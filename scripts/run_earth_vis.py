@@ -66,7 +66,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num_processes",
         type=int,
-        default=int(0.5 * cpu_count()),
+        default=int(0.8 * cpu_count()),
         help="Number of processes to use for image generation",
     )
 

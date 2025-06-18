@@ -89,7 +89,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--angular_velocity",
         type=list,
-        default=[0, 0, np.pi / 18],
+        default=[0, 0, np.pi / 72],
         help="Angular velocity of the spacecraft [rad/s]",
     )
     parser.add_argument(
