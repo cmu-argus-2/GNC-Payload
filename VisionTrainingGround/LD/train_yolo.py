@@ -26,12 +26,12 @@ This scipy will generate/overwrite the following contents in the training direct
       - ...
 """
 
+# pylint: disable=import-error, broad-exception-caught
 import argparse
 import os
-import shutil
+from time import time
 
 import numpy as np
-from time import time
 import torch
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -40,11 +40,10 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.landmark_detector import LandmarkDetector
 from VisionTrainingGround.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
-
 TRAINING_LOG_DIR_PREFIX = "yolo_training_results"
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments.
 
@@ -109,9 +108,9 @@ def train_yolo(
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     region_dir = os.path.join(training_dir, region)
-    training_log_dir = os.path.join(region_dir, TRAINING_LOG_DIR_PREFIX)
+    # training_log_dir = os.path.join(region_dir, TRAINING_LOG_DIR_PREFIX)
     output_file = os.path.join(
-        training_dir, LandmarkDetector.get_LD_model_weights_relative_path(region)
+        training_dir, LandmarkDetector.get_ld_model_weights_relative_path(region)
     )
 
     if os.path.exists(output_file):
@@ -121,9 +120,7 @@ def train_yolo(
         os.remove(output_file)
 
     model = YOLO(f"{version}.pt")
-    yolo_config_path = os.path.join(
-        region_dir, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
-    )
+    yolo_config_path = os.path.join(region_dir, LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME)
     # pylint: disable=unused-variable
     results = model.train(
         data=yolo_config_path,

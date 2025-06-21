@@ -37,7 +37,9 @@ class CameraModel:
     DTYPE = np.uint8
     HORIZONTAL_FOV = np.deg2rad(66.1)
 
-    def __init__(self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray):
+    def __init__(
+        self, camera_name: str, body_R_camera: np.ndarray, t_body_to_camera: np.ndarray
+    ) -> None:
         """
         Initialize the simulation camera parameters
 
@@ -53,7 +55,7 @@ class CameraModel:
 
         # Apply @cache at the instance level in the constructor to ensure separate caches for each instance
         # and to avoid needing to call hash(self) in the cache implementation
-        self.ray_directions_body = cache(self.ray_directions_body)
+        self.ray_directions_body = cache(self.get_ray_directions_body)
 
     def get_camera_position(
         self, body_position: np.ndarray, frame_R_body: np.ndarray
@@ -86,7 +88,7 @@ class CameraModel:
 
     @staticmethod
     @cache
-    def ray_directions_camera():
+    def ray_directions_camera() -> np.ndarray:
         """
         Generate ray directions in the camera frame for each pixel.
 
@@ -99,7 +101,7 @@ class CameraModel:
 
         x = np.linspace(-half_width, half_width, CameraModel.IMAGE_WIDTH)
         y = np.linspace(-half_height, half_height, CameraModel.IMAGE_HEIGHT)
-        xx, yy = np.meshgrid(x, y)
+        xx, yy = np.meshgrid(x, y)  # pylint: disable=E0633
         zz = np.ones_like(xx)  # Assume unit depth
 
         # Stack and normalize ray directions
@@ -108,7 +110,7 @@ class CameraModel:
 
         return ray_directions_cf
 
-    def ray_directions_body(self) -> np.ndarray:
+    def get_ray_directions_body(self) -> np.ndarray:
         """
         Get the ray directions in the body frame for each pixel.
 
@@ -131,7 +133,7 @@ class CameraModel:
             A numpy array of shape (N, 3) with bearing unit vectors in the body frame.
         """
         # since it'll be cached anyway, we can just look up the desired values
-        ray_directions_body = self.ray_directions_body()
+        ray_directions_body = self.get_ray_directions_body()
         u, v = pixel_coords.T
         return ray_directions_body[v, u, :]
 
@@ -143,7 +145,7 @@ class CameraModelManager:
 
     CAMERA_NAMES = ["x+", "y+", "x-", "y-"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.camera_models = CameraModelManager.initialize_cameras()
 
     def __getitem__(self, camera_name: str) -> CameraModel:
@@ -159,7 +161,7 @@ class CameraModelManager:
         self.validate_camera_name(camera_name)
         return self.camera_models[camera_name]
 
-    def get_body_Rs_camera(self, camera_names: np.ndarray) -> np.ndarray:
+    def get_body_rot_camera(self, camera_names: np.ndarray) -> np.ndarray:
         """
         Get the rotation matrices from camera to body frame for the specified cameras.
 

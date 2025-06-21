@@ -9,12 +9,16 @@ This script will generate/overwrite the following contents in the training direc
     - ...
 """
 
+# mypy: ignore-errors
+# pylint: disable=import-error,too-many-locals,too-many-positional-arguments
+# pylint: disable=too-many-return-statements,too-many-arguments
+# pylint: disable=not-context-manager,duplicate-code
 import argparse
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from functools import partial
 from itertools import product
-from multiprocessing import cpu_count, Pool
+from multiprocessing import Pool, cpu_count
 from time import perf_counter, time
 from typing import ClassVar, Generator, Tuple
 
@@ -111,7 +115,9 @@ class GeotaggedImage:
             return geotagged_image
         except Exception:
             if delete_bad_files:
-                print(f"Warning: malformed image or lat/lon file for {region=}, {file_prefix=}. Deleting.")
+                print(
+                    f"Warning: malformed image or lat/lon file for {region=}, {file_prefix=}. Deleting."
+                )
                 os.remove(img_path)
                 os.remove(lat_lon_path)
             raise
@@ -235,18 +241,14 @@ def setup_region_directory(
         return True
 
     if resume:
-        existing_image_file_names = set(
-            [
-                file_name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
-                for file_name in existing_image_file_names
-            ]
-        )
-        existing_lat_lon_file_names = set(
-            [
-                file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
-                for file_name in existing_lat_lon_file_names
-            ]
-        )
+        existing_image_file_names = {
+            file_name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
+            for file_name in existing_image_file_names
+        }
+        existing_lat_lon_file_names = {
+            file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
+            for file_name in existing_lat_lon_file_names
+        }
 
         # delete files without a counterpart
         for file_name in existing_image_file_names - existing_lat_lon_file_names:
@@ -400,7 +402,7 @@ def main() -> None:
                 desc="Generating images",
             )
             start_time = perf_counter()
-            with open(log_file_path, "w") as log_file:
+            with open(log_file_path, "w", encoding="utf-8") as log_file:
                 log_file.write("Elapsed Time (s), Number of Images Generated\n")
                 for i, _ in enumerate(results_iterator):
                     log_file.write(f"{perf_counter() - start_time}, {i + 1}\n")

@@ -2,9 +2,12 @@ black==24.10.0
 git+https://github.com/duncaneddy/brahe.git@master
 git+https://github.com/cmu-argus-1/custom_ultralytics.git@main
 earthengine_api==1.4.5
+jax
 pre-commit==4.1.0
 matplotlib==3.10.0
+mypy
 numpy==1.26.4
+numpy-quaternion
 opencv_contrib_python==4.11.0.86
 opencv_python==4.11.0.86
 Pillow==11.1.0

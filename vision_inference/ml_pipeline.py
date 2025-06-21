@@ -10,6 +10,10 @@ Author: Eddie
 Date: January 27, 2025
 """
 
+# mypy: ignore-errors
+# pylint: disable=E1136  # pylint/issues/9590
+# pylint: disable=import-error
+# pylint: disable=too-many-locals
 import os
 from typing import List, Tuple
 
@@ -83,13 +87,13 @@ class MLPipeline:
             - The LandmarkDetections object containing the landmark detection results.
             - A dictionary mapping region IDs to slices of the landmark detections.
         """
-        Logger.log(
+        Logger().log(
             "INFO",
             "------------------------------Inference---------------------------------",
         )
         pred_regions = self.classify_frame(frame_obj)
         if len(pred_regions) == 0:
-            Logger.log(
+            Logger().log(
                 "INFO",
                 f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] No salient regions detected. ",
             )
@@ -219,7 +223,11 @@ class MLPipeline:
 
         # ========================== Metadata displaying ========================================
         # Metadata drawing first to determine right edge for alignment
-        metadata_info = f"Camera ID: {frame_obj.camera_name} | Time: {frame_obj.timestamp} | Frame: {frame_obj.frame_id}"
+        metadata_info = (
+            f"Camera ID: {frame_obj.camera_name} | "
+            f"Time: {frame_obj.timestamp} | "
+            f"Frame: {frame_obj.frame_id}"
+        )
         font = cv2.FONT_HERSHEY_SIMPLEX
         metadata_font_scale = 1
         text_thickness = 2
@@ -344,12 +352,12 @@ class MLPipeline:
         cv2.imwrite(img_save_path, frame_obj.image)
 
         metadata_path = os.path.join(save_dir, "frame_metadata.txt")
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding="utf-8") as f:
             f.write(f"Camera ID: {frame_obj.camera_name}\n")
             f.write(f"Timestamp: {frame_obj.timestamp}\n")
             f.write(f"Frame ID: {frame_obj.frame_id}\n")
 
-        Logger.log(
+        Logger().log(
             "INFO",
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] "
             f"Landmark visualization saved to data/inference_output",

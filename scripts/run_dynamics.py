@@ -25,6 +25,8 @@ day (1) or night (0) side of the earth. We also store the arguments used to gene
         - args.json
 """
 
+# mypy: ignore-errors
+# pylint: disable=import-error,too-many-locals
 import argparse
 import json
 import os
@@ -36,7 +38,7 @@ from brahe.epoch import Epoch
 
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from utils.config_utils import load_config, USER_CONFIG_PATH
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state, is_over_daytime
 
 
@@ -99,7 +101,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def generate_trajectory(args) -> None:
+def generate_trajectory(sim_args: argparse.Namespace) -> None:
     """
     Generate the trajectory of a spacecraft using the dynamics model.
     :param args: The command line arguments.
@@ -109,36 +111,35 @@ def generate_trajectory(args) -> None:
 
     # Check if altitude is provided and if not, generate a random altitude
     # Then check that if a latitude is given, it is within the calculated sso bounds
-    if args.altitude is None:
-        args.altitude = 510e3 + np.random.uniform(-20e3, 20e3)
-        if args.lat is None:
-            max_lat = get_max_sso_latitude(args.altitude)
-            args.lat = np.random.uniform(-max_lat, max_lat)
+    if sim_args.altitude is None:
+        sim_args.altitude = 510e3 + np.random.uniform(-20e3, 20e3)
+        if sim_args.lat is None:
+            max_lat = get_max_sso_latitude(sim_args.altitude)
+            sim_args.lat = np.random.uniform(-max_lat, max_lat)
         else:
-            max_lat = get_max_sso_latitude(args.altitude)
-            if abs(args.lat) > max_lat:
+            max_lat = get_max_sso_latitude(sim_args.altitude)
+            if abs(sim_args.lat) > max_lat:
                 raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
 
     else:
-        max_lat = get_max_sso_latitude(args.altitude)
-        if args.lat is not None and abs(args.lat) > max_lat:
+        max_lat = get_max_sso_latitude(sim_args.altitude)
+        if sim_args.lat is not None and abs(sim_args.lat) > max_lat:
             raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-        else:
-            args.lat = np.random.uniform(-max_lat, max_lat)
+        sim_args.lat = np.random.uniform(-max_lat, max_lat)
 
-    if args.lon is None:
-        args.lon = np.random.uniform(-180, 180)
+    if sim_args.lon is None:
+        sim_args.lon = np.random.uniform(-180, 180)
 
     # Check if start date is provided and if not, generate a random start date
     # Start date between 2024-01-01 and 2025-01-01 (leap year so 366 days)
-    if args.start_date is None:
+    if sim_args.start_date is None:
         # Get random start date and round to 1 decimal place
-        args.start_date = round(np.random.uniform(60310, 60676), 1)
+        sim_args.start_date = round(np.random.uniform(60310, 60676), 1)
 
     config = load_config()
-    config["solver"]["world_update_rate"] = args.frequency  # Hz
-    config["mission"]["duration"] = args.duration  # s
-    config["mission"]["start_date"] = args.start_date
+    config["solver"]["world_update_rate"] = sim_args.frequency  # Hz
+    config["mission"]["duration"] = sim_args.duration  # s
+    config["mission"]["start_date"] = sim_args.start_date
 
     dt = 1 / config["solver"]["world_update_rate"]
 
@@ -149,13 +150,17 @@ def generate_trajectory(args) -> None:
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
     initial_state = get_sso_orbit_state(
-        starting_epoch, args.lat, args.lon, args.altitude, northwards=args.northwards
+        starting_epoch,
+        sim_args.lat,
+        sim_args.lon,
+        sim_args.altitude,
+        northwards=sim_args.northwards,
     )
     initial_rot = np.eye(3)
     daytime.append(1 if is_over_daytime(starting_epoch, initial_state[0:3]) else 0)
-    data_manager.push_next_state(initial_state, initial_rot)
+    data_manager.push_next_state(initial_state, initial_rot, np.array(sim_args.angular_velocity))
 
-    w = np.array(args.angular_velocity)
+    w = np.array(sim_args.angular_velocity)
 
     ground_truth_dynamics = Dynamics(
         config=config,
@@ -179,14 +184,14 @@ def generate_trajectory(args) -> None:
 
         daytime.append(1 if is_over_daytime(data_manager.latest_epoch, state[0:3]) else 0)
 
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat), w)
 
     # Save the trajectory and attitude data
-    trajectory = data_manager.states
+    trajectory = data_manager.trans_states
     attitude = data_manager.eci_Rs_body
     daytime = np.array(daytime)
 
-    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_directory"], args.name)
+    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_directory"], sim_args.name)
     if not os.path.exists(f"{output_dir}"):
         os.makedirs(f"{output_dir}")
     np.save(f"{output_dir}/trajectory_gt.npy", trajectory)
@@ -194,8 +199,8 @@ def generate_trajectory(args) -> None:
     np.save(f"{output_dir}/daytime_gt.npy", daytime)
 
     # Store args as json
-    with open(f"{output_dir}/args.json", "w") as jsonfile:
-        json.dump(args.__dict__, jsonfile, indent=4)
+    with open(f"{output_dir}/args.json", "w", encoding="utf-8") as jsonfile:
+        json.dump(sim_args.__dict__, jsonfile, indent=4)
 
 
 if __name__ == "__main__":

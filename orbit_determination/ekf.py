@@ -1,6 +1,7 @@
 """ Extended Kalman Filter for orbit determination """
 
-from typing import Any, Tuple
+# pylint: disable=import-error
+from typing import Any, List
 
 import brahe
 import jax
@@ -11,7 +12,8 @@ from brahe import Epoch
 
 from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
-from utils.math_utils import Drp2q, G, R, left_q, rot_2_q  # right_q
+from utils.math_utils import der_rp2q, left_q, left_q_3, quat2rotm, rot_2_q  # right_q
+
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -19,8 +21,7 @@ from utils.math_utils import Drp2q, G, R, left_q, rot_2_q  # right_q
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
 # pylint: disable=too-many-locals
-
-
+# pylint: disable=E1136  # pylint/issues/9590
 class EKF:
     """
     Extended Kalman Filter
@@ -123,9 +124,9 @@ class EKF:
         dqdw = (
             -1
             * self.dt
-            * G(self.q_p).T
+            * left_q_3(self.q_p).T
             @ left_q(self.q_m)
-            @ Drp2q(self.dt * (w - self.w_b / self.gyro_bias_scale))
+            @ der_rp2q(self.dt * (w - self.w_b / self.gyro_bias_scale))
         )
 
         A = np.block(
@@ -149,7 +150,7 @@ class EKF:
 
     def measurement(
         self,
-        z: Tuple[np.ndarray, np.ndarray],
+        z: List[np.ndarray],
         camera_model_manager: CameraModelManager,
         measurement_camera_names: np.ndarray,
         epoch: Epoch,
@@ -290,7 +291,7 @@ class EKF:
 
         # Define rotation matrices
         # transform rotation_vector to rotation matrix via quaternion
-        eci_R_body = R(rot_2_q(x_p[10:13]))
+        eci_R_body = quat2rotm(rot_2_q(x_p[10:13]))
         ecef_R_eci = brahe.frames.rECItoECEF(epc=epoch)
         ecef_R_body = ecef_R_eci @ eci_R_body
 

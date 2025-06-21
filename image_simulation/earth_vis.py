@@ -2,23 +2,25 @@
 Module to simulate and visualize Earth images from satellite data.
 """
 
+# pylint: disable=import-error, too-many-locals
+# pylint: disable=E0202
+# mypy: ignore-errors
 import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
-from brahe import R_EARTH
 import numpy as np
-from scipy.ndimage import label
 import rasterio
 from affine import Affine
+from brahe import R_EARTH
 from rasterio.crs import CRS
+from scipy.ndimage import label
 
+from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
-
-# pylint: disable=import-error
 from utils.earth_utils import (
     calculate_mgrs_zones,
     ecef_to_lat_lon,
@@ -26,7 +28,6 @@ from utils.earth_utils import (
     intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
-from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 
 
 @dataclass
@@ -218,7 +219,8 @@ class GeoTIFFCache:
     This class is responsible for loading and caching GeoTIFF data for Earth image simulation.
 
     Attributes:
-        FALLBACK_GEOTIFF_FOLDER: Default folder containing GeoTIFF files. Only used if the user configuration file is not found.
+        FALLBACK_GEOTIFF_FOLDER: Default folder containing GeoTIFF files.
+        Only used if the user configuration file is not found.
     """
 
     FALLBACK_GEOTIFF_FOLDER = "/home/argus/eedl_images/"
@@ -315,16 +317,17 @@ class GeoTIFFCache:
 
 class EarthImageSimulator:
     """
-    Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for satellite position and orientation.
+    Simulator for simulating Earth images from downloaded GeoTIFF files, accounting for
+    satellite position and orientation.
     """
 
     BLUE_MARBLE_BRIGHTNESS_FACTOR = 2.7
 
     def __init__(
-            self,
-            geotiff_cache: GeoTIFFCache | None = None,
-            inpaint_blue_marble: bool = True,
-            blue_marble_month: str | None = None
+        self,
+        geotiff_cache: GeoTIFFCache | None = None,
+        inpaint_blue_marble: bool = True,
+        blue_marble_month: str | None = None,
     ):
         """
         Initialize the Earth image simulator.
@@ -353,7 +356,9 @@ class EarthImageSimulator:
         """
         assert mask.dtype == bool, "mask must be a binary mask."
 
-        labeled_connected_components, num_labels = label(mask, structure=np.ones((3, 3), dtype=bool))
+        labeled_connected_components, num_labels = label(
+            mask, structure=np.ones((3, 3), dtype=bool)
+        )
 
         for label_id in range(1, num_labels + 1):
             connected_component_mask = labeled_connected_components == label_id
@@ -383,7 +388,7 @@ class EarthImageSimulator:
         """
         assert np.linalg.norm(position_ecef) > R_EARTH, "position_ecef must be outside the Earth."
 
-        ray_directions_body = camera_model.ray_directions_body()
+        ray_directions_body = camera_model.get_ray_directions_body()
         ray_directions_ecef = ray_directions_body @ ecef_R_body.T
 
         camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
@@ -395,7 +400,7 @@ class EarthImageSimulator:
         present_regions = np.unique(mgrs_regions[mgrs_regions != b""])
 
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
-        for region in present_regions:
+        for region in present_regions:  # pylint: disable=E1133
             geotiff_data = self.cache.load_geotiff_data(str(region, encoding="ascii"))
             if geotiff_data is None:
                 continue
@@ -413,7 +418,9 @@ class EarthImageSimulator:
             image[region_mask, :] = geotiff_data.query_pixel_colors(lat_lon[region_mask])
 
         if self.inpaint_blue_marble:
-            inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
+            inpaint_mask = np.logical_not(np.any(np.isnan(lat_lon), axis=-1)) & np.all(
+                image == 0, axis=-1
+            )
 
             # avoid inpainting very small connected components of pixels since we want to avoid overwriting data that
             # just happens to consist of zeros by chance, despite being valid data

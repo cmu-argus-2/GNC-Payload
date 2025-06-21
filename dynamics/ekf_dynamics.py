@@ -2,10 +2,10 @@
 Functions for implementing EKF dynamics extending the orbital dynamics.
 """
 
+# pylint: disable=import-error
 import numpy as np
 from brahe import Epoch
 
-# pylint: disable=import-error
 from dynamics.drag_dynamics import (
     da_dest_drag_derivative,
     dadrag_dr_partial,
@@ -13,7 +13,6 @@ from dynamics.drag_dynamics import (
     drag_scalar_estimate,
 )
 from dynamics.orbital_dynamics import Dynamics
-
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
@@ -36,7 +35,7 @@ class EKFDynamics(Dynamics):
         use_drag: bool,
         use_j2: bool,
         use_j34: bool,
-        ua_scale: float = None,
+        ua_scale: float = 1,
     ) -> None:
         """
         Initialize the EKFDynamics class.
@@ -89,15 +88,15 @@ class EKFDynamics(Dynamics):
         updated_a = base_derivative[3:6]
         remainder = np.zeros((0,))
 
-        if self.use_drag_scalar:
-            drag_a = drag_scalar_estimate(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
-            updated_a += drag_a
-            remainder = np.append(remainder, np.zeros((1,)))
-
         # Compute unmodelled accelerations
         if self.use_unmodelled_a:
             updated_a += x[6:9] / self.ua_scale
             remainder = np.append(remainder, np.zeros((3,)))
+
+        if self.use_drag_scalar:
+            drag_a = drag_scalar_estimate(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
+            updated_a += drag_a
+            remainder = np.append(remainder, np.zeros((1,)))
 
         return np.concatenate([base_derivative[0:3], updated_a, remainder])
 
@@ -119,8 +118,8 @@ class EKFDynamics(Dynamics):
             da_dest_drag = da_dest_drag_derivative(x[0:6], self.drag_const)
             daestdrag_dr = dadrag_dr_partial(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
             daestdrag_dv = dadrag_dv_partial(x=x[0:6], d_est=x[9], drag_const=self.drag_const)
-            base_jacobian[3:6, 0:3] += daestdrag_dr
-            base_jacobian[3:6, 3:6] += daestdrag_dv
+            base_jacobian[3:6, 0:3] += daestdrag_dr  # pylint: disable=E1137
+            base_jacobian[3:6, 3:6] += daestdrag_dv  # pylint: disable=E1137
             drag_jac = np.zeros((1, self.state_dim))
         else:
             dv_dest_drag = np.zeros((3, 0))
@@ -141,8 +140,16 @@ class EKFDynamics(Dynamics):
 
         return np.block(
             [
-                [base_jacobian[0:3, 0:6], dv_dua, dv_dest_drag],
-                [base_jacobian[3:6, 0:6], da_dua, da_dest_drag],
+                [
+                    base_jacobian[0:3, 0:6],  # pylint: disable=E1136  # pylint/issues/9590
+                    dv_dua,
+                    dv_dest_drag,
+                ],
+                [
+                    base_jacobian[3:6, 0:6],  # pylint: disable=E1136  # pylint/issues/9590
+                    da_dua,
+                    da_dest_drag,
+                ],
                 [ua_jac],
                 [drag_jac],
             ]

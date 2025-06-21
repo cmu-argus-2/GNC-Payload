@@ -35,6 +35,7 @@ The state data contains a dictionary with the following fields:
 
 """
 
+# pylint: disable=import-error
 import argparse
 import json
 import os
@@ -60,6 +61,7 @@ from utils.config_utils import load_config
 from utils.orbit_utils import is_over_daytime
 
 # pylint: disable=too-many-locals
+# pylint: disable=E1136, duplicate-code
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,27 +80,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_simulation(args) -> None:
+def run_simulation(sim_args: argparse.Namespace) -> None:
     """
     Run the simulation.
 
-    :param args: The command line arguments.
+    :param sim_args: The command line arguments.
 
     :return: None
     """
 
     # Load json
     try:
-        with open(f"output_dir/{args.name}/args.json", "r") as jsonfile:
+        with open(f"output_dir/{sim_args.name}/args.json", "r", encoding="utf-8") as jsonfile:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
-        raise ValueError(f"Error in args.json in {args.name}: {e}")
+        raise ValueError(f"Error in args.json in {sim_args.name}: {e}") from e
 
     # Check that if a name was provided it matches the one in the json file
     assert (
-        arg_data["name"] == args.name
-    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
+        arg_data["name"] == sim_args.name
+    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {sim_args.name}"
 
     f = arg_data["frequency"]
     mission_duration = arg_data["duration"]
@@ -122,18 +124,19 @@ def run_simulation(args) -> None:
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    if not os.path.exists(f"output_dir/{args.name}/trajectory_gt.npy") or not os.path.exists(
-        f"output_dir/{args.name}/attitude_gt.npy"
+    if not os.path.exists(f"output_dir/{sim_args.name}/trajectory_gt.npy") or not os.path.exists(
+        f"output_dir/{sim_args.name}/attitude_gt.npy"
     ):
         raise FileNotFoundError(
-            f"One of the required files in {args.name} does not exist. Please run the trajectory generation script first."
+            f"Required files for experiment '{sim_args.name}' not found. "
+            "Please run the trajectory generation script first."
         )
 
-    trajectory_gt = np.load(f"output_dir/{args.name}/trajectory_gt.npy") / 1e3  # Convert to km
-    attitude_gt = np.load(f"output_dir/{args.name}/attitude_gt.npy")
+    trajectory_gt = np.load(f"output_dir/{sim_args.name}/trajectory_gt.npy") / 1e3  # Convert to km
+    attitude_gt = np.load(f"output_dir/{sim_args.name}/attitude_gt.npy")
     # Set the initial rotation matrix to identity
 
-    data_manager.push_next_state(trajectory_gt[0], attitude_gt[0])
+    data_manager.push_next_state(trajectory_gt[0], attitude_gt[0], np.zeros(3))
 
     # Apply error to init_rot and ensure orthonormality
     noisy_rot = attitude_gt[0] + np.random.normal(0, 1e-3, (3, 3))
@@ -163,13 +166,14 @@ def run_simulation(args) -> None:
     # Bias uncertainty also larger
     Q[13:16, 13:16] = np.eye(3) * 1e-12
 
-    P = np.eye(16)
-    P[0:3, 0:3] *= 5e-3
-    P[3:6, 3:6] *= 5e-3
-    P[6:9, 6:9] *= 1e-4
-    P[9:10, 9:10] *= 1e-4
-    P[10:13, 10:13] *= 1e-4
-    P[13:16, 13:16] *= 1e-4
+    P = np.diag(
+        [5e-3] * 3  # r
+        + [5e-3] * 3  # v
+        + [1e-4] * 3  # ua
+        + [1e-4]  # drag
+        + [1e-4] * 3  # quaternion
+        + [1e-4] * 3  # gyro bias
+    )
 
     ekf_dynamics = EKFDynamics(
         config=config,
@@ -213,10 +217,10 @@ def run_simulation(args) -> None:
         imu_gyro_bias = imu.get_bias()[0]
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
-        data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
+        data_manager.push_next_state(trajectory_gt[t], attitude_gt[t], w)
 
         if t % meas_rate == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[:3]*1e3
+            data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
         ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
@@ -258,7 +262,7 @@ def run_simulation(args) -> None:
             "drag_scalar_estimate": ekf.drag_est,
         }
         # Save the state data to a file
-        with open(f"output_dir/{args.name}/ekf_state_data_.pkl", "ab") as file:
+        with open(f"output_dir/{sim_args.name}/ekf_state_data_.pkl", "ab") as file:
             pickle.dump(state_data, file)
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):

@@ -62,9 +62,13 @@ class Logger:
     A class to handle logging messages, log levels, and output destinations across the software system.
     """
 
-    logger = None
+    logger = logging.getLogger("AppLogger")
     log_file_path = "log/payload.log"
     levels = ["INFO", "DEBUG", "WARNING", "ERROR"]
+
+    @classmethod
+    def __init__(cls) -> None:
+        cls.configure()
 
     @classmethod
     def configure(cls, log_level: str = "INFO", log_file: str = "log/payload.log") -> None:
@@ -100,8 +104,8 @@ class Logger:
     @classmethod
     def log(cls, level: str, msg: str) -> None:
         """Logs a message with a specific level from anywhere in the code."""
-        if cls.logger is None:
-            cls.configure()
+        # if cls.logger is None:
+        #     cls.configure()
         if level.upper() in ["INFO", "DEBUG", "WARNING", "ERROR"]:
             caller_info = cls.get_caller_info()
             cls.logger.log(getattr(logging, level.upper()), msg, extra={"caller": caller_info})
@@ -121,13 +125,17 @@ class Logger:
             return "UnknownCaller:0"
 
     @classmethod
-    def initialize_log(cls, module_name, init_msg: str) -> None:
+    def initialize_log(cls, module_name: str, init_msg: str) -> None:
         """Initializes the log file with a specific message detailing the initialization context."""
         try:
-            with open(cls.log_file_path, "w") as file:
+            with open(cls.log_file_path, "w", encoding="utf-8"):  #  as file:
                 pass  # Clear the log file
             cls.logger.info("Log file initialized.", extra={"caller": "LoggerInit"})
-            cls.logger.info(f"Logger initialized by: {module_name}", extra={"caller": "LoggerInit"})
+            cls.logger.info(
+                "Logger initialized by: %s", module_name, extra={"caller": "LoggerInit"}
+            )
             cls.logger.info(init_msg, extra={"caller": "LoggerInit"})
-        except Exception as e:
-            cls.logger.error("Failed to initialize log file.", extra={"caller": "LoggerError"})
+        except Exception as e:  # pylint: disable=broad-except
+            cls.logger.error(
+                "Failed to initialize log file: %s", e, extra={"caller": "LoggerError"}
+            )

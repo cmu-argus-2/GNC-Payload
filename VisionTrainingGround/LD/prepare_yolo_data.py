@@ -27,6 +27,11 @@ This scipy will generate/overwrite the following contents in the training direct
         - ...
 """
 
+# mypy: ignore-errors
+# pylint: disable=import-error,too-many-locals, unsubscriptable-object
+# pylint: disable=too-many-branches, E1101, too-many-locals
+# pylint: disable=broad-exception-caught, unsupported-assignment-operation
+# pylint: disable=unbalanced-tuple-unpacking,duplicate-code
 import argparse
 import os
 from functools import partial
@@ -109,7 +114,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_LD_training_directory(
+def setup_ld_training_directory(
     region_id: str, overwrite: bool, resume: bool, test_fraction: float, val_fraction: float
 ) -> bool:
     """
@@ -132,18 +137,18 @@ def setup_LD_training_directory(
     assert 0 <= val_fraction <= 1, "val_fraction must be in the range [0, 1]."
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    LD_training_dir = os.path.join(training_dir, region_id, LD_TRAINING_DIR_NAME)
+    ld_training_dir = os.path.join(training_dir, region_id, LD_TRAINING_DIR_NAME)
 
-    if not os.path.exists(LD_training_dir):
-        os.makedirs(LD_training_dir, exist_ok=True)
+    if not os.path.exists(ld_training_dir):
+        os.makedirs(ld_training_dir, exist_ok=True)
 
-    if not os.path.isdir(LD_training_dir):
+    if not os.path.isdir(ld_training_dir):
         if not overwrite:
             return False
-        os.remove(LD_training_dir)
-        os.makedirs(LD_training_dir, exist_ok=True)
+        os.remove(ld_training_dir)
+        os.makedirs(ld_training_dir, exist_ok=True)
 
-    yolo_config_path = os.path.join(LD_training_dir, YOLO_CONFIG_FILE_NAME)
+    yolo_config_path = os.path.join(ld_training_dir, YOLO_CONFIG_FILE_NAME)
     write_yolo_config = False
     if not os.path.exists(yolo_config_path):
         write_yolo_config = True
@@ -162,7 +167,7 @@ def setup_LD_training_directory(
         )
         num_classes = bounding_boxes_lat_lon.shape[0]
         yolo_config = {
-            "path": os.path.abspath(LD_training_dir),
+            "path": os.path.abspath(ld_training_dir),
             "train": "train/images",
             "test": "test/images",
             "val": "val/images",
@@ -176,7 +181,7 @@ def setup_LD_training_directory(
     split_img_file_names_list: List[List[str]] = []
     split_label_file_names_list: List[List[str]] = []
     for split_dir_name in SPLIT_DIR_NAMES:
-        split_dir = os.path.join(LD_training_dir, split_dir_name)
+        split_dir = os.path.join(ld_training_dir, split_dir_name)
         images_dir = os.path.join(split_dir, "images")
         labels_dir = os.path.join(split_dir, "labels")
         os.makedirs(split_dir, exist_ok=True)
@@ -225,7 +230,7 @@ def setup_LD_training_directory(
                 file_prefix = file_prefixes[i]
                 os.symlink(
                     os.path.join(training_dir, region_id, f"{file_prefix}.png"),
-                    os.path.join(LD_training_dir, split_dir_name, "images", f"{file_prefix}.png"),
+                    os.path.join(ld_training_dir, split_dir_name, "images", f"{file_prefix}.png"),
                 )
     else:
         seen_img_file_prefixes = set()
@@ -238,20 +243,20 @@ def setup_LD_training_directory(
             split_label_file_prefixes = {
                 file_name[: -len(".txt")] for file_name in split_label_file_names
             }
-            if not (split_label_file_prefixes <= split_img_file_prefixes):
+            if not split_label_file_prefixes <= split_img_file_prefixes:
                 raise ValueError(
-                    f"Label files are not a subset of image files for {os.path.join(LD_training_dir, split_dir_name)}"
+                    f"Label files are not a subset of image files for {os.path.join(ld_training_dir, split_dir_name)}"
                 )
 
             if len(seen_img_file_prefixes & split_img_file_prefixes) > 0:
                 raise ValueError(
-                    f"Duplicate image files found in different splits for {LD_training_dir}"
+                    f"Duplicate image files found in different splits for {ld_training_dir}"
                 )
             seen_img_file_prefixes |= split_img_file_prefixes
 
         if seen_img_file_prefixes != set(file_prefixes):
             raise ValueError(
-                f"Image files do not match the expected image files for {LD_training_dir}"
+                f"Image files do not match the expected image files for {ld_training_dir}"
             )
 
     return True
@@ -297,8 +302,8 @@ def get_valid_bounding_boxes(
     )
 
     has_data = np.any(image > 0, axis=2)
-    for i in range(len(valid_bounding_boxes)):
-        if not valid_bounding_boxes[i]:
+    for i, valid_bounding_box in enumerate(valid_bounding_boxes):
+        if not valid_bounding_box:
             continue
 
         # since the bounding box corners are mapped from lat/lon to pixel coordinates, they could form any quadrilateral
@@ -359,7 +364,8 @@ def generate_yolo_label(
 
     stacked_corners_lat_lon = np.concatenate(
         # must be in a circular order for cv2.fillPoly to work correctly
-        (top_left_lat_lon, top_right_lat_lon, bottom_right_lat_lon, bottom_left_lat_lon), axis=0
+        (top_left_lat_lon, top_right_lat_lon, bottom_right_lat_lon, bottom_left_lat_lon),
+        axis=0,
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
@@ -427,14 +433,22 @@ def generate_yolo_label(
     box_height = (max_vs - min_vs) / height
 
     yolo_label_path = os.path.join(
-        training_dir, region_id, LD_TRAINING_DIR_NAME, split_dir_name, "labels", f"{file_prefix}.txt"
+        training_dir,
+        region_id,
+        LD_TRAINING_DIR_NAME,
+        split_dir_name,
+        "labels",
+        f"{file_prefix}.txt",
     )
-    with open(yolo_label_path, "w") as yolo_label_file:
+    with open(yolo_label_path, "w", encoding="utf-8") as yolo_label_file:
         for class_id, u, v, w, h in zip(class_ids, u_center, v_center, box_width, box_height):
             yolo_label_file.write(f"{class_id} {u} {v} {w} {h}\n")
 
 
 def main():
+    """
+    Main function to prepare YOLO training data for the specified MGRS regions.
+    """
     args = parse_args()
     if args.overwrite and args.resume:
         raise ValueError("Cannot use --overwrite and --resume at the same time.")
@@ -442,7 +456,7 @@ def main():
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
     for region in tqdm(regions, desc="Setting up region directories"):
-        if not setup_LD_training_directory(
+        if not setup_ld_training_directory(
             region, args.overwrite, args.resume, args.test_fraction, args.val_fraction
         ):
             print(
@@ -456,9 +470,9 @@ def main():
                  be generated.
         """
         for region in regions:
-            LD_training_dir = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
+            ld_training_dir = os.path.join(training_dir, region, LD_TRAINING_DIR_NAME)
             for split_dir_name in SPLIT_DIR_NAMES:
-                split_dir = os.path.join(LD_training_dir, split_dir_name)
+                split_dir = os.path.join(ld_training_dir, split_dir_name)
                 images_dir = os.path.join(split_dir, "images")
 
                 file_prefixes_generator = (

@@ -12,11 +12,11 @@ Author: Eddie
 Date: [Creation or Last Update Date]
 """
 
+# pylint: disable=too-few-public-methods,import-error
 import os
 from time import perf_counter
 from typing import List
 
-import cv2
 import torch
 from PIL import Image
 from torch import nn
@@ -47,7 +47,7 @@ class RegionClassifier:
         Args:
             load_weights (bool): Whether to load model weights. Default is True.
         """
-        Logger.log("INFO", "Initializing RegionClassifier.")
+        Logger().log("INFO", "Initializing RegionClassifier.")
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -59,10 +59,10 @@ class RegionClassifier:
                     torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
                 )
                 self.model.eval()
-                Logger.log("INFO", "Model loaded successfully.")
+                Logger().log("INFO", "Model loaded successfully.")
 
         except Exception as e:
-            Logger.log("ERROR", f"Failed to load model: {e}")
+            Logger().log("ERROR", f"Failed to load model: {e}")
             raise
 
         # Define the preprocessing
@@ -108,7 +108,7 @@ class RegionClassifier:
             ), "Duplicate region IDs detected."
             return region_ids
         except Exception as e:
-            Logger.log("ERROR", f"Configuration error: {e}")
+            Logger().log("ERROR", f"Configuration error: {e}")
             raise
 
     def classify_region(self, frame_obj: Frame) -> List[str]:
@@ -118,7 +118,7 @@ class RegionClassifier:
         :param frame_obj: The frame object to classify.
         :return: A list of region IDs.
         """
-        Logger.log(
+        Logger().log(
             "INFO",
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] Starting the classification process.",
         )
@@ -135,14 +135,14 @@ class RegionClassifier:
                 predicted_region_ids = [self.region_ids[idx] for idx in predicted_indices]
 
         except Exception as e:
-            Logger.log("ERROR", f"Classification process failed: {e}")
+            Logger().log("ERROR", f"Classification process failed: {e}")
             raise
 
-        Logger.log(
+        Logger().log(
             "INFO",
             f"[Camera {frame_obj.camera_name} frame {frame_obj.frame_id}] {predicted_region_ids} region(s) identified.",
         )
-        Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
+        Logger().log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids
 
 
@@ -151,7 +151,7 @@ class ClassifierEfficient(nn.Module):
     A custom classifier using the EfficientNet model.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the classifier.
         """

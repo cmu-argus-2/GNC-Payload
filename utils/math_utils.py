@@ -2,11 +2,12 @@
 Quaternion and rotation matrix utilities.
 """
 
+# pylint: disable=import-error
 import jax.numpy as jnp
 import numpy as np
 
 
-def R(q: jnp.ndarray) -> jnp.ndarray:
+def quat2rotm(q: jnp.ndarray) -> jnp.ndarray:
     """Return the rotation matrix corresponding to the quaternion q.
 
     Args:
@@ -107,7 +108,8 @@ def right_q(q: np.ndarray) -> np.ndarray:
         ]
     )
 
-def Drp2q(phi: np.ndarray) -> np.ndarray:
+
+def der_rp2q(phi: np.ndarray) -> np.ndarray:
     """
     Compute the derivative of the rotation vector to quaternion mapping.
     Args:
@@ -115,16 +117,37 @@ def Drp2q(phi: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: The derivative of the rotation vector to quaternion mapping.
     """
-    theta = np.linalg.norm(phi) 
-    term1 = -0.5 * np.sin(theta/2) * phi.T / theta
-    term2 = 0.5 * np.cos(theta/2) * np.outer(phi/theta,phi/theta) + np.sin(theta/2) * (np.eye(3)/theta - np.outer(phi,phi)/theta**3)
+    theta = np.linalg.norm(phi)
+    term1 = -0.5 * np.sin(theta / 2) * phi.T / theta
+    term2 = 0.5 * np.cos(theta / 2) * np.outer(phi / theta, phi / theta) + np.sin(theta / 2) * (
+        np.eye(3) / theta - np.outer(phi, phi) / theta**3
+    )
 
     return np.block([[term1], [term2]])
 
 
-def G(q: np.ndarray) -> np.ndarray:
+def left_q_3(q: np.ndarray) -> np.ndarray:
     """
     Helper function
     """
     H = np.concatenate([[np.zeros(3)], np.eye(3)], axis=0)
     return left_q(q) @ H
+
+
+def skew(r: np.ndarray) -> np.ndarray:
+    """
+    Compute the skew-symmetric matrix of a vector.
+
+    Args:
+        r (np.ndarray): The vector to convert to a skew-symmetric matrix.
+
+    Returns:
+        np.ndarray: The skew-symmetric matrix.
+    """
+    return np.array(
+        [
+            [0, -r[2], r[1]],
+            [r[2], 0, -r[0]],
+            [-r[1], r[0], 0],
+        ]
+    )

@@ -2,6 +2,7 @@
 This module contains the Frame class, which is used to store a frame from one of the cameras and associated metadata.
 """
 
+# pylint: disable=import-error
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -25,7 +26,7 @@ class Frame:
     timestamp: datetime
     frame_id: str = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # convert hash to hex string
         self.frame_id = f"{hash(self.timestamp):x}"
 

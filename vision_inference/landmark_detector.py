@@ -16,19 +16,20 @@ Author: Eddie, Haochen
 Date: [Creation or Last Update Date]
 """
 
+# pylint: disable=import-error, too-many-locals, unsubscriptable-object
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
 from time import perf_counter
-from typing import List, Sequence
+from typing import List, Sequence, Tuple
 
-import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
-from utils.config_utils import USER_CONFIG_PATH, load_config
 from sensors.camera_model import CameraModel
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -75,9 +76,10 @@ class LandmarkDetections:
             confidences=self.confidences[index],
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
         """
-        :return: A generator that yields Tuples containing the pixel_coordinates, latlon, class_id, and confidence for each landmark.
+        :return: A generator that yields Tuples containing the pixel_coordinates,
+        latlon, class_id, and confidence for each landmark.
         """
         for i in range(len(self)):
             yield (
@@ -157,23 +159,23 @@ class LandmarkDetector:
         Initialize the LandmarkDetector with a specific region ID
         The YOLO object is created with the path to a specific pretrained model
         """
-        Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
+        Logger().log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
         models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
 
         self.region_id = region_id
         try:
             self.model = YOLO(
-                os.path.join(models_dir, self.get_LD_model_weights_relative_path(region_id))
+                os.path.join(models_dir, self.get_ld_model_weights_relative_path(region_id))
             )
             self.ground_truth = LandmarkDetector.load_ground_truth(
                 os.path.join(models_dir, self.get_region_bounding_boxes_relative_path(region_id))
             )
         except Exception as e:
-            Logger.log("ERROR", f"Failed to load necessary data: {e}")
+            Logger().log("ERROR", f"Failed to load necessary data: {e}")
             raise
 
     @staticmethod
-    def get_LD_model_weights_relative_path(region_id: str) -> str:
+    def get_ld_model_weights_relative_path(region_id: str) -> str:
         """
         Get the relative path to the model weights file for a specific MGRS region.
 
@@ -213,7 +215,7 @@ class LandmarkDetector:
         try:
             return np.loadtxt(ground_truth_path, delimiter=",", skiprows=1)
         except Exception as e:
-            Logger.log("ERROR", f"Configuration error: {e}")
+            Logger().log("ERROR", f"Configuration error: {e}")
             raise
 
     def detect_landmarks(self, frame: Frame) -> LandmarkDetections:
@@ -231,7 +233,7 @@ class LandmarkDetector:
         Returns:
             A LandmarkDetections object containing the detected landmarks and associated data.
         """
-        Logger.log(
+        Logger().log(
             "INFO",
             f"[Camera {frame.camera_name} frame {frame.frame_id}] Starting the landmark detection process.",
         )
@@ -247,7 +249,7 @@ class LandmarkDetector:
             )
             inference_time = perf_counter() - start_time
 
-            landmark_detections = []
+            landmark_detection_list = []
 
             for result in results:
                 landmarks = result.boxes
@@ -260,46 +262,49 @@ class LandmarkDetector:
 
                 valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
                 if not np.all(valid_indices):
-                    Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
+                    Logger().log("INFO", "Skipping landmark with invalid bounding box dimensions.")
                     if not np.any(valid_indices):
                         continue
                     xywh = xywh[valid_indices]
                     class_ids = class_ids[valid_indices]
                     confidences = confidences[valid_indices]
 
-                landmark_detections.append(
+                landmark_detection_list.append(
                     LandmarkDetections(
                         pixel_coordinates=xywh[:, :2],
-                        latlons=self.ground_truth[class_ids, :2],
+                        latlons=self.ground_truth[
+                            class_ids, :2
+                        ],  # pylint: disable=E1136  # pylint/issues/9590
                         class_ids=class_ids,
                         confidences=confidences,
                     )
                 )
 
-            landmark_detections = LandmarkDetections.stack(landmark_detections)
+            landmark_detections = LandmarkDetections.stack(landmark_detection_list)
 
             if len(landmark_detections) == 0:
-                Logger.log(
+                Logger().log(
                     "INFO",
-                    f"[Camera {frame.camera_name} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
+                    f"[Camera {frame.camera_name} frame {frame.frame_id}] "
+                    f"No landmarks detected in Region {self.region_id}.",
                 )
                 return LandmarkDetections.empty()
 
-            Logger.log(
+            Logger().log(
                 "INFO",
                 f"[Camera {frame.camera_name} frame {frame.frame_id}] "
                 f"{len(landmark_detections)} landmarks detected.",
             )
-            Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
+            Logger().log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
-            Logger.log(
+            Logger().log(
                 "INFO",
                 f"[Camera {frame.camera_name} frame {frame.frame_id}] "
                 f"class_id\tpixel_coordinates\tlatlon\tconfidence",
             )
             for (x, y), (lat, lon), class_id, confidence in landmark_detections:
-                Logger.log(
+                Logger().log(
                     "INFO",
                     f"[Camera {frame.camera_name} frame {frame.frame_id}] "
                     f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
@@ -308,5 +313,5 @@ class LandmarkDetector:
             return landmark_detections
 
         except Exception as e:
-            Logger.log("ERROR", f"Detection process failed: {e}")
+            Logger().log("ERROR", f"Detection process failed: {e}")
             raise

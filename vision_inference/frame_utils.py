@@ -1,8 +1,11 @@
+"""Utility functions for Frame objects."""
+
 import os
 from datetime import datetime
 from itertools import cycle
 from typing import Generator
 
+# pylint: disable=import-error
 import cv2
 
 from vision_inference.frame import Frame
@@ -29,7 +32,10 @@ def demo_frame_cycle_generator(image_dir: str) -> Generator[Frame | None, None, 
             yield None
 
 
-def main():
+def main() -> None:
+    """
+    Main function to demonstrate the frame cycle generator.
+    """
     demo_frames = demo_frame_cycle_generator("data/inference_input")
     print(next(demo_frames))
 

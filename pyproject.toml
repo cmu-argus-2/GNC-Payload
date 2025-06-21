@@ -36,6 +36,8 @@ warn_unreachable = true
 # Warn about unused "ignore" comments
 warn_unused_ignores = true
 
+show_error_codes = true
+
 # Complain if we can't find type hints for dependencies
 ignore_missing_imports = true
 

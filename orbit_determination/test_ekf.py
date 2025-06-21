@@ -2,6 +2,7 @@
 Testing the EKF class.
 """
 
+# pylint: disable=import-error
 import os
 import pickle
 from time import time
@@ -10,6 +11,7 @@ import brahe
 import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
+import scipy as sp
 from brahe.epoch import Epoch
 
 from dynamics.ekf_dynamics import EKFDynamics
@@ -22,13 +24,17 @@ from orbit_determination.landmark_bearing_sensors import (
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU
-from utils.brahe_utils import load_brahe_data_files_if_needed
+
+# from utils.brahe_utils import load_brahe_data_files, load_brahe_data_files_if_needed
 from utils.config_utils import load_config
+from utils.math_utils import skew
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
+# pylint: disable=too-many-statements, duplicate-code
 
-def run_simulation(trial) -> None:
+
+def run_simulation(trial: int) -> None:
     """
     Run the simulation.
 
@@ -48,16 +54,17 @@ def run_simulation(trial) -> None:
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
+    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 510e3, northwards=True)
     initial_state = initial_state / 1e3  # Convert from m to km and m/s to km/s
     # Set the initial rotation matrix to identity
     init_rot = np.eye(3)
+    # Fix a constant rotation velocity for the test.
+    rot = np.array([0, 0, np.pi / 18])
 
-    data_manager.push_next_state(initial_state, init_rot)
+    data_manager.push_next_state(initial_state, init_rot, rot)
 
     # Apply error to init_rot and ensure orthonormality
-    noisy_rot = init_rot + np.random.normal(0, 1e-3, (3, 3))
-    noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
+    noisy_rot = sp.linalg.expm(skew(np.random.normal(0, 1e-3, 3)))
 
     # Assert orthonormality
     assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
@@ -73,9 +80,6 @@ def run_simulation(trial) -> None:
     # Set up scaling parameter for gyro bias
     gyro_bias_scale = 2
 
-    # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 18])
-
     # Prep Q matrix for the EKF.
     Q = np.eye(16) * 1e-16
     # Unmodelled acceleration has larger uncertainty
@@ -83,13 +87,14 @@ def run_simulation(trial) -> None:
     # # Bias uncertainty also larger
     Q[13:16, 13:16] = np.eye(3) * 1e-12
 
-    P = np.eye(16)
-    P[0:3, 0:3] *= 5e-3
-    P[3:6, 3:6] *= 5e-3
-    P[6:9, 6:9] *= 1e-4
-    P[9:10, 9:10] *= 1e-4
-    P[10:13, 10:13] *= 1e-4
-    P[13:16, 13:16] *= 1e-4
+    P = np.diag(
+        [5e-3] * 3  # r
+        + [5e-3] * 3  # v
+        + [1e-4] * 3  # ua
+        + [1e-4]  # drag
+        + [1e-4] * 3  # quaternion
+        + [1e-4] * 3  # gyro bias
+    )
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -158,13 +163,15 @@ def run_simulation(trial) -> None:
         imu_gyro_bias = imu.get_bias()[0]
 
         next_state = ground_truth_dynamics.perturbed_f(
-            x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
+            x=x[0:6],
+            dt=dt,
+            epoch=data_manager.latest_epoch,  # pylint: disable=E1136  # pylint/issues/9590
         )
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat), w)
 
         if t % 120 == 0 and is_over_daytime(
             data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
@@ -237,10 +244,10 @@ def run_simulation(trial) -> None:
     print(ekf.P_m)
 
     # Create three subplots for x,y,z position error
-    error = np.array(error)
+    error_np = np.array(error)
     vel_error = np.array(vel_error)
-    sigma_high = np.array(sigma_high)
-    sigma_low = np.array(sigma_low)
+    sigma_high_np = np.array(sigma_high)
+    sigma_low_np = np.array(sigma_low)
     ua_error = np.array(ua_error)
     gyro_bias_error = np.array(gyro_bias_error)
     actual_bias = np.array(actual_bias)
@@ -259,95 +266,97 @@ def run_simulation(trial) -> None:
     np.save(os.path.join(dir_name, "actual_bias.npy"), actual_bias)
     np.save(os.path.join(dir_name, "drag_estimate.npy"), drag_estimate)
     np.save(os.path.join(dir_name, "cov_trace.npy"), cov_trace)
-    # fig, ax = plt.subplots(3, 1, figsize=(10, 10))
-    # ax[0].plot(error[:, 0], label="x")
-    # ax[1].plot(error[:, 1], label="y")
-    # ax[2].plot(error[:, 2], label="z")
 
-    # ax[0].plot(sigma_high[:, 0], "r--")
-    # ax[0].plot(sigma_low[:, 0], "r--")
-    # ax[1].plot(sigma_high[:, 1], "r--")
-    # ax[1].plot(sigma_low[:, 1], "r--")
-    # ax[2].plot(sigma_high[:, 2], "r--")
-    # ax[2].plot(sigma_low[:, 2], "r--")
+    fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+    ax[0].plot(error_np[:, 0], label="x")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[1].plot(error_np[:, 1], label="y")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[2].plot(error_np[:, 2], label="z")  # pylint: disable=E1136  # pylint/issues/9590
 
-    # fig.suptitle("Position Error with Confidence", fontsize=16)
-    # ax[0].set_xlabel("Time step", fontsize=12)
-    # ax[0].set_ylabel("Position error (km)", fontsize=16)
-    # ax[1].set_xlabel("Time step", fontsize=12)
-    # ax[1].set_ylabel("Position error (km)", fontsize=16)
-    # ax[2].set_xlabel("Time step", fontsize=12)
-    # ax[2].set_ylabel("Position error (km)", fontsize=16)
+    ax[0].plot(sigma_high_np[:, 0], "r--")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[0].plot(sigma_low_np[:, 0], "r--")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[1].plot(sigma_high_np[:, 1], "r--")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[1].plot(sigma_low_np[:, 1], "r--")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[2].plot(sigma_high_np[:, 2], "r--")  # pylint: disable=E1136  # pylint/issues/9590
+    ax[2].plot(sigma_low_np[:, 2], "r--")  # pylint: disable=E1136  # pylint/issues/9590
 
-    # plt.show()
+    fig.suptitle("Position Error with Confidence", fontsize=16)
+    ax[0].set_xlabel("Time step", fontsize=12)
+    ax[0].set_ylabel("Position error (km)", fontsize=16)
+    ax[1].set_xlabel("Time step", fontsize=12)
+    ax[1].set_ylabel("Position error (km)", fontsize=16)
+    ax[2].set_xlabel("Time step", fontsize=12)
+    ax[2].set_ylabel("Position error (km)", fontsize=16)
 
-    # plt.figure()
-    # plt.plot(error)
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Position error [km]")
-    # plt.title("EKF Position Error")
+    plt.show()
 
-    # plt.plot(error)
-    # plt.plot(sigma_high, "r--")
-    # plt.plot(sigma_low, "r--")
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Position error [km]")
-    # plt.title("EKF Position Error")
+    plt.figure()
+    plt.plot(error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Position error [km]")
+    plt.title("EKF Position Error")
 
-    # plt.figure()
+    plt.plot(error)
+    plt.plot(sigma_high, "r--")
+    plt.plot(sigma_low, "r--")
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Position error [km]")
+    plt.title("EKF Position Error")
 
-    # plt.plot(vel_error)
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Velocity error [km/s]")
-    # plt.title("EKF Velocity Error")
+    plt.figure()
 
-    # plt.figure()
+    plt.plot(vel_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Velocity error [km/s]")
+    plt.title("EKF Velocity Error")
 
-    # plt.plot(ua_error)
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Unmodelled acc error [km/s^2]")
-    # plt.title("EKF Unmodelled Acceleration")
+    plt.figure()
 
-    # plt.figure()
+    plt.plot(ua_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Unmodelled acc error [km/s^2]")
+    plt.title("EKF Unmodelled Acceleration")
 
-    # plt.plot(gyro_bias_error)
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Gyro bias error [rad/s]")
-    # plt.title("EKF Gyro Bias Error")
+    plt.figure()
 
-    # plt.figure()
+    plt.plot(gyro_bias_error)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Gyro bias error [rad/s]")
+    plt.title("EKF Gyro Bias Error")
 
-    # plt.plot(cov_trace)
-    # plt.xlabel("Time step")
-    # plt.ylabel("Covariance trace")
-    # plt.title("EKF Covariance Trace")
+    plt.figure()
 
-    # plt.figure()
+    plt.plot(cov_trace)
+    plt.xlabel("Time step")
+    plt.ylabel("Covariance trace")
+    plt.title("EKF Covariance Trace")
 
-    # plt.plot(actual_bias)
-    # plt.legend(["x", "y", "z"])
-    # plt.xlabel("Time step")
-    # plt.ylabel("Actual gyro bias [rad/s]")
-    # plt.title("Actual Gyro Bias")
+    plt.figure()
 
-    # plt.figure()
-    # plt.plot(drag_estimate)
-    # plt.xlabel("Time step")
-    # plt.ylabel("Drag estimate")
-    # plt.title("EKF Drag Estimate")
+    plt.plot(actual_bias)
+    plt.legend(["x", "y", "z"])
+    plt.xlabel("Time step")
+    plt.ylabel("Actual gyro bias [rad/s]")
+    plt.title("Actual Gyro Bias")
 
-    # plt.show()
+    plt.figure()
+    plt.plot(drag_estimate)
+    plt.xlabel("Time step")
+    plt.ylabel("Drag estimate")
+    plt.title("EKF Drag Estimate")
+
+    plt.show()
 
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
-    load_brahe_data_files_if_needed()
-    trials = 1
+    # load_brahe_data_files_if_needed()
+    #### load_brahe_data_files()
+    TRIALS = 1
     # np.random.seed(69420)
-    for i in range(trials):
+    for i in range(TRIALS):
         run_simulation(i)

@@ -7,7 +7,7 @@ J2 perturbations are not included.
 from typing import Callable
 
 import numpy as np
-from brahe import Epoch
+from brahe import R_EARTH, Epoch
 from brahe.constants import GM_EARTH
 
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
@@ -25,13 +25,19 @@ from dynamics.third_body_dynamics import (
     sun_gravity,
     sun_gravity_jac,
 )
+from utils.earth_utils import density_harris_priester
+from utils.math_utils import left_q_3, right_q, skew
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-positional-arguments
-# pylint: disable=E1136  # pylint/issues/9590
+# pylint: disable=too-many-locals
+# pylint: disable=duplicate-code
 GM_EARTH = GM_EARTH / 1e9  # Convert to km^3/s^2
+REF_HEIGHT = 600  # km
+NOMINAL_DENSITY = 1e-5  # kg/m^3
+R_EARTH = R_EARTH / 1e3  # km
 
 
 class Dynamics:
@@ -71,6 +77,11 @@ class Dynamics:
             * config["satellite"]["area"]
             / config["satellite"]["mass"]
         )
+        self.I_sat = np.array(config["satellite"]["inertia"])
+        self.I_sat_inv = np.linalg.inv(self.I_sat)
+        # self.CoPM = np.array(config["satellite"].get("CoPM", [0, 0, 0]))
+        # self.num_MTBs = config["satellite"].get("num_MTBs", 0)
+        # Add other satellite parameters as needed
 
     @property
     def require_epoch(self) -> bool:
@@ -79,24 +90,37 @@ class Dynamics:
         """
         return self.use_drag or self.use_sun_grav or self.use_moon_grav
 
-    @staticmethod
-    def state_derivative(x: np.ndarray) -> np.ndarray:
+    def state_derivative(self, x: np.ndarray) -> np.ndarray:
         """
-        The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity.
-        No perturbations are included.
-
-        :param x: A numpy array of shape (6,) containing the current state (position and velocity).
-        :return: A numpy array of shape (6,) containing the state derivative.
+        The continuous-time state derivative function, dot{x} = f_c(x), for orbital position and attitude dynamics.
+        :param x: A numpy array of shape (13,) containing the current state
+        (position, velocity, quaternion, angular velocity).
+        :return: A numpy array of shape (13,) containing the state derivative.
         """
         r = x[0:3]
         v = x[3:6]
+        q = x[6:10]
+        w = x[10:13]
 
+        # Translational acceleration
         a = -r * GM_EARTH / np.linalg.norm(r) ** 3
 
-        return np.concatenate([v, a])
+        # Quaternion derivative
+        # Normalize quaternion
+        q = q / np.linalg.norm(q)
+        qdot = 0.5 * left_q_3(q) @ w
 
-    @staticmethod
-    def state_derivative_jac(x: np.ndarray) -> np.ndarray:
+        # Torques
+        tau = np.zeros(3)
+
+        # Angular acceleration
+        h_sc = self.I_sat @ w
+        omegadot = self.I_sat_inv @ (tau - np.cross(w, h_sc))
+
+        x_dot = np.concatenate([v, a, qdot, omegadot])  # pylint: disable=W0101
+        return x_dot
+
+    def state_derivative_jac(self, x: np.ndarray) -> np.ndarray:
         """
         The continuous-time state derivative Jacobian function, d(f_c)/dx, for orbital position dynamics under gravity.
         No perturbations are included.
@@ -110,7 +134,20 @@ class Dynamics:
         da_dr = (-GM_EARTH / r_norm**3) * np.eye(3) + (3 * GM_EARTH / r_norm**5) * np.outer(r, r)
         dv_dv = np.eye(3)
         da_dv = np.zeros((3, 3))
-        return np.block([[dv_dr, dv_dv], [da_dr, da_dv]])
+        q = x[6:10]
+        w = x[10:13]
+        dqdot_dq = 0.5 * left_q_3(q)
+        dqdot_dw = 0.5 * right_q(np.concatenate([[0], w]))
+        dwdot_dq = np.zeros((3, 4))
+        dwdot_dw = self.I_sat_inv @ (skew(self.I_sat @ w) - skew(w) @ self.I_sat)
+        return np.block(
+            [
+                [dv_dr, dv_dv, np.zeros((3, 7))],
+                [da_dr, da_dv, np.zeros((3, 7))],
+                [np.zeros((4, 6)), dqdot_dq, dqdot_dw],
+                [np.zeros((3, 6)), dwdot_dq, dwdot_dw],
+            ]
+        )
 
     @staticmethod
     def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> np.ndarray:
@@ -163,8 +200,7 @@ class Dynamics:
 
         return np.eye(x.shape[0]) + (dt / 6) * (k1_jac + 2 * k2_jac + 2 * k3_jac + k4_jac)
 
-    @staticmethod
-    def f(x: np.ndarray, dt: float) -> np.ndarray:
+    def f(self, x: np.ndarray, dt: float) -> np.ndarray:
         """
         The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics under gravity.
         No perturbations are included.
@@ -173,10 +209,9 @@ class Dynamics:
         :param dt: The amount of time between each time step.
         :return: A numpy array of shape (6,) containing the next state (position and velocity).
         """
-        return Dynamics.RK4(x, Dynamics.state_derivative, dt)
+        return Dynamics.RK4(x, self.state_derivative, dt)
 
-    @staticmethod
-    def f_jac(x: np.ndarray, dt: float) -> np.ndarray:
+    def f_jac(self, x: np.ndarray, dt: float) -> np.ndarray:
         """
         The discrete-time state transition Jacobian function, d(f_d)/dx, for orbital position dynamics under gravity.
         No perturbations are included.
@@ -185,7 +220,7 @@ class Dynamics:
         :param dt: The amount of time between each time step.
         :return: A numpy array of shape (6, 6) containing the state transition Jacobian.
         """
-        return Dynamics.RK4_jac(x, Dynamics.state_derivative, Dynamics.state_derivative_jac, dt)
+        return Dynamics.RK4_jac(x, self.state_derivative, self.state_derivative_jac, dt)
 
     def perturbed_state_derivative(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
@@ -197,13 +232,23 @@ class Dynamics:
 
         :return: A numpy array of shape (6,) containing the full state derivative.
         """
-        base_derivative = Dynamics.state_derivative(x)
+        base_derivative = self.state_derivative(x)
         r = x[0:3]
         v = x[3:6]
+        # q = x[6:10]
+        # w = x[10:13]
         r_norm = np.linalg.norm(r)
         v_norm = np.linalg.norm(v)
 
         updated_a = base_derivative[3:6]
+        updated_w_dot = base_derivative[10:13]
+        # Drag torque
+        # if self.use_drag and drag_torque is not None:
+        #     updated_w_dot += self.I_sat_inv @ drag_torque(r, v, q, t_J2000, self.drag_const, self.CoPM)
+
+        # Gravity gradient torque
+        # if gravity_gradient_torque is not None:
+        #     updated_w_dot += self.I_sat_inv @ gravity_gradient_torque(r, self.I_sat)
 
         # Compute drag
         if self.use_drag and not np.isclose(v_norm, 0):
@@ -240,7 +285,9 @@ class Dynamics:
 
             updated_a += a_moon_gt
 
-        return np.concatenate([base_derivative[0:3], updated_a])
+        return np.concatenate(
+            [base_derivative[0:3], updated_a, base_derivative[6:10], updated_w_dot]
+        )
 
     def perturbed_state_derivative_jac(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
         """
@@ -299,9 +346,14 @@ class Dynamics:
 
         return np.block(
             [
-                [base_jacobian[0:3, 0:6]],
-                [da_dr, da_dv],
-            ]  # pylint: disable=E1136  # pylint/issues/9590
+                [base_jacobian[0:3, 0:]],  # pylint: disable=E1136  # pylint/issues/9590
+                [
+                    da_dr,
+                    da_dv,
+                    base_jacobian[3:6, 6:],  # pylint: disable=E1136  # pylint/issues/9590
+                ],
+                [base_jacobian[6:, :]],  # pylint: disable=E1136  # pylint/issues/9590
+            ]
         )
 
     def perturbed_state_derivative_wrapper(
@@ -372,3 +424,53 @@ class Dynamics:
             func_jac=func_jac,
             dt=dt,
         )
+
+    def unmodelled_acceleration(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
+        """
+        Compute the acceleration terms not modelled in the EKF
+        """
+        r = x[0:3]
+        # v = x[3:6]
+        r_norm = np.linalg.norm(r)
+
+        unmodelled_a = np.zeros(3)
+        # Compute J2
+        if self.use_j2 and not np.isclose(r_norm, 0):
+            a_J2_gt = j2_dynamics(r)
+
+            unmodelled_a += a_J2_gt
+
+        # Compute J3 and J4
+        if self.use_j34 and not np.isclose(r_norm, 0):
+            a_J3_gt = j3_dynamics(r)
+            a_J4_gt = j4_dynamics(r)
+            unmodelled_a += a_J3_gt + a_J4_gt
+
+        # Compute third body gravity
+        if self.use_sun_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute sun gravitational effects")
+            a_sun_gt = sun_gravity(r_sat=x[0:3], epoch=epoch)
+
+            unmodelled_a += a_sun_gt
+
+        if self.use_moon_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute moon gravitational effects")
+            a_moon_gt = moon_gravity(r_sat=x[0:3], epoch=epoch)
+
+            unmodelled_a += a_moon_gt
+
+        return unmodelled_a
+
+    def drag_constant(self, x: np.ndarray, epoch: Epoch = None) -> float:
+        """
+        Get the drag constant for the dynamics.
+
+        :return: The drag constant in m^2/kg.
+        """
+        height = np.linalg.norm(x[0:3]) - R_EARTH
+        ekf_density = NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
+        true_density = density_harris_priester(x=x * 1e3, epoch=epoch)
+
+        return np.array([true_density / ekf_density])
