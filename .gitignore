@@ -14,7 +14,8 @@ VisionTrainingGround/Salient_Region_Analysis/highlighted_map_edited.jpg
 VisionTrainingGround/Salient_Region_Analysis/highlighted_map.jpg
 # User-specific config file
 user_config.yaml
-
+# Filter Results
+results/*
 # Trained Models and CSVs
 vision_inference/models
 

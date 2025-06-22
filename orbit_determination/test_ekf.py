@@ -255,7 +255,7 @@ def run_simulation(trial: int) -> None:
     cov_trace = np.array(cov_trace)
 
     index_trial = trial + 0
-    dir_name = f"output_dir_ekf_realdrag/trial_{index_trial}"
+    dir_name = f"results/ekf_realdrag/trial_{index_trial}"
     os.makedirs(dir_name, exist_ok=True)
     np.save(os.path.join(dir_name, "pos_error.npy"), error)
     np.save(os.path.join(dir_name, "vel_error.npy"), vel_error)

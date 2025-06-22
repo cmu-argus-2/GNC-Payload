@@ -205,6 +205,7 @@ if not os.path.exists(TRAJ_DATA_FILE):
     EST_X = np.array(EST_X_LIST)
     TIMES = np.array(TIMES_LIST)
     # Save arrays to a single file for later analysis
+    os.makedirs(TRAJ_DATA_FILE, exist_ok=True)
     np.savez(
         TRAJ_DATA_FILE,
         true_x=TRUE_X,
@@ -244,7 +245,7 @@ plt.tight_layout()
 fig2, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 labels = ["X", "Y", "Z"]
 for i in range(3):
-    axs[i].plot(TIMES_LIST, TRUE_X[:, i], label=f"True {labels[i]}")
+    axs[i].plot(TIMES, TRUE_X[:, i], label=f"True {labels[i]}")
     axs[i].set_ylabel(f"{labels[i]} Position (km)")
     axs[i].legend()
 axs[2].set_xlabel("Time (s)")
@@ -253,7 +254,7 @@ plt.tight_layout()
 fig3, axs_v = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 vel_labels = ["X", "Y", "Z"]
 for i in range(3):
-    axs_v[i].plot(TIMES_LIST, TRUE_X[:, 3 + i], label=f"True {vel_labels[i]} Velocity")
+    axs_v[i].plot(TIMES, TRUE_X[:, 3 + i], label=f"True {vel_labels[i]} Velocity")
     axs_v[i].set_ylabel(f"{vel_labels[i]} Velocity (km/s)")
     axs_v[i].legend()
 axs_v[2].set_xlabel("Time (s)")
@@ -262,7 +263,7 @@ plt.tight_layout()
 fig4, axs_q = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
 quat_labels = ["q0", "q1", "q2", "q3"]
 for i in range(4):
-    axs_q[i].plot(TIMES_LIST, TRUE_X[:, 6 + i], label=f"True {quat_labels[i]}")
+    axs_q[i].plot(TIMES, TRUE_X[:, 6 + i], label=f"True {quat_labels[i]}")
     axs_q[i].set_ylabel(f"{quat_labels[i]}")
     axs_q[i].legend()
 axs_q[3].set_xlabel("Time (s)")
@@ -271,7 +272,7 @@ plt.tight_layout()
 fig5, axs_w = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 ang_vel_labels = ["X", "Y", "Z"]
 for i in range(3):
-    axs_w[i].plot(TIMES_LIST, TRUE_X[:, 10 + i], label=f"True {ang_vel_labels[i]} Angular Velocity")
+    axs_w[i].plot(TIMES, TRUE_X[:, 10 + i], label=f"True {ang_vel_labels[i]} Angular Velocity")
     axs_w[i].set_ylabel(f"{ang_vel_labels[i]} (rad/s)")
     axs_w[i].legend()
 axs_w[2].set_xlabel("Time (s)")
@@ -281,14 +282,14 @@ plt.tight_layout()
 fig_ua, axs_ua = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 ua_labels = ["X", "Y", "Z"]
 for i in range(3):
-    axs_ua[i].plot(TIMES_LIST, TRUE_EKF_X[:, 6 + i], label=f"True UA {ua_labels[i]}")
+    axs_ua[i].plot(TIMES, TRUE_EKF_X[:, 6 + i], label=f"True UA {ua_labels[i]}")
     axs_ua[i].set_ylabel(f"UA {ua_labels[i]} (km/s²)")
     axs_ua[i].legend()
 axs_ua[2].set_xlabel("Time (s)")
 plt.tight_layout()
 
 fig_drag, ax_drag = plt.subplots(figsize=(12, 4))
-ax_drag.plot(TIMES_LIST, TRUE_EKF_X[:, 9], label="True Drag Factor")
+ax_drag.plot(TIMES, TRUE_EKF_X[:, 9], label="True Drag Factor")
 ax_drag.set_ylabel("Drag Factor")
 ax_drag.set_xlabel("Time (s)")
 ax_drag.legend()
@@ -297,7 +298,7 @@ plt.tight_layout()
 fig_bias, axs_bias = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 bias_labels = ["X", "Y", "Z"]
 for i in range(3):
-    axs_bias[i].plot(TIMES_LIST, TRUE_EKF_X[:, 10 + i], label=f"True Gyro Bias {bias_labels[i]}")
+    axs_bias[i].plot(TIMES, TRUE_EKF_X[:, 10 + i], label=f"True Gyro Bias {bias_labels[i]}")
     axs_bias[i].set_ylabel(f"Gyro Bias {bias_labels[i]} (rad/s)")
     axs_bias[i].legend()
 axs_bias[2].set_xlabel("Time (s)")
@@ -305,16 +306,46 @@ plt.tight_layout()
 
 # delta between estimated and true trajectory
 # position error
+# Compute errors
+POS_ERROR = np.linalg.norm(EST_X[:, 0:3] - TRUE_EKF_X[:, 0:3], axis=1)
+VEL_ERROR = np.linalg.norm(EST_X[:, 3:6] - TRUE_EKF_X[:, 3:6], axis=1)
+UA_ERROR = np.linalg.norm(EST_X[:, 6:9] - TRUE_EKF_X[:, 6:9], axis=1)
+DRAG_ERROR = np.abs(EST_X[:, 9] - TRUE_EKF_X[:, 9])
+QUAT_ERROR = np.linalg.norm(EST_X[:, 10:14] - TRUE_EKF_X[:, 10:14], axis=1)
+GYRO_BIAS_ERROR = np.linalg.norm(EST_X[:, 13:16] - TRUE_EKF_X[:, 10:13], axis=1)
+
+FIG_ERR, AXs_ERR = plt.subplots(6, 1, figsize=(12, 16), sharex=True)
+AXs_ERR[0].plot(TIMES, POS_ERROR, label="Position Error (km)")
+AXs_ERR[0].set_ylabel("Position Error (km)")
+AXs_ERR[0].legend()
 
 # velocity error
+AXs_ERR[1].plot(TIMES, VEL_ERROR, label="Velocity Error (km/s)")
+AXs_ERR[1].set_ylabel("Velocity Error (km/s)")
+AXs_ERR[1].legend()
 
 # unmodelled acceleration
+AXs_ERR[2].plot(TIMES, UA_ERROR, label="Unmodelled Accel. Error (km/s²)")
+AXs_ERR[2].set_ylabel("UA Error (km/s²)")
+AXs_ERR[2].legend()
 
 # drag factor error
+AXs_ERR[3].plot(TIMES, DRAG_ERROR, label="Drag Factor Error")
+AXs_ERR[3].set_ylabel("Drag Error")
+AXs_ERR[3].legend()
 
 # quaternion error
+AXs_ERR[4].plot(TIMES, QUAT_ERROR, label="Quaternion Error")
+AXs_ERR[4].set_ylabel("Quat Error")
+AXs_ERR[4].legend()
 
 # gyro bias error
+AXs_ERR[5].plot(TIMES, GYRO_BIAS_ERROR, label="Gyro Bias Error (rad/s)")
+AXs_ERR[5].set_ylabel("Gyro Bias Error (rad/s)")
+AXs_ERR[5].set_xlabel("Time (s)")
+AXs_ERR[5].legend()
+
+plt.tight_layout()
 
 
 plt.show()
