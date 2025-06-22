@@ -461,7 +461,7 @@ class Dynamics:
 
             unmodelled_a += a_moon_gt
 
-        return unmodelled_a
+        return np.array(unmodelled_a, dtype=np.float64)
 
     def drag_constant(self, x: np.ndarray, epoch: Epoch = None) -> float:
         """
