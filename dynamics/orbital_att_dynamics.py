@@ -435,10 +435,9 @@ class Dynamics:
 
         unmodelled_a = np.zeros(3)
         # Compute J2
-        if self.use_j2 and not np.isclose(r_norm, 0):
-            a_J2_gt = j2_dynamics(r)
-
-            unmodelled_a += a_J2_gt
+        # if self.use_j2 and not np.isclose(r_norm, 0):
+        #     a_J2_gt = j2_dynamics(r)
+        #     unmodelled_a += a_J2_gt
 
         # Compute J3 and J4
         if self.use_j34 and not np.isclose(r_norm, 0):

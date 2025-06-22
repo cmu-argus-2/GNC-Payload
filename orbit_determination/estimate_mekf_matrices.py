@@ -321,7 +321,7 @@ VEL_ERROR = np.linalg.norm(EST_X[:, 3:6] - TRUE_EKF_X[:, 3:6], axis=1)
 UA_ERROR = np.linalg.norm(EST_X[:, 6:9] - TRUE_EKF_X[:, 6:9], axis=1)
 DRAG_ERROR = np.abs(EST_X[:, 9] - TRUE_EKF_X[:, 9])
 QUAT_ERROR = np.linalg.norm(EST_X[:, 10:14] - TRUE_EKF_X[:, 10:14], axis=1)
-GYRO_BIAS_ERROR = np.linalg.norm(EST_X[:, 13:16] - TRUE_EKF_X[:, 10:13], axis=1)
+GYRO_BIAS_ERROR = np.linalg.norm(EST_X[:, 14:] - TRUE_EKF_X[:, 14:], axis=1)
 
 FIG_ERR, AXs_ERR = plt.subplots(6, 1, figsize=(12, 16), sharex=True)
 AXs_ERR[0].plot(TIMES, POS_ERROR, label="Position Error (km)")
@@ -364,7 +364,7 @@ VEL_VAR = np.var(EST_X[:, 3:6] - TRUE_EKF_X[:, 3:6], axis=0)
 UA_VAR = np.var(EST_X[:, 6:9] - TRUE_EKF_X[:, 6:9], axis=0)
 DRAG_VAR = np.var(EST_X[:, 9] - TRUE_EKF_X[:, 9])
 QUAT_VAR = np.var(EST_X[:, 10:14] - TRUE_EKF_X[:, 10:14], axis=0)
-GYRO_BIAS_VAR = np.var(EST_X[:, 13:16] - TRUE_EKF_X[:, 10:13], axis=0)
+GYRO_BIAS_VAR = np.var(EST_X[:, 14:] - TRUE_EKF_X[:, 14:], axis=0)
 print("Estimated State Variances:")
 print(f"Position Variance (km²): {POS_VAR}")
 print(f"Velocity Variance (km²/s²): {VEL_VAR}")
@@ -373,14 +373,21 @@ print(f"Drag Factor Variance: {DRAG_VAR}")
 print(f"Quaternion Variance: {QUAT_VAR}")
 print(f"Gyro Bias Variance (rad²/s²): {GYRO_BIAS_VAR}")
 # Construct the Q matrix
-Q_EST = np.zeros((16, 16))
-Q_EST[0:3, 0:3] = np.diag(POS_VAR)
-Q_EST[3:6, 3:6] = np.diag(VEL_VAR)
+Q_EST = np.zeros((17, 17))
+# Q_EST[0:3, 0:3] = np.diag(POS_VAR)
+# Q_EST[3:6, 3:6] = np.diag(VEL_VAR)
 Q_EST[6:9, 6:9] = np.diag(UA_VAR)
 Q_EST[9, 9] = DRAG_VAR
-Q_EST[10:14, 10:14] = np.diag(QUAT_VAR)
-Q_EST[13:16, 13:16] = np.diag(GYRO_BIAS_VAR)
+# Q_EST[10:14, 10:14] = np.diag(QUAT_VAR)
+Q_EST[14:17, 14:17] = np.diag(GYRO_BIAS_VAR)
 print("Estimated Q Matrix:")
 print(Q_EST)
 # Save the Q matrix to a file
 np.savez(os.path.join(TRAJ_DATA_FOLDER, "estimated_Q_matrix.npz"), Q=Q_EST)
+# period of the unmodelled accelerations is half the orbit period
+# ideally the unmodelled accelerations would be a 2nd order gauss markov process
+# in the current setting it's considered a dynamic model compensation term
+# with a 1st order. Because the mean unmodelled acceleration is close to zero
+# it's worth setting up a decay term to bring the unmodelled acceleration estimate
+# back to zero over time.
+# It is set at ~1/8 of the orbit period, tau = 700s
