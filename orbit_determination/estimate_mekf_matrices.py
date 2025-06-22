@@ -22,7 +22,8 @@ from sensors.imu import IMU
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state
 
-TRAJ_DATA_FILE = "trajectory_data.npz"
+TRAJ_DATA_FOLDER = "results/mekf_tuning"
+TRAJ_DATA_FILE = os.path.join(TRAJ_DATA_FOLDER, "trajectory_data.npz")
 
 if not os.path.exists(TRAJ_DATA_FILE):
     print(f"{TRAJ_DATA_FILE} not found. Running simulation to generate data...")
@@ -205,7 +206,7 @@ if not os.path.exists(TRAJ_DATA_FILE):
     EST_X = np.array(EST_X_LIST)
     TIMES = np.array(TIMES_LIST)
     # Save arrays to a single file for later analysis
-    os.makedirs(TRAJ_DATA_FILE, exist_ok=True)
+    os.makedirs(TRAJ_DATA_FOLDER, exist_ok=True)
     np.savez(
         TRAJ_DATA_FILE,
         true_x=TRUE_X,
@@ -241,6 +242,7 @@ ax.set_ylabel("Y Position (km)")
 ax.set_zlabel("Z Position (km)")
 ax.legend()
 plt.tight_layout()
+fig.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_trajectory_3d.png"))
 
 fig2, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 labels = ["X", "Y", "Z"]
@@ -250,6 +252,7 @@ for i in range(3):
     axs[i].legend()
 axs[2].set_xlabel("Time (s)")
 plt.tight_layout()
+fig2.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_trajectory_xyz.png"))
 
 fig3, axs_v = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 vel_labels = ["X", "Y", "Z"]
@@ -259,6 +262,7 @@ for i in range(3):
     axs_v[i].legend()
 axs_v[2].set_xlabel("Time (s)")
 plt.tight_layout()
+fig3.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_velocity_xyz.png"))
 
 fig4, axs_q = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
 quat_labels = ["q0", "q1", "q2", "q3"]
@@ -268,6 +272,7 @@ for i in range(4):
     axs_q[i].legend()
 axs_q[3].set_xlabel("Time (s)")
 plt.tight_layout()
+fig4.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_quaternion.png"))
 
 fig5, axs_w = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 ang_vel_labels = ["X", "Y", "Z"]
@@ -277,6 +282,7 @@ for i in range(3):
     axs_w[i].legend()
 axs_w[2].set_xlabel("Time (s)")
 plt.tight_layout()
+fig5.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_angular_velocity_xyz.png"))
 
 # ekf states
 fig_ua, axs_ua = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
@@ -287,6 +293,7 @@ for i in range(3):
     axs_ua[i].legend()
 axs_ua[2].set_xlabel("Time (s)")
 plt.tight_layout()
+fig_ua.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_unmodelled_acceleration.png"))
 
 fig_drag, ax_drag = plt.subplots(figsize=(12, 4))
 ax_drag.plot(TIMES, TRUE_EKF_X[:, 9], label="True Drag Factor")
@@ -294,6 +301,7 @@ ax_drag.set_ylabel("Drag Factor")
 ax_drag.set_xlabel("Time (s)")
 ax_drag.legend()
 plt.tight_layout()
+fig_drag.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_drag_factor.png"))
 
 fig_bias, axs_bias = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 bias_labels = ["X", "Y", "Z"]
@@ -303,6 +311,7 @@ for i in range(3):
     axs_bias[i].legend()
 axs_bias[2].set_xlabel("Time (s)")
 plt.tight_layout()
+fig_bias.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_gyro_bias.png"))
 
 # delta between estimated and true trajectory
 # position error
@@ -344,8 +353,34 @@ AXs_ERR[5].plot(TIMES, GYRO_BIAS_ERROR, label="Gyro Bias Error (rad/s)")
 AXs_ERR[5].set_ylabel("Gyro Bias Error (rad/s)")
 AXs_ERR[5].set_xlabel("Time (s)")
 AXs_ERR[5].legend()
-
 plt.tight_layout()
-
+FIG_ERR.savefig(os.path.join(TRAJ_DATA_FOLDER, "state_errors.png"))
 
 plt.show()
+
+# Compute variances
+POS_VAR = np.var(EST_X[:, 0:3] - TRUE_EKF_X[:, 0:3], axis=0)
+VEL_VAR = np.var(EST_X[:, 3:6] - TRUE_EKF_X[:, 3:6], axis=0)
+UA_VAR = np.var(EST_X[:, 6:9] - TRUE_EKF_X[:, 6:9], axis=0)
+DRAG_VAR = np.var(EST_X[:, 9] - TRUE_EKF_X[:, 9])
+QUAT_VAR = np.var(EST_X[:, 10:14] - TRUE_EKF_X[:, 10:14], axis=0)
+GYRO_BIAS_VAR = np.var(EST_X[:, 13:16] - TRUE_EKF_X[:, 10:13], axis=0)
+print("Estimated State Variances:")
+print(f"Position Variance (km²): {POS_VAR}")
+print(f"Velocity Variance (km²/s²): {VEL_VAR}")
+print(f"Unmodelled Acceleration Variance (km²/s^4): {UA_VAR}")
+print(f"Drag Factor Variance: {DRAG_VAR}")
+print(f"Quaternion Variance: {QUAT_VAR}")
+print(f"Gyro Bias Variance (rad²/s²): {GYRO_BIAS_VAR}")
+# Construct the Q matrix
+Q_EST = np.zeros((16, 16))
+Q_EST[0:3, 0:3] = np.diag(POS_VAR)
+Q_EST[3:6, 3:6] = np.diag(VEL_VAR)
+Q_EST[6:9, 6:9] = np.diag(UA_VAR)
+Q_EST[9, 9] = DRAG_VAR
+Q_EST[10:14, 10:14] = np.diag(QUAT_VAR)
+Q_EST[13:16, 13:16] = np.diag(GYRO_BIAS_VAR)
+print("Estimated Q Matrix:")
+print(Q_EST)
+# Save the Q matrix to a file
+np.savez(os.path.join(TRAJ_DATA_FOLDER, "estimated_Q_matrix.npz"), Q=Q_EST)
