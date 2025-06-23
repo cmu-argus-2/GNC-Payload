@@ -2,15 +2,16 @@
 Module for computing third body dynamics and their Jacobians
 """
 
+# pylint: disable=import-error
 import brahe
 import numpy as np
 from brahe import GM_MOON, GM_SUN
 from brahe.epoch import Epoch
-from brahe.orbit_dynamics.gravity import accel_thirdbody_sun
-from brahe.orbit_dynamics.gravity import accel_thirdbody_moon
+from brahe.orbit_dynamics.gravity import accel_thirdbody_moon, accel_thirdbody_sun
 
 GM_MOON = GM_MOON / 1e9  # km^3/s^2
 GM_SUN = GM_SUN / 1e9  # km^3/s^2
+
 
 def third_body_acceleration(r_sat: np.ndarray, r_body: np.ndarray, mu: float) -> np.ndarray:
     """
@@ -31,6 +32,7 @@ def third_body_acceleration(r_sat: np.ndarray, r_body: np.ndarray, mu: float) ->
 def third_body_jacobian(r_sat: np.ndarray, r_body: np.ndarray, mu: float) -> np.ndarray:
     """
     Computes the Jacobian of the third body acceleration.
+    From Montenbruck's Satellite Orbits, pg. 244 eq (7.56)
 
     :param r_sat: state position of satellite
     :param r_body: position of the third body in ECI frame [m]
@@ -41,7 +43,7 @@ def third_body_jacobian(r_sat: np.ndarray, r_body: np.ndarray, mu: float) -> np.
     r = r_sat - r_body
     r_norm = np.linalg.norm(r)
 
-    return (mu / r_norm**3) * (np.eye(3) - 3 * np.outer(r, r) / r_norm**2)
+    return -(mu / r_norm**3) * (np.eye(3) - 3 * np.outer(r, r) / r_norm**2)
 
 
 def sun_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
@@ -53,7 +55,7 @@ def sun_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
 
     :return: sun gravity acceleration
     """
-    return accel_thirdbody_sun(epc=epoch, x_eci=r_sat*1e3) / 1e3
+    return accel_thirdbody_sun(epc=epoch, x_eci=r_sat * 1e3) / 1e3
 
 
 def sun_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
@@ -78,7 +80,7 @@ def moon_gravity(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
 
     :return: moon gravity acceleration
     """
-    return accel_thirdbody_moon(epc=epoch, x_eci=r_sat*1e3) / 1e3
+    return accel_thirdbody_moon(epc=epoch, x_eci=r_sat * 1e3) / 1e3
 
 
 def moon_gravity_jac(r_sat: np.ndarray, epoch: Epoch) -> np.ndarray:
