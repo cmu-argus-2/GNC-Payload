@@ -2,10 +2,10 @@
 Module that defines drag dynamics and its jacobian.
 """
 
+# pylint: disable=import-error
 import numpy as np
 from brahe import R_EARTH, Epoch
 
-# pylint: disable=import-error
 from utils.earth_utils import density_harris_priester
 
 REF_HEIGHT = 600  # km
@@ -23,14 +23,14 @@ def drag_dynamics(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
 
     :return: drag acceleration
     """
-
-    density = density_harris_priester(x=x*1e3, epoch=latest_epoch)
-    v_norm = np.linalg.norm(x[3:6])
+    v = x[3:6]
+    density = density_harris_priester(x=x * 1e3, epoch=latest_epoch)
+    v_norm = np.linalg.norm(v)
 
     if np.isclose(v_norm, 0):
         a_drag = np.zeros(3)
     else:
-        a_drag = density * x[3:6] * drag_const * v_norm
+        a_drag = density * v * drag_const * v_norm
 
     return a_drag
 
@@ -50,22 +50,22 @@ def drag_jacobian(x: np.ndarray, drag_const: float, latest_epoch: Epoch) -> np.n
     # since the Harris-Priester model is a function of the position and the velocity.
     # However, since that function is not easily differentiable, we cannot compute the jacobian analytically.
     # Since the groundtruth dynamics doesn't require this function anyways, I would ignore this problem for now.
-
-    v_norm = np.linalg.norm(x[3:6])
+    v = x[3:6]
+    v_norm = np.linalg.norm(v)
 
     if np.isclose(v_norm, 0):
         return np.zeros((3, 3))
 
-    density = density_harris_priester(x=x*1e3, epoch=latest_epoch)
+    density = density_harris_priester(x=x * 1e3, epoch=latest_epoch)
 
-    da_drag_dv = density * drag_const * ((np.eye(3) * v_norm) - np.outer(x[3:6], x[3:6]) / v_norm)
+    da_drag_dv = density * drag_const * ((np.eye(3) * v_norm) - np.outer(v, v) / v_norm)
 
     return da_drag_dv
 
 
 def drag_scalar_estimate(x: np.ndarray, d_est: float, drag_const: float) -> np.ndarray:
     """
-    Compute the drag acceleration using a scalar drag estimate. 
+    Compute the drag acceleration using a scalar drag estimate.
     The formulation is based on the formulation provided by Montebruc, and Gill in
     Satellite Orbits: Models, Methods, and Applications in Chapter 3.5.1 page 86
     The Upper Atmosphere Model. The model has been simplified to use a constant REF_HEIGHT
@@ -77,11 +77,12 @@ def drag_scalar_estimate(x: np.ndarray, d_est: float, drag_const: float) -> np.n
 
     :return: drag acceleration
     """
-
-    v_norm = np.linalg.norm(x[3:6])
-    height = np.linalg.norm(x[0:3]) - R_EARTH
+    r = x[0:3]
+    v = x[3:6]
+    v_norm = np.linalg.norm(v)
+    height = np.linalg.norm(r) - R_EARTH
     density_estimate = d_est * NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
-    drag_a = density_estimate * x[3:6] * drag_const * v_norm
+    drag_a = density_estimate * v * drag_const * v_norm
     return drag_a
 
 
@@ -94,10 +95,11 @@ def da_dest_drag_derivative(x: np.ndarray, drag_const: float) -> np.ndarray:
 
     :return: drag derivative
     """
-
-    v_norm = np.linalg.norm(x[3:6])
-    height = np.linalg.norm(x[0:3]) - R_EARTH
-    da_drag = NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT) * x[3:6] * drag_const * v_norm
+    r = x[0:3]
+    v = x[3:6]
+    v_norm = np.linalg.norm(v)
+    height = np.linalg.norm(r) - R_EARTH
+    da_drag = NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT) * v * drag_const * v_norm
     return np.expand_dims(da_drag, axis=1)
 
 
@@ -111,15 +113,13 @@ def dadrag_dr_partial(x: np.ndarray, d_est: float, drag_const: float) -> np.ndar
 
     :return: drag acceleration partial derivative with respect to position
     """
-    v_norm = np.linalg.norm(x[3:6])
-    height = np.linalg.norm(x[0:3]) - R_EARTH
+    r = x[0:3]
+    v = x[3:6]
+    v_norm = np.linalg.norm(v)
+    height = np.linalg.norm(r) - R_EARTH
     density_estimate = d_est * NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
     dadrag_dr = (
-        density_estimate
-        * drag_const
-        * v_norm
-        * np.outer(x[3:6], -x[0:3])
-        / (np.linalg.norm(x[0:3]) * REF_HEIGHT)
+        density_estimate * drag_const * v_norm * np.outer(v, -r) / (np.linalg.norm(r) * REF_HEIGHT)
     )
     return dadrag_dr
 
@@ -134,10 +134,10 @@ def dadrag_dv_partial(x: np.ndarray, d_est: float, drag_const: float) -> np.ndar
 
     :return: drag acceleration partial derivative with respect to velocity
     """
-    v_norm = np.linalg.norm(x[3:6])
-    height = np.linalg.norm(x[0:3]) - R_EARTH
+    r = x[0:3]
+    v = x[3:6]
+    v_norm = np.linalg.norm(v)
+    height = np.linalg.norm(r) - R_EARTH
     density_estimate = d_est * NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
-    dadrag_dv = (
-        density_estimate * drag_const * (np.eye(3) * v_norm - np.outer(x[3:6], x[3:6]) / v_norm)
-    )
+    dadrag_dv = density_estimate * drag_const * (np.eye(3) * v_norm - np.outer(v, v) / v_norm)
     return dadrag_dv
