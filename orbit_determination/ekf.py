@@ -17,7 +17,8 @@ from utils.math_utils import der_rp2q, left_q, left_q_3, quat2rotm, rot_2_q  # r
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
-# pylint: disable=too-many-positional-arguments
+# pylint: disable=R0913
+# too-many-positional-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
 # pylint: disable=too-many-locals
@@ -40,7 +41,7 @@ class EKF:
         config: dict,
         ua: np.ndarray,
         ekf_dynamics: Dynamics,
-        gyro_bias_scale: float,
+        state_scaling: np.ndarray,
     ) -> None:
         """
         Initialize the EKF
@@ -57,11 +58,12 @@ class EKF:
         :param config: The configuration dictionary.
         :param ua: The unmodeled acceleration with shape (3,)
         :param ekf_dynamics: The Dynamics object used to calculate the dynamics of the system.
-        :param gyro_bias_scale: The scale factor for the gyro bias.
+        :param state_scaling: The vector of scale factors for the states.
 
         :return: None
 
         """
+        self.state_scaling = state_scaling
 
         self.r_m = r
         self.r_p = r
@@ -74,15 +76,14 @@ class EKF:
 
         # self.a_b = a_b
         self.w_b = w_b
-        self.gyro_bias_scale = gyro_bias_scale
 
         self.ua = ua
         self.drag_est = np.array([1])
 
-        self.P_m = P
-        self.P_p = P
+        self.P_m = P * (self.state_scaling**2)
+        self.P_p = P * (self.state_scaling**2)
 
-        self.Q = Q
+        self.Q = Q * (self.state_scaling**2)
         self.R = np.zeros((3, 3))
         self.dt = dt
 
@@ -107,26 +108,29 @@ class EKF:
 
         w = u[0:3]  # angular velocity measurement from IMU
 
-        x = np.concatenate([self.r_m, self.v_m, self.ua, self.drag_est])
-        A_pos = self.ekf_dynamics.perturbed_f_jac(x=x, dt=self.dt, epoch=epoch)
-        x_new = self.ekf_dynamics.perturbed_f(x=x, dt=self.dt, epoch=epoch)
-
+        x_unscaled = np.concatenate(
+            [self.r_m, self.v_m, self.ua, self.drag_est, np.zeros(3), self.w_b]
+        )
+        # x_scaled     = x * self.state_scaling
+        A_pos = self.ekf_dynamics.perturbed_f_jac(x=x_unscaled[:10], dt=self.dt, epoch=epoch)
+        x_new_unscaled = self.ekf_dynamics.perturbed_f(x=x_unscaled[:10], dt=self.dt, epoch=epoch)
+        # x_new_scaled   = x_new_unscaled * self.state_scaling
         self.q_p = left_q(self.q_m) @ quaternion.as_float_array(
-            quaternion.from_rotation_vector(self.dt * (w - self.w_b / self.gyro_bias_scale))
+            quaternion.from_rotation_vector(self.dt * (w - x_unscaled[13:]))
         )
 
-        self.r_p = x_new[0:3]
-        self.v_p = x_new[3:6]
+        self.r_p = x_new_unscaled[0:3]
+        self.v_p = x_new_unscaled[3:6]
 
         dqdq = quaternion.as_rotation_matrix(
-            quaternion.from_rotation_vector(-1 * self.dt * (w - self.w_b / self.gyro_bias_scale))
+            quaternion.from_rotation_vector(-1 * self.dt * (w - x_unscaled[13:]))
         )
         dqdw = (
             -1
             * self.dt
             * left_q_3(self.q_p).T
             @ left_q(self.q_m)
-            @ der_rp2q(self.dt * (w - self.w_b / self.gyro_bias_scale))
+            @ der_rp2q(self.dt * (w - x_unscaled[13:]))
         )
 
         A = np.block(
@@ -136,8 +140,9 @@ class EKF:
                 [np.zeros((3, 13)), np.eye(3)],
             ]
         )
+        A_scaled = np.diag(self.state_scaling) @ A @ np.diag(1.0 / self.state_scaling)
 
-        self.P_p = A @ self.P_m @ A.T + self.Q
+        self.P_p = A_scaled @ self.P_m @ A_scaled.T + self.Q
 
     def no_measurement(self) -> None:
         """
@@ -189,7 +194,7 @@ class EKF:
         # Let R take the dimensionality of the number of measurements
         self.R = np.diag([1e-2] * z0.shape[0])
 
-        x_p = jnp.array(
+        x_p = jnp.array(  # unscaled
             np.concatenate(
                 [
                     self.r_p,
@@ -205,7 +210,10 @@ class EKF:
         for i in range(num_iter):
 
             h = self.h_est(z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch)
-            H = self.h_jac(z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch)
+            H_unscaled = self.h_jac(
+                z1, camera_model_manager, measurement_camera_names, x_p, epoch=epoch
+            )
+            H = H_unscaled @ np.diag(1.0 / self.state_scaling)
             S = H @ self.P_p @ H.T + self.R
 
             # Check for ill-conditioned matrix and add regularization if necessary
@@ -218,7 +226,8 @@ class EKF:
 
             K = self.P_p @ H.T @ np.linalg.inv(S)
 
-            delta = K @ (z0 - h)
+            delta_scaled = K @ (z0 - h)
+            delta = delta_scaled / self.state_scaling
 
             self.r_m = np.array(x_p[0:3]) + delta[0:3]
             self.v_m = np.array(x_p[3:6]) + delta[3:6]

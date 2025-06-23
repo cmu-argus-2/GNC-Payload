@@ -4,7 +4,8 @@ Functions for implementing EKF dynamics extending the orbital dynamics.
 
 # pylint: disable=import-error
 import numpy as np
-from brahe import Epoch
+from brahe import R_EARTH, Epoch
+from brahe.constants import GM_EARTH
 
 from dynamics.drag_dynamics import (
     da_dest_drag_derivative,
@@ -12,12 +13,20 @@ from dynamics.drag_dynamics import (
     dadrag_dv_partial,
     drag_scalar_estimate,
 )
+from dynamics.grav_potential_dynamics import j3_dynamics, j4_dynamics
 from dynamics.orbital_dynamics import Dynamics
+from dynamics.third_body_dynamics import moon_gravity, sun_gravity
+from utils.earth_utils import density_harris_priester
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments
-# pylint: disable=too-many-positional-arguments
+# pylint: disable=R0913
+# too-many-positional-arguments
+GM_EARTH = GM_EARTH / 1e9  # Convert to km^3/s^2
+REF_HEIGHT = 600  # km
+NOMINAL_DENSITY = 1e-5  # kg/m^3
+R_EARTH = R_EARTH / 1e3  # km
 
 
 class EKFDynamics(Dynamics):
@@ -35,7 +44,6 @@ class EKFDynamics(Dynamics):
         use_drag: bool,
         use_j2: bool,
         use_j34: bool,
-        ua_scale: float = 1,
     ) -> None:
         """
         Initialize the EKFDynamics class.
@@ -48,7 +56,6 @@ class EKFDynamics(Dynamics):
         :param use_drag: Whether to use drag in the dynamics.
         :param use_j2: Whether to use J2 perturbations in the dynamics.
         :param use_j34: Whether to use J3 and J4 perturbations in the dynamics.
-        :param ua_scale: The scale factor for unmodelled accelerations.
         :return: None
         """
         super().__init__(
@@ -66,7 +73,6 @@ class EKFDynamics(Dynamics):
         self.state_dim = 6
 
         if use_unmodelled_a:
-            self.ua_scale = ua_scale
             self.state_dim += 3
 
         if use_drag_scalar:
@@ -90,7 +96,7 @@ class EKFDynamics(Dynamics):
 
         # Compute unmodelled accelerations
         if self.use_unmodelled_a:
-            updated_a += x[6:9] / self.ua_scale
+            updated_a += x[6:9]
             remainder = np.append(remainder, np.zeros((3,)))
 
         if self.use_drag_scalar:
@@ -154,3 +160,52 @@ class EKFDynamics(Dynamics):
                 [drag_jac],
             ]
         )
+
+    def true_unmodelled_acceleration(self, x: np.ndarray, epoch: Epoch = None) -> np.ndarray:
+        """
+        Compute the acceleration terms not modelled in the EKF
+        """
+        r = x[0:3]
+        # v = x[3:6]
+        r_norm = np.linalg.norm(r)
+
+        unmodelled_a = np.zeros(3)
+        # Compute J2
+        # if self.use_j2 and not np.isclose(r_norm, 0):
+        #     a_J2_gt = j2_dynamics(r)
+        #     unmodelled_a += a_J2_gt
+
+        # Compute J3 and J4
+        if not self.use_j34 and not np.isclose(r_norm, 0):
+            a_J3_gt = j3_dynamics(r)
+            a_J4_gt = j4_dynamics(r)
+            unmodelled_a += a_J3_gt + a_J4_gt
+
+        # Compute third body gravity
+        if not self.use_sun_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute sun gravitational effects")
+            a_sun_gt = sun_gravity(r_sat=r, epoch=epoch)
+
+            unmodelled_a += a_sun_gt
+
+        if not self.use_moon_grav:
+            if epoch is None:
+                raise ValueError("Epoch is required to compute moon gravitational effects")
+            a_moon_gt = moon_gravity(r_sat=r, epoch=epoch)
+
+            unmodelled_a += a_moon_gt
+
+        return np.array(unmodelled_a, dtype=np.float64)
+
+    def true_drag_constant(self, x: np.ndarray, epoch: Epoch = None) -> float:
+        """
+        Get the drag constant for the dynamics.
+
+        :return: The drag constant in m^2/kg.
+        """
+        height = np.linalg.norm(x[0:3]) - R_EARTH
+        ekf_density = NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
+        true_density = density_harris_priester(x=x * 1e3, epoch=epoch)
+
+        return np.array([true_density / ekf_density])

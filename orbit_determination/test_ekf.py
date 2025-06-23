@@ -8,7 +8,6 @@ import pickle
 from time import time
 
 import brahe
-import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
 import scipy as sp
@@ -32,6 +31,7 @@ from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
 # pylint: disable=too-many-statements, duplicate-code
+# mypy: disable-error-code = attr-defined
 
 
 def run_simulation(trial: int) -> None:
@@ -63,39 +63,41 @@ def run_simulation(trial: int) -> None:
 
     data_manager.push_next_state(initial_state, init_rot, rot)
 
-    # Apply error to init_rot and ensure orthonormality
-    noisy_rot = sp.linalg.expm(skew(np.random.normal(0, 1e-3, 3)))
-
-    # Assert orthonormality
-    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
-        np.linalg.det(noisy_rot), 1
-    ), "Rotation matrix is not a proper rotation matrix"
-
     # Set the number of update iterations for the IEKF
     num_iter = 5
 
-    # Set up scaling parameter for the unmodelled acceleration
-    ua_scale = 1
+    # Set up scaling parameters
+    position_scale = 1e-3  # position [km]
+    velocity_scale = 1e2  # velocity [km/s]
+    ua_scale = 1e10  # unmodelled acceleration [km/s^2]
+    drag_scalar_scale = 1e-2  # drag scalar
+    axisangle_scale = 1e1  # axis-angle scaling for quaternion
+    gyro_bias_scale = 1e2  # gyro bias scaling
 
-    # Set up scaling parameter for gyro bias
-    gyro_bias_scale = 1
+    # Define initial uncertainty
+    init_pos_std = 100  # km
+    init_vel_std = 1e-2  # km/s
+    init_ua_std = 1e-10  # km/s^2
+    init_drag_std = 1e2  # drag scalar
+    init_quat_std = 1e-3  # axis-angle error [rad]
+    init_gyro_bias_std = 5e-5  # gyro bias error [rad/s]
 
     # Prep Q matrix for the EKF.
     Q = np.zeros((16, 16))
     # Unmodelled acceleration has larger uncertainty
     Q[6:9, 6:9] = np.eye(3) * 1e-30
-    # Unmodelled acceleration has larger uncertainty
+    # drag uncertainty is larger
     Q[9, 9] = 1e-4
     # # Bias uncertainty also larger
     Q[13:16, 13:16] = np.eye(3) * 1e-11
 
     P = np.diag(
-        [5e-3] * 3  # r
-        + [5e-3] * 3  # v
-        + [1e-18] * 3  # ua
-        + [1e4]  # drag
-        + [1e-4] * 3  # quaternion
-        + [1e-4] * 3  # gyro bias
+        [(init_pos_std) ** 2] * 3  # r
+        + [(init_vel_std) ** 2] * 3  # v
+        + [(init_ua_std) ** 2] * 3  # ua
+        + [(init_drag_std) ** 2]  # drag
+        + [(init_quat_std) ** 2] * 3  # quaternion
+        + [(init_gyro_bias_std) ** 2] * 3  # gyro bias
     )
 
     # Set up dynamics instance for ground truth and EKF
@@ -107,6 +109,14 @@ def run_simulation(trial: int) -> None:
         use_sun_grav=True,
         use_moon_grav=True,
     )
+    variable_scaling = np.array(
+        [position_scale] * 3  # r
+        + [velocity_scale] * 3  # v
+        + [ua_scale] * 3  # ua
+        + [drag_scalar_scale]  # drag
+        + [axisangle_scale] * 3  # quaternion
+        + [gyro_bias_scale] * 3  # gyro bias
+    )
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=False,
@@ -116,17 +126,25 @@ def run_simulation(trial: int) -> None:
         use_moon_grav=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
-        ua_scale=ua_scale,
     )
 
     # Initialize IMU and EKF
     imu = IMU.get_default_imu(dt)
-    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
+    gyro_bias = imu.get_bias()[0] + np.random.normal(0, init_gyro_bias_std, 3)
+
+    # Apply error to init_rot and ensure orthonormality
+    noisy_rot = sp.linalg.expm(skew(np.random.normal(0, init_quat_std, 3)))
+
+    # Assert orthonormality
+    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
+        np.linalg.det(noisy_rot), 1
+    ), "Rotation matrix is not a proper rotation matrix"
+
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 10, 3),
-        v=initial_state[3:6] + np.random.normal(0, 1e-2, 3),
-        ua=np.random.normal(0, 1e-8, 3) * ua_scale,
+        r=initial_state[0:3] + np.random.normal(0, init_pos_std, 3),
+        v=initial_state[3:6] + np.random.normal(0, init_vel_std, 3),
+        ua=np.zeros(3),  # np.random.normal(0, init_ua_std, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
@@ -134,19 +152,15 @@ def run_simulation(trial: int) -> None:
         config=config,
         ekf_dynamics=ekf_dynamics,
         w_b=gyro_bias,
-        gyro_bias_scale=gyro_bias_scale,
+        state_scaling=variable_scaling,
     )
 
-    # Store errors for plotting
-    error = []
-    vel_error = []
-    ua_error = []
+    # Store data for plotting
+    ekf_state = []
+    ekf_state_std = []
+    true_state = []
     cov_trace = []
-    gyro_bias_error = []
-    actual_bias = []
-    drag_estimate = []
-    sigma_high = []
-    sigma_low = []
+    cov_cond_num = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -185,7 +199,11 @@ def run_simulation(trial: int) -> None:
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
             print(f"State position: {next_state[0:3]}")
-            print(ekf.P_m[0:3, 0:3])
+            print(
+                np.diag(1.0 / ekf.state_scaling[0:3])
+                @ ekf.P_m[0:3, 0:3]
+                @ np.diag(1.0 / ekf.state_scaling[0:3])
+            )
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -204,38 +222,57 @@ def run_simulation(trial: int) -> None:
         else:
             ekf.no_measurement()
 
+        # Check if ekf.P_m is symmetric and positive semidefinite (sdp)
+        if not np.allclose(ekf.P_m, ekf.P_m.T, atol=1e-8):
+            print(f"Warning: ekf.P_m is not symmetric at step {t}")
+            ekf.P_m = (ekf.P_m + ekf.P_m.T) / 2  # temp hack: Make it symmetric
+        eigvals = np.linalg.eigvalsh(ekf.P_m)
+        if np.any(eigvals < 0):
+            print(
+                f"Warning: ekf.P_m is not positive semidefinite at step {t}, min eigenvalue: {eigvals.min()}"
+            )
+        # Check condition number of ekf.P_m
+        cond_number = np.linalg.cond(ekf.P_m)
+        if cond_number > 1e14:
+            print(f"Warning: ekf.P_m condition number is very high at step {t}: {cond_number:.2e}")
         # R_filter = transform_eci_to_lvlh(ekf.r_m, ekf.v_m)
         # filter_position = R_filter @ ekf.r_m
         # gt_position_lvlh = R_filter @ next_state[0:3]
 
         # pos_error_lvlh.append(filter_position - gt_position_lvlh)
 
-        error.append(ekf.r_m - next_state[0:3])
-        vel_error.append(ekf.v_m - next_state[3:6])
-        ua_error.append(ekf.ua / ua_scale)
-        cov_trace.append(np.trace(ekf.P_m))
-        gyro_bias_error.append(ekf.w_b / gyro_bias_scale - imu_gyro_bias)
-        actual_bias.append(imu_gyro_bias)
-        drag_estimate.append(ekf.drag_est)
+        ekf_x = np.concatenate(
+            [
+                ekf.r_p,
+                ekf.v_p,
+                ekf.ua,
+                ekf.drag_est,
+                ekf.q_p,
+                gyro_meas - ekf.w_b,
+                ekf.w_b,
+            ]
+        )
+        true_x = np.concatenate(
+            [
+                next_state[0:6],
+                ekf.ekf_dynamics.true_unmodelled_acceleration(
+                    x=next_state, epoch=data_manager.latest_epoch
+                ),
+                ekf.ekf_dynamics.true_drag_constant(
+                    x=next_state[0:6], epoch=data_manager.latest_epoch
+                ),  # pylint: disable=E1136  # pylint/issues/9590
+                next_quat.components,
+                w,
+                imu_gyro_bias,
+            ]
+        )
 
-        sigma_high.append(
-            np.array(
-                [
-                    3 * np.sqrt(ekf.P_m[0, 0]),
-                    3 * np.sqrt(ekf.P_m[1, 1]),
-                    3 * np.sqrt(ekf.P_m[2, 2]),
-                ]
-            )
-        )
-        sigma_low.append(
-            np.array(
-                [
-                    -3 * np.sqrt(ekf.P_m[0, 0]),
-                    -3 * np.sqrt(ekf.P_m[1, 1]),
-                    -3 * np.sqrt(ekf.P_m[2, 2]),
-                ]
-            )
-        )
+        ekf_state.append(ekf_x)
+        ekf_state_std.append((np.diag(ekf.P_m) ** 0.5) / ekf.state_scaling)
+        true_state.append(true_x)
+        cov_trace.append(np.trace(ekf.P_m))
+        cov_cond_num.append(cond_number)
+        # [TODO:] store measurement data for plotting
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -243,115 +280,23 @@ def run_simulation(trial: int) -> None:
             pickle.dump(data_manager, file)
 
     # Print final covariance matrix
-    print(ekf.P_m)
+    print(np.diag(1.0 / ekf.state_scaling) @ ekf.P_m @ np.diag(1.0 / ekf.state_scaling))
 
     # Create three subplots for x,y,z position error
-    error_np = np.array(error)
-    vel_error = np.array(vel_error)
-    sigma_high_np = np.array(sigma_high)
-    sigma_low_np = np.array(sigma_low)
-    ua_error = np.array(ua_error)
-    gyro_bias_error = np.array(gyro_bias_error)
-    actual_bias = np.array(actual_bias)
-    drag_estimate = np.array(drag_estimate)
+    ekf_state_np = np.array(ekf_state)
+    ekf_state_std_np = np.array(ekf_state_std)
+    true_state_np = np.array(true_state)
     cov_trace = np.array(cov_trace)
+    cov_cond_num = np.array(cov_cond_num)
 
     index_trial = trial + 0
     dir_name = f"results/ekf_realdrag/trial_{index_trial}"
     os.makedirs(dir_name, exist_ok=True)
-    np.save(os.path.join(dir_name, "pos_error.npy"), error)
-    np.save(os.path.join(dir_name, "vel_error.npy"), vel_error)
-    np.save(os.path.join(dir_name, "sigma_high.npy"), sigma_high)
-    np.save(os.path.join(dir_name, "sigma_low.npy"), sigma_low)
-    np.save(os.path.join(dir_name, "ua_error.npy"), ua_error)
-    np.save(os.path.join(dir_name, "gyro_bias_error.npy"), gyro_bias_error)
-    np.save(os.path.join(dir_name, "actual_bias.npy"), actual_bias)
-    np.save(os.path.join(dir_name, "drag_estimate.npy"), drag_estimate)
+    np.save(os.path.join(dir_name, "ekf_state.npy"), ekf_state_np)
+    np.save(os.path.join(dir_name, "ekf_state_std.npy"), ekf_state_std_np)
+    np.save(os.path.join(dir_name, "true_state.npy"), true_state_np)
     np.save(os.path.join(dir_name, "cov_trace.npy"), cov_trace)
-
-    fig, ax = plt.subplots(3, 1, figsize=(10, 10))
-    ax[0].plot(error_np[:, 0], label="x")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[1].plot(error_np[:, 1], label="y")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[2].plot(error_np[:, 2], label="z")  # pylint: disable=E1136  # pylint/issues/9590
-
-    ax[0].plot(sigma_high_np[:, 0], "r--")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[0].plot(sigma_low_np[:, 0], "r--")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[1].plot(sigma_high_np[:, 1], "r--")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[1].plot(sigma_low_np[:, 1], "r--")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[2].plot(sigma_high_np[:, 2], "r--")  # pylint: disable=E1136  # pylint/issues/9590
-    ax[2].plot(sigma_low_np[:, 2], "r--")  # pylint: disable=E1136  # pylint/issues/9590
-
-    fig.suptitle("Position Error with Confidence", fontsize=16)
-    ax[0].set_xlabel("Time step", fontsize=12)
-    ax[0].set_ylabel("Position error (km)", fontsize=16)
-    ax[1].set_xlabel("Time step", fontsize=12)
-    ax[1].set_ylabel("Position error (km)", fontsize=16)
-    ax[2].set_xlabel("Time step", fontsize=12)
-    ax[2].set_ylabel("Position error (km)", fontsize=16)
-
-    plt.show()
-
-    plt.figure()
-    plt.plot(error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Position error [km]")
-    plt.title("EKF Position Error")
-
-    plt.plot(error)
-    plt.plot(sigma_high, "r--")
-    plt.plot(sigma_low, "r--")
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Position error [km]")
-    plt.title("EKF Position Error")
-
-    plt.figure()
-
-    plt.plot(vel_error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Velocity error [km/s]")
-    plt.title("EKF Velocity Error")
-
-    plt.figure()
-
-    plt.plot(ua_error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Unmodelled acc error [km/s^2]")
-    plt.title("EKF Unmodelled Acceleration")
-
-    plt.figure()
-
-    plt.plot(gyro_bias_error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Gyro bias error [rad/s]")
-    plt.title("EKF Gyro Bias Error")
-
-    plt.figure()
-
-    plt.plot(cov_trace)
-    plt.xlabel("Time step")
-    plt.ylabel("Covariance trace")
-    plt.title("EKF Covariance Trace")
-
-    plt.figure()
-
-    plt.plot(actual_bias)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Actual gyro bias [rad/s]")
-    plt.title("Actual Gyro Bias")
-
-    plt.figure()
-    plt.plot(drag_estimate)
-    plt.xlabel("Time step")
-    plt.ylabel("Drag estimate")
-    plt.title("EKF Drag Estimate")
-
-    plt.show()
+    np.save(os.path.join(dir_name, "cov_cond_num.npy"), cov_cond_num)
 
 
 if __name__ == "__main__":
