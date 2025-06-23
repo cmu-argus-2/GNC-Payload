@@ -75,23 +75,25 @@ def run_simulation(trial: int) -> None:
     num_iter = 5
 
     # Set up scaling parameter for the unmodelled acceleration
-    ua_scale = 10
+    ua_scale = 1
 
     # Set up scaling parameter for gyro bias
-    gyro_bias_scale = 2
+    gyro_bias_scale = 1
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(16) * 1e-16
+    Q = np.zeros((16, 16))
     # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-12
+    Q[6:9, 6:9] = np.eye(3) * 1e-30
+    # Unmodelled acceleration has larger uncertainty
+    Q[9, 9] = 1e-4
     # # Bias uncertainty also larger
-    Q[13:16, 13:16] = np.eye(3) * 1e-12
+    Q[13:16, 13:16] = np.eye(3) * 1e-11
 
     P = np.diag(
         [5e-3] * 3  # r
         + [5e-3] * 3  # v
-        + [1e-4] * 3  # ua
-        + [1e-4]  # drag
+        + [1e-18] * 3  # ua
+        + [1e4]  # drag
         + [1e-4] * 3  # quaternion
         + [1e-4] * 3  # gyro bias
     )

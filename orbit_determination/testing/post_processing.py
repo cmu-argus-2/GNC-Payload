@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 INDEX_TRIAL = 0
-DIR_NAME = f"output_dir_ekf_realdrag/trial_{INDEX_TRIAL}"
+DIR_NAME = f"results/ekf_realdrag/trial_{INDEX_TRIAL}"
 ERROR = np.load(os.path.join(DIR_NAME, "pos_error.npy"))
 VEL_ERROR = np.load(os.path.join(DIR_NAME, "vel_error.npy"))
 SIGMA_HIGH = np.load(os.path.join(DIR_NAME, "sigma_high.npy"))

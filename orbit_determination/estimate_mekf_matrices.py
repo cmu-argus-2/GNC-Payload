@@ -215,14 +215,6 @@ if not os.path.exists(TRAJ_DATA_FILE):
         times=TIMES,
     )
 
-    # 1.4. compute estimated xk+1 along trajectory
-
-    # 1.5. variance between estimated and true trajectory
-
-    # 2. Tuning of R matrices: Var from delta between estimated and true measurement vectors
-
-    # 2.1. EKF measurement model for orbit determination
-
 # Load trajectory data
 DATA = np.load(TRAJ_DATA_FILE)
 TRUE_X = DATA["true_x"]
@@ -306,7 +298,7 @@ fig_drag.savefig(os.path.join(TRAJ_DATA_FOLDER, "true_drag_factor.png"))
 fig_bias, axs_bias = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 bias_labels = ["X", "Y", "Z"]
 for i in range(3):
-    axs_bias[i].plot(TIMES, TRUE_EKF_X[:, 10 + i], label=f"True Gyro Bias {bias_labels[i]}")
+    axs_bias[i].plot(TIMES, TRUE_EKF_X[:, 14 + i], label=f"True Gyro Bias {bias_labels[i]}")
     axs_bias[i].set_ylabel(f"Gyro Bias {bias_labels[i]} (rad/s)")
     axs_bias[i].legend()
 axs_bias[2].set_xlabel("Time (s)")
