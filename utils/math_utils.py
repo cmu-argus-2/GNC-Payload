@@ -151,3 +151,41 @@ def skew(r: np.ndarray) -> np.ndarray:
             [-r[1], r[0], 0],
         ]
     )
+
+
+def quat_conjugate(q: np.ndarray) -> np.ndarray:
+    """
+    Compute the conjugate of a quaternion.
+
+    Args:
+        q (np.ndarray): The quaternion [w, x, y, z].
+
+    Returns:
+        np.ndarray: The conjugate quaternion [w, -x, -y, -z].
+    """
+    return np.array([q[0], -q[1], -q[2], -q[3]])
+
+
+def q_2_rot(q: np.ndarray) -> np.ndarray:
+    """
+    Convert a quaternion to a rotation vector.
+
+    Args:
+        q (np.ndarray): The quaternion to convert.
+
+    Returns:
+        jnp.ndarray: The corresponding rotation matrix as a jax array.
+    """
+    # Normalize the quaternion
+    q = q / np.linalg.norm(q)
+    if q[0] < 0:
+        q = -q
+
+    # Compute the rotation vector
+    theta = 2.0 * jnp.arccos(q[0])
+    axis = jnp.array([q[1], q[2], q[3]])
+    axis = (
+        axis / jnp.linalg.norm(axis) if jnp.linalg.norm(axis) > 1e-8 else jnp.array([1.0, 0.0, 0.0])
+    )
+
+    return theta * axis
