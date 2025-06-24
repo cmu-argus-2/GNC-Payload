@@ -11,6 +11,7 @@ from dynamics.drag_dynamics import (
     da_dest_drag_derivative,
     dadrag_dr_partial,
     dadrag_dv_partial,
+    density_exponential,
     drag_scalar_estimate,
 )
 from dynamics.grav_potential_dynamics import j3_dynamics, j4_dynamics
@@ -24,9 +25,13 @@ from utils.earth_utils import density_harris_priester
 # pylint: disable=R0913
 # too-many-positional-arguments
 GM_EARTH = GM_EARTH / 1e9  # Convert to km^3/s^2
-REF_HEIGHT = 600  # km
-NOMINAL_DENSITY = 1e-5  # kg/m^3
 R_EARTH = R_EARTH / 1e3  # km
+
+# Exponential model parameters from U.S. Standard Atmosphere 1976
+# Taken from Fundamentals of Astrodynamics and Applications, 4th Edition, by David A. Vallado
+H_ELLP = [300.0, 350.0, 400.0, 450.0, 500.0, 600.0, 700.0]
+NOMINAL_DENSITY = [2.418e-2, 9.518e-3, 3.725e-3, 1.585e-3, 6.967e-4, 1.454e-4]  # kg/km^3
+SCALE_HEIGHT = [53.628, 53.298, 58.515, 60.828, 63.822, 71.835]  # km
 
 
 class EKFDynamics(Dynamics):
@@ -204,8 +209,7 @@ class EKFDynamics(Dynamics):
 
         :return: The drag constant in m^2/kg.
         """
-        height = np.linalg.norm(x[0:3]) - R_EARTH
-        ekf_density = NOMINAL_DENSITY * np.exp(-height / REF_HEIGHT)
+        ekf_density = density_exponential(x)
         true_density = density_harris_priester(x=x * 1e3, epoch=epoch)
 
         return np.array([true_density / ekf_density])

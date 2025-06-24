@@ -69,23 +69,23 @@ def run_simulation(trial: int) -> None:
     # Set up scaling parameters
     position_scale = 1e-3  # position [km]
     velocity_scale = 1e2  # velocity [km/s]
-    ua_scale = 1e10  # unmodelled acceleration [km/s^2]
-    drag_scalar_scale = 1e-2  # drag scalar
+    ua_scale = 1e8  # unmodelled acceleration [km/s^2]
+    drag_scalar_scale = 1  # drag scalar
     axisangle_scale = 1e1  # axis-angle scaling for quaternion
     gyro_bias_scale = 1e2  # gyro bias scaling
 
     # Define initial uncertainty
     init_pos_std = 100  # km
     init_vel_std = 1e-2  # km/s
-    init_ua_std = 1e-10  # km/s^2
-    init_drag_std = 1e2  # drag scalar
+    init_ua_std = 5e-8  # km/s^2
+    init_drag_std = 3  # drag scalar
     init_quat_std = 1e-3  # axis-angle error [rad]
-    init_gyro_bias_std = 5e-5  # gyro bias error [rad/s]
+    init_gyro_bias_std = 1e-2  # 5e-5  # gyro bias error [rad/s]
 
     # Prep Q matrix for the EKF.
     Q = np.zeros((16, 16))
     # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-30
+    Q[6:9, 6:9] = np.eye(3) * 1e-26  #  * 1e-30
     # drag uncertainty is larger
     Q[9, 9] = 1e-4
     # # Bias uncertainty also larger
@@ -130,7 +130,7 @@ def run_simulation(trial: int) -> None:
 
     # Initialize IMU and EKF
     imu = IMU.get_default_imu(dt)
-    gyro_bias = imu.get_bias()[0] + np.random.normal(0, init_gyro_bias_std, 3)
+    # gyro_bias = imu.get_bias()[0] + np.random.normal(0, init_gyro_bias_std, 3)
 
     # Apply error to init_rot and ensure orthonormality
     noisy_rot = sp.linalg.expm(skew(np.random.normal(0, init_quat_std, 3)))
@@ -151,7 +151,7 @@ def run_simulation(trial: int) -> None:
         dt=dt,
         config=config,
         ekf_dynamics=ekf_dynamics,
-        w_b=gyro_bias,
+        w_b=np.zeros(3),  # gyro_bias,
         state_scaling=variable_scaling,
     )
 
