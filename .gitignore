@@ -193,3 +193,5 @@ cython_debug/
 
 # vs code configuration files
 .vscode/
+
+simulation/*

@@ -13,6 +13,7 @@ exclude = '''
     | buck-out
     | build
     | dist
+    simulation/*
 )/
 '''
 
@@ -44,6 +45,7 @@ ignore_missing_imports = true
 # Force mypy to analyze the library as best as it can
 follow_untyped_imports = true
 
+exclude = ["simulation/*"]
 
 [tool.isort]
 # Use the "black" profile to align with Black's formatting style
@@ -68,3 +70,5 @@ skip_gitignore = true
 module = "wandb"
 ignore_missing_imports = true
 disable_error_code = ["attr-defined"]
+
+exclude = ["simulation"]
