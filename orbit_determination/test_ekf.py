@@ -84,12 +84,12 @@ def run_simulation(trial) -> None:
     Q[13:16, 13:16] = np.eye(3) * 1e-12
 
     P = np.eye(16)
-    P[0:3, 0:3] *= 5e-3
-    P[3:6, 3:6] *= 5e-3
-    P[6:9, 6:9] *= 1e-4
-    P[9:10, 9:10] *= 1e-4
-    P[10:13, 10:13] *= 1e-4
-    P[13:16, 13:16] *= 1e-4
+    P[0:3, 0:3] *= 5e-4
+    P[3:6, 3:6] *= 5e-4
+    P[6:9, 6:9] *= 1e-5
+    P[9:10, 9:10] *= 1e-5
+    P[10:13, 10:13] *= 1e-5
+    P[13:16, 13:16] *= 1e-5
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -116,7 +116,7 @@ def run_simulation(trial) -> None:
     imu = IMU.get_default_imu(dt)
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
-        # error ranges are in meters and m/s
+        # error ranges are in km and km/s
         r=initial_state[0:3] + np.random.normal(0, 10, 3),
         v=initial_state[3:6] + np.random.normal(0, 1e-2, 3),
         ua=np.random.normal(0, 1e-8, 3) * ua_scale,
