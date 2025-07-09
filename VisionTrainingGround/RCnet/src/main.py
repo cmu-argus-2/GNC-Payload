@@ -8,7 +8,7 @@ import argparse
 
 import torch
 
-from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
+from region_classifier import TrainRegionClassifier
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 
@@ -23,6 +23,7 @@ def parse_args():
         --train_flag (bool): Enable training mode if set.
         --save_plot_flag (bool): Save training plots if set.
         --data_dir (str, required): Path to the dataset directory.
+        --non_salient_data_dir (str, default=None): Path to the non-salient dataset directory.
         --save_plot_path (str, default="plot.png"): Path to save the training plot.
         --model_save_path (str, default="model.pth"): Path to save the trained model.
         --model_load_path (str, default="model.pth"): Path to load a pre-trained model.
@@ -43,6 +44,9 @@ def parse_args():
     # TODO: update the RC training pipeline to automatically handle file paths within /training_directory
     parser.add_argument(
         "--data_dir", type=str, required=True, help="Path to the dataset directory."
+    )
+    parser.add_argument(
+        "--non_salient_data_dir", type=str, default=None, help="Path to the non-salient dataset directory."
     )
     parser.add_argument(
         "--save_plot_path", type=str, default="plot.png", help="Path to save the training plot."
@@ -73,6 +77,7 @@ if __name__ == "__main__":
     # Create the classifier object
     classifier = TrainRegionClassifier(
         data_path=args.data_dir,
+        non_salient_data_path=args.non_salient_data_dir,
         save_plot_flag=args.save_plot_flag,
         save_plot_path=args.save_plot_path,
     )

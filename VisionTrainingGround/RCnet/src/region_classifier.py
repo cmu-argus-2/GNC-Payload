@@ -73,6 +73,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
     def __init__(
         self,
         data_path: str,
+        non_salient_data_path: Optional[str] = None,
         selected_classes: Optional[List[str]] = None,
         save_plot_flag: bool = False,
         save_plot_path: Optional[str] = None,
@@ -87,7 +88,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             save_plot_path (str): Path to save the loss plot.
         """
         # Prepare data first to get the number of classes
-        self._prepare_batch_data(data_path, selected_classes)
+        self._prepare_batch_data(data_path, non_salient_data_path, selected_classes)
 
         # Now initialize the parent class with our number of classes and skip weight loading
         assert len(self.regions) == BaseRegionClassifier.NUM_CLASSES, "Number of classes mismatch!"
@@ -98,7 +99,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
-    def _prepare_batch_data(self, data_path: str, selected_classes: Optional[List[str]]) -> None:
+    def _prepare_batch_data(self, data_path: str, non_salient_data_path: Optional[str], selected_classes: Optional[List[str]]) -> None:
         """
         Prepares the dataset by applying transformations and loading it into DataLoaders.
 
@@ -153,18 +154,21 @@ class TrainRegionClassifier(BaseRegionClassifier):
         # Load datasets with appropriate transforms
         train_dataset = ImageDataset(
             data_path,
+            non_salient_data_path,
             selected_classes,
             transform=self.train_transform,
             split='train'
         )
         val_dataset = ImageDataset(
             data_path,
+            non_salient_data_path,
             selected_classes,
             transform=self.test_transform,
             split='val'
         )
         test_dataset = ImageDataset(
             data_path,
+            non_salient_data_path,
             selected_classes,
             transform=self.test_transform,
             split='test'

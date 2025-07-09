@@ -28,7 +28,8 @@ class MGRSImageDataset(Dataset):
     def __init__(
         self,
         root_dir: str,
-        salient_regions: List[str],
+        root_dir_non_salient: Optional[str] = None,
+        salient_regions: List[str] = None,
         transform: Optional[object] = None,
         split: str = 'train',
         train_ratio: float = 0.7,
@@ -38,6 +39,7 @@ class MGRSImageDataset(Dataset):
         """
         Args:
             root_dir (str): Path to the dataset directory.
+            root_dir_non_salient (Optional[str]): Path to the non-salient dataset directory.
             salient_regions (List[str]): List of MGRS regions to consider.
             transform (Optional[object]): Optional transforms to apply to images.
             split (str): One of 'train', 'val', or 'test'.
@@ -76,6 +78,11 @@ class MGRSImageDataset(Dataset):
                         else:
                             warnings.warn(f"JSON file not found for {img_path}. Skipping this image.")
 
+        if root_dir_non_salient:
+            for file in os.listdir(root_dir_non_salient):
+                if file.endswith(".png") or file.endswith(".jpg"):
+                    img_path = os.path.join(root_dir_non_salient, file)
+                    self.files.append((img_path, None))
         # Split dataset
         random.seed(seed)
         
@@ -127,24 +134,20 @@ class MGRSImageDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img_path, json_path = self.files[idx]
 
-        # Load image
         image = Image.open(img_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
 
-        # Load region counts from JSON
-        with open(json_path, 'r') as f:
-            region_counts = json.load(f)
-        
-        # Create label vector using region counts
         label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
-        total_count = sum(region_counts.values())
-        
-        for mgrs_zone, count in region_counts.items():
-            if mgrs_zone in self.salient_region_indices:
-                idx = self.salient_region_indices[mgrs_zone]
-                raw_value = count / total_count if total_count > 0 else 0
-                # Apply custom sigmoid
-                label_vector[idx] = self._custom_sigmoid(raw_value)
+
+        if json_path: # non-salient images do not have a JSON file, label defaults to zero
+            with open(json_path, 'r') as f:
+                region_counts = json.load(f)
+            total_count = sum(region_counts.values())
+            for mgrs_zone, count in region_counts.items():
+                if mgrs_zone in self.salient_region_indices:
+                    i = self.salient_region_indices[mgrs_zone]
+                    raw_value = count / total_count if total_count > 0 else 0
+                    label_vector[i] = self._custom_sigmoid(raw_value)
 
         return image, label_vector
