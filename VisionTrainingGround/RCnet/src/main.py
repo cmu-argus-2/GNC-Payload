@@ -7,8 +7,8 @@ This script initializes and runs the training pipeline
 import argparse
 
 import torch
-
 from region_classifier import TrainRegionClassifier
+
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 
@@ -46,7 +46,10 @@ def parse_args():
         "--data_dir", type=str, required=True, help="Path to the dataset directory."
     )
     parser.add_argument(
-        "--non_salient_data_dir", type=str, default=None, help="Path to the non-salient dataset directory."
+        "--non_salient_data_dir",
+        type=str,
+        default=None,
+        help="Path to the non-salient dataset directory.",
     )
     parser.add_argument(
         "--save_plot_path", type=str, default="plot.png", help="Path to save the training plot."

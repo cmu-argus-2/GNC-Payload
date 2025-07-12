@@ -7,25 +7,29 @@ It leverages EfficientNet-B0 as the backbone, supports logging with Weights & Bi
 and provides utilities for dataset preparation, training, and performance evaluation.
 """
 
+import logging
 import os
 import random
+import sys
 import time
+import traceback
 from collections import defaultdict
 from io import BytesIO
-from tqdm.auto import tqdm
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import psutil
 import torch
-import wandb
 from data_loader import MGRSImageDataset as ImageDataset
 from plotter import Plotter
-from sklearn.metrics import ConfusionMatrixDisplay,confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from tqdm.auto import tqdm
 
+import wandb
 from vision_inference.region_classifier import RegionClassifier as BaseRegionClassifier
 
 
@@ -99,7 +103,12 @@ class TrainRegionClassifier(BaseRegionClassifier):
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
-    def _prepare_batch_data(self, data_path: str, non_salient_data_path: Optional[str], selected_classes: Optional[List[str]]) -> None:
+    def _prepare_batch_data(
+        self,
+        data_path: str,
+        non_salient_data_path: Optional[str],
+        selected_classes: Optional[List[str]],
+    ) -> None:
         """
         Prepares the dataset by applying transformations and loading it into DataLoaders.
 
@@ -157,21 +166,21 @@ class TrainRegionClassifier(BaseRegionClassifier):
             non_salient_data_path,
             selected_classes,
             transform=self.train_transform,
-            split='train'
+            split="train",
         )
         val_dataset = ImageDataset(
             data_path,
             non_salient_data_path,
             selected_classes,
             transform=self.test_transform,
-            split='val'
+            split="val",
         )
         test_dataset = ImageDataset(
             data_path,
             non_salient_data_path,
             selected_classes,
             transform=self.test_transform,
-            split='test'
+            split="test",
         )
 
         # Create data loaders
@@ -179,11 +188,11 @@ class TrainRegionClassifier(BaseRegionClassifier):
             train_dataset,
             batch_size=128,
             shuffle=True,
-            num_workers=0, # Do not use multiple workers, we hit I/O limits on the HDD
+            num_workers=0,  # Do not use multiple workers, we hit I/O limits on the HDD
             pin_memory=False,
             # persistent_workers=True
         )
-        
+
         self.val_loader = DataLoader(
             val_dataset,
             batch_size=128,
@@ -192,7 +201,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             pin_memory=False,
             # persistent_workers=True
         )
-        
+
         self.test_loader = DataLoader(
             test_dataset,
             batch_size=128,
@@ -224,57 +233,86 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 "dataset": "Sentinel",
             },
         )
+        wandb.watch(self.model, log="all", log_freq=100)
 
         # CHANGED: Use BCE loss instead of BCEWithLogitsLoss since model already applies sigmoid
         criterion = nn.BCELoss()  # BCE loss for multi-label classification
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
-        for epoch in range(epochs):
-            epoch_loss = 0.0  # Initialize epoch loss
-            total_images = len(self.train_loader.dataset)
-            processed_images = 0
-            
-            progress_bar = tqdm(
-                self.train_loader, 
-                desc=f"Epoch {epoch + 1}/{epochs}", 
-                leave=True,
-                unit="batch",
-                total=len(self.train_loader)
-            )
-            # pylint: disable=unused-variable
-            for batch_idx, (data, targets) in enumerate(progress_bar):
-                print("Completed batch:", batch_idx)
-                batch_size = data.size(0)
-                processed_images += batch_size
-                
-                data = data.to(self.device)
-                targets = targets.to(self.device).float()  # Ensure targets are float for BCE
-                scores = self.model(data)  # Model already applies sigmoid
-                loss = criterion(scores, targets)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                
-                # Update progress bar with image count and loss
-                progress_bar.set_postfix({
-                    'imgs': f'{processed_images}/{total_images}',
-                    'loss': f'{loss.item():.4f}'
-                })
-                
-                wandb.log({"batch_loss": loss.item()})
-                epoch_loss += loss.item() * batch_size  # Accumulate batch loss
+        proc = psutil.Process(os.getpid())
 
-            epoch_loss /= total_images  # Compute average batch loss
-            print(f"Epoch [{epoch+1}/{epochs}], Avg. Loss: {epoch_loss:.4f}")
-            wandb.log({"epoch": epoch, "loss": epoch_loss})
-            self.plotter.update_loss(epoch_loss)
+        try:
+            for epoch in range(epochs):
+                epoch_loss = 0.0  # Initialize epoch loss
+                total_images = len(self.train_loader.dataset)
+                processed_images = 0
 
-            # if epoch % 2 == 0:
-            self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
-            self.validate()
-            if epoch == epochs - 1:
-                test_accuracy = self.evaluate()
-                wandb.log({"test_accuracy": test_accuracy})
+                progress_bar = tqdm(
+                    self.train_loader,
+                    desc=f"Epoch {epoch + 1}/{epochs}",
+                    leave=True,
+                    unit="batch",
+                    total=len(self.train_loader),
+                )
+
+                mem_start_epoch = proc.memory_info().rss / 1024**2  # in MB
+                print(f"[Epoch {epoch+1}] start memory: {mem_start_epoch:.1f} MB")
+                wandb.log({"epoch_start_memory_MB": mem_start_epoch})
+
+                # pylint: disable=unused-variable
+                for batch_idx, (data, targets) in enumerate(progress_bar):
+                    print("Completed batch:", batch_idx)
+                    batch_size = data.size(0)
+                    processed_images += batch_size
+
+                    mem_before = proc.memory_info().rss / 1024**2
+
+                    data = data.to(self.device)
+                    targets = targets.to(self.device).float()  # Ensure targets are float for BCE
+                    scores = self.model(data)  # Model already applies sigmoid
+                    loss = criterion(scores, targets)
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                    # Update progress bar with image count and loss
+                    progress_bar.set_postfix(
+                        {"imgs": f"{processed_images}/{total_images}", "loss": f"{loss.item():.4f}"}
+                    )
+
+                    mem_after = proc.memory_info().rss / 1024**2
+                    wandb.log({
+                        "batch_loss": loss.item(),
+                        "batch_memory_before_MB": mem_before,
+                        "batch_memory_after_MB": mem_after,
+                        "batch_memory_delta_MB": mem_after - mem_before
+                    }, commit=True)
+
+                    epoch_loss += loss.item() * batch_size  # Accumulate batch loss
+
+
+                epoch_loss /= total_images  # Compute average batch loss
+                mem_end_epoch = proc.memory_info().rss / 1024**2
+                print(f"Epoch [{epoch+1}/{epochs}] Avg Loss: {epoch_loss:.4f} | end memory: {mem_end_epoch:.1f} MB")
+                wandb.log({
+                    "epoch": epoch+1,
+                    "epoch_loss": epoch_loss,
+                    "epoch_end_memory_MB": mem_end_epoch
+                }, commit=True)
+                self.plotter.update_loss(epoch_loss)
+
+                # if epoch % 2 == 0:
+                self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
+                self.validate()
+                if epoch == epochs - 1:
+                    test_accuracy = self.evaluate()
+                    wandb.log({"test_accuracy": test_accuracy})
+
+        except Exception as e:
+            logging.error("Fatal error in training loop", exc_info=True)
+            with open("crash_traceback.log", "w") as f:
+                traceback.print_exc(file=f)
+            sys.exit(1)
 
         if self.save_plot_flag:
             self.plotter.save_plot(self.save_plot_path)
@@ -316,12 +354,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         false_negatives = 0
 
         with torch.no_grad():  # No gradient is needed for validation
-            progress_bar = tqdm(
-                self.val_loader, 
-                desc="Validating", 
-                leave=True,
-                unit="batch"
-            )
+            progress_bar = tqdm(self.val_loader, desc="Validating", leave=True, unit="batch")
             for images, labels in progress_bar:  # Use the progress_bar instead of self.val_loader
                 images = images.to(self.device)
                 labels = labels.to(self.device)

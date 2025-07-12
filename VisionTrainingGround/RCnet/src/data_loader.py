@@ -8,19 +8,20 @@ Classes:
                         and transformations.
 """
 
-import numpy as np
+import json
 import os
 import random
-import warnings
 import time
-from typing import List, Optional, Tuple, Dict
+import warnings
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-import json
 
 from utils.earth_utils import get_MGRS_grid
+
 
 class MGRSImageDataset(Dataset):
     """A custom dataset for loading images with MGRS grid-based multi-hot encoding."""
@@ -31,10 +32,10 @@ class MGRSImageDataset(Dataset):
         root_dir_non_salient: Optional[str] = None,
         salient_regions: List[str] = None,
         transform: Optional[object] = None,
-        split: str = 'train',
+        split: str = "train",
         train_ratio: float = 0.7,
         val_ratio: float = 0.15,
-        seed: int = 42
+        seed: int = 42,
     ) -> None:
         """
         Args:
@@ -50,16 +51,17 @@ class MGRSImageDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.salient_regions = sorted(salient_regions)
-        
+
         # Create mapping from region to index
         self.salient_region_indices = {region: i for i, region in enumerate(self.salient_regions)}
-        
+
         # Set sigmoid parameters
         self.sigmoid_params = self._calculate_sigmoid_params(0.2, 0.05, 0.3, 0.95)
 
-            
-        print(f"Sigmoid parameters: k={self.sigmoid_params['k']:.4f}, x0={self.sigmoid_params['x0']:.4f}")
-        
+        print(
+            f"Sigmoid parameters: k={self.sigmoid_params['k']:.4f}, x0={self.sigmoid_params['x0']:.4f}"
+        )
+
         # Collect images and their corresponding lat/lon files
         self.files = []
         for f in os.listdir(root_dir):
@@ -72,11 +74,15 @@ class MGRSImageDataset(Dataset):
                         if not file[0].isdigit():
                             continue
                         img_path = os.path.join(region_dir, file)
-                        json_path = os.path.join(region_dir, file.rsplit(".", 1)[0] + "_mgrs_counts.json")
+                        json_path = os.path.join(
+                            region_dir, file.rsplit(".", 1)[0] + "_mgrs_counts.json"
+                        )
                         if os.path.exists(json_path):
                             self.files.append((img_path, json_path))
                         else:
-                            warnings.warn(f"JSON file not found for {img_path}. Skipping this image.")
+                            warnings.warn(
+                                f"JSON file not found for {img_path}. Skipping this image."
+                            )
 
         if root_dir_non_salient:
             for file in os.listdir(root_dir_non_salient):
@@ -85,52 +91,50 @@ class MGRSImageDataset(Dataset):
                     self.files.append((img_path, None))
         # Split dataset
         random.seed(seed)
-        
+
         # Shuffle files
         random.shuffle(self.files)
-        
+
         # Calculate split sizes
         total_size = len(self.files)
         train_size = int(train_ratio * total_size)
         val_size = int(val_ratio * total_size)
         test_size = total_size - train_size - val_size
-        
-        # Split the data
-        if split == 'train':
-            self.files = self.files[:train_size]
-        elif split == 'val':
-            self.files = self.files[train_size:train_size + val_size]
-        else:  # test
-            self.files = self.files[train_size + val_size:]
-        
-        print(f"Total {split} images: {len(self.files)}")
 
+        # Split the data
+        if split == "train":
+            self.files = self.files[:train_size]
+        elif split == "val":
+            self.files = self.files[train_size : train_size + val_size]
+        else:  # test
+            self.files = self.files[train_size + val_size :]
+
+        print(f"Total {split} images: {len(self.files)}")
 
     def _parse_region_and_id(self, img_path: str) -> Tuple[str, str]:
         region = os.path.basename(os.path.dirname(img_path))
         img_id = os.path.splitext(os.path.basename(img_path))[0]
         return region, img_id
 
-
     def _calculate_sigmoid_params(self, x1, y1, x2, y2):
         """Calculate the parameters for the sigmoid function based on two points."""
         logit1 = np.log(y1 / (1 - y1))
         logit2 = np.log(y2 / (1 - y2))
-        
+
         k = (logit2 - logit1) / (x2 - x1)
         x0 = x1 - logit1 / k
-        
-        return {'k': k, 'x0': x0}
+
+        return {"k": k, "x0": x0}
 
     def _custom_sigmoid(self, x):
         """Apply a custom sigmoid function with the calculated parameters."""
-        k = self.sigmoid_params['k']
-        x0 = self.sigmoid_params['x0']
+        k = self.sigmoid_params["k"]
+        x0 = self.sigmoid_params["x0"]
         return 1 / (1 + np.exp(-k * (x - x0)))
 
     def __len__(self) -> int:
         return len(self.files)
-        
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img_path, json_path = self.files[idx]
 
@@ -140,8 +144,8 @@ class MGRSImageDataset(Dataset):
 
         label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
 
-        if json_path: # non-salient images do not have a JSON file, label defaults to zero
-            with open(json_path, 'r') as f:
+        if json_path:  # non-salient images do not have a JSON file, label defaults to zero
+            with open(json_path, "r") as f:
                 region_counts = json.load(f)
             total_count = sum(region_counts.values())
             for mgrs_zone, count in region_counts.items():
