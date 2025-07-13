@@ -4,7 +4,9 @@ pre-commit==4.1.0
 jax==0.6.1
 matplotlib==3.10.0
 more-itertools==10.7.0
+mypy-extensions==1.0.0
 numpy==1.26.4
+numpy-quaternion
 opencv_contrib_python==4.11.0.86
 opencv_python==4.11.0.86
 pandas==2.2.3
