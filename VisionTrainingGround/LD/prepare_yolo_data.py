@@ -363,11 +363,62 @@ def generate_yolo_label(
     )
     stacked_corners_ecef = lat_lon_to_ecef(stacked_corners_lat_lon)
 
-    try:
-        geotagged_image = GeotaggedImage.load(region_id, file_prefix)
-    except Exception:
-        print(
-            f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping generating YOLO label for them."
+    # TODO: upgrade workflow to parallelize this loop with multiprocessing
+    for file_prefix, yolo_label_path in tqdm(
+        zip(file_prefixes, yolo_label_paths),
+        desc=f"Generating labels for {region_id}",
+        total=len(file_prefixes),
+    ):
+        try:
+            geotagged_image = GeotaggedImage.load(region_id, file_prefix)
+        except Exception:
+            print(
+                f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping generating YOLO label for them."
+            )
+            continue
+
+        height, width = geotagged_image.image.shape[:2]
+        pixel_coordinates_ecef = lat_lon_to_ecef(geotagged_image.lat_lon).reshape(-1, 3)
+
+        closest_pixel_indices = np.empty(4 * num_classes, dtype=int)
+        minimum_distances = np.full(4 * num_classes, np.inf)
+        for start_pixel_idx in range(0, height * width, pixel_batch_size):
+            end_pixel_idx = min(start_pixel_idx + pixel_batch_size, height * width)
+            pixel_slice = slice(start_pixel_idx, end_pixel_idx)
+
+            x_distances = np.subtract.outer(
+                stacked_corners_ecef[:, 0], pixel_coordinates_ecef[pixel_slice, 0]
+            )
+            y_distances = np.subtract.outer(
+                stacked_corners_ecef[:, 1], pixel_coordinates_ecef[pixel_slice, 1]
+            )
+            z_distances = np.subtract.outer(
+                stacked_corners_ecef[:, 2], pixel_coordinates_ecef[pixel_slice, 2]
+            )
+            # surprisingly axis=0 is actually faster than axis=-1 here, probably because of the overhead in
+            # creating the stacked array
+            distances = np.linalg.norm(
+                np.stack((x_distances, y_distances, z_distances), axis=0), axis=0
+            )
+            assert distances.shape == (4 * num_classes, end_pixel_idx - start_pixel_idx)
+
+            batch_closest_pixel_indices = np.argmin(distances, axis=1)
+            batch_minimum_distances = distances[
+                np.arange(4 * num_classes), batch_closest_pixel_indices
+            ]
+
+            closer_mask = batch_minimum_distances < minimum_distances
+            closest_pixel_indices[closer_mask] = (
+                batch_closest_pixel_indices[closer_mask] + start_pixel_idx
+            )
+            minimum_distances[closer_mask] = batch_minimum_distances[closer_mask]
+
+        closest_vs, closest_us = np.unravel_index(closest_pixel_indices, (height, width))
+        closest_us = closest_us.reshape(num_classes, 4)
+        closest_vs = closest_vs.reshape(num_classes, 4)
+
+        valid_bounding_boxes = get_valid_bounding_boxes(
+            geotagged_image.image, closest_us, closest_vs
         )
         return
 
@@ -436,6 +487,7 @@ def generate_yolo_label(
 
 def main():
     args = parse_args()
+
     if args.overwrite and args.resume:
         raise ValueError("Cannot use --overwrite and --resume at the same time.")
     regions = sorted(set(args.regions) - set(args.skip_regions))
