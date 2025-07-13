@@ -241,78 +241,72 @@ class TrainRegionClassifier(BaseRegionClassifier):
 
         proc = psutil.Process(os.getpid())
 
-        try:
-            for epoch in range(epochs):
-                epoch_loss = 0.0  # Initialize epoch loss
-                total_images = len(self.train_loader.dataset)
-                processed_images = 0
+        for epoch in range(epochs):
+            epoch_loss = 0.0  # Initialize epoch loss
+            total_images = len(self.train_loader.dataset)
+            processed_images = 0
 
-                progress_bar = tqdm(
-                    self.train_loader,
-                    desc=f"Epoch {epoch + 1}/{epochs}",
-                    leave=True,
-                    unit="batch",
-                    total=len(self.train_loader),
+            progress_bar = tqdm(
+                self.train_loader,
+                desc=f"Epoch {epoch + 1}/{epochs}",
+                leave=True,
+                unit="batch",
+                total=len(self.train_loader),
+            )
+
+            mem_start_epoch = proc.memory_info().rss / 1024**2  # in MB
+            print(f"[Epoch {epoch+1}] start memory: {mem_start_epoch:.1f} MB")
+            wandb.log({"epoch_start_memory_MB": mem_start_epoch})
+
+            # pylint: disable=unused-variable
+            for batch_idx, (data, targets) in enumerate(progress_bar):
+                print("Completed batch:", batch_idx)
+                batch_size = data.size(0)
+                processed_images += batch_size
+
+                mem_before = proc.memory_info().rss / 1024**2
+
+                data = data.to(self.device)
+                targets = targets.to(self.device).float()  # Ensure targets are float for BCE
+                scores = self.model(data)  # Model already applies sigmoid
+                loss = criterion(scores, targets)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                # Update progress bar with image count and loss
+                progress_bar.set_postfix(
+                    {"imgs": f"{processed_images}/{total_images}", "loss": f"{loss.item():.4f}"}
                 )
 
-                mem_start_epoch = proc.memory_info().rss / 1024**2  # in MB
-                print(f"[Epoch {epoch+1}] start memory: {mem_start_epoch:.1f} MB")
-                wandb.log({"epoch_start_memory_MB": mem_start_epoch})
-
-                # pylint: disable=unused-variable
-                for batch_idx, (data, targets) in enumerate(progress_bar):
-                    print("Completed batch:", batch_idx)
-                    batch_size = data.size(0)
-                    processed_images += batch_size
-
-                    mem_before = proc.memory_info().rss / 1024**2
-
-                    data = data.to(self.device)
-                    targets = targets.to(self.device).float()  # Ensure targets are float for BCE
-                    scores = self.model(data)  # Model already applies sigmoid
-                    loss = criterion(scores, targets)
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-
-                    # Update progress bar with image count and loss
-                    progress_bar.set_postfix(
-                        {"imgs": f"{processed_images}/{total_images}", "loss": f"{loss.item():.4f}"}
-                    )
-
-                    mem_after = proc.memory_info().rss / 1024**2
-                    wandb.log({
-                        "batch_loss": loss.item(),
-                        "batch_memory_before_MB": mem_before,
-                        "batch_memory_after_MB": mem_after,
-                        "batch_memory_delta_MB": mem_after - mem_before
-                    }, commit=True)
-
-                    epoch_loss += loss.item() * batch_size  # Accumulate batch loss
-
-
-                epoch_loss /= total_images  # Compute average batch loss
-                mem_end_epoch = proc.memory_info().rss / 1024**2
-                print(f"Epoch [{epoch+1}/{epochs}] Avg Loss: {epoch_loss:.4f} | end memory: {mem_end_epoch:.1f} MB")
+                mem_after = proc.memory_info().rss / 1024**2
                 wandb.log({
-                    "epoch": epoch+1,
-                    "epoch_loss": epoch_loss,
-                    "epoch_end_memory_MB": mem_end_epoch
+                    "batch_loss": loss.item(),
+                    "batch_memory_before_MB": mem_before,
+                    "batch_memory_after_MB": mem_after,
+                    "batch_memory_delta_MB": mem_after - mem_before
                 }, commit=True)
-                self.plotter.update_loss(epoch_loss)
 
-                # if epoch % 2 == 0:
-                self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
-                self.validate()
-                if epoch == epochs - 1:
-                    test_accuracy = self.evaluate()
-                    wandb.log({"test_accuracy": test_accuracy})
+                epoch_loss += loss.item() * batch_size  # Accumulate batch loss
 
-        except Exception as e:
-            logging.error("Fatal error in training loop", exc_info=True)
-            with open("crash_traceback.log", "w") as f:
-                traceback.print_exc(file=f)
-            sys.exit(1)
+
+            epoch_loss /= total_images  # Compute average batch loss
+            mem_end_epoch = proc.memory_info().rss / 1024**2
+            print(f"Epoch [{epoch+1}/{epochs}] Avg Loss: {epoch_loss:.4f} | end memory: {mem_end_epoch:.1f} MB")
+            wandb.log({
+                "epoch": epoch+1,
+                "epoch_loss": epoch_loss,
+                "epoch_end_memory_MB": mem_end_epoch
+            }, commit=True)
+            self.plotter.update_loss(epoch_loss)
+
+            # if epoch % 2 == 0:
+            self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
+            self.validate()
+            if epoch == epochs - 1:
+                test_accuracy = self.evaluate()
+                wandb.log({"test_accuracy": test_accuracy})
+
 
         if self.save_plot_flag:
             self.plotter.save_plot(self.save_plot_path)
