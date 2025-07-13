@@ -20,7 +20,6 @@ import torch
 import wandb
 from data_loader import CustomImageDataset
 from plotter import Plotter
-from sklearn.manifold import TSNE
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -86,18 +85,18 @@ class TrainRegionClassifier(BaseRegionClassifier):
             save_plot_path (str): Path to save the loss plot.
         """
         # Prepare data first to get the number of classes
-        self._prepare_data(data_path, selected_classes)
+        self._prepare_batch_data(data_path, selected_classes)
 
         # Now initialize the parent class with our number of classes and skip weight loading
-        super().__init__(load_weights=False)
         assert len(self.regions) == BaseRegionClassifier.NUM_CLASSES, "Number of classes mismatch!"
+        super().__init__(load_weights=False)
 
         # Initialize training specific components
         self.plotter = Plotter()
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
-    def _prepare_data(self, data_path: str, selected_classes: Optional[List[str]]) -> None:
+    def _prepare_batch_data(self, data_path: str, selected_classes: Optional[List[str]]) -> None:
         """
         Prepares the dataset by applying transformations and loading it into DataLoaders.
 

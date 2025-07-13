@@ -8,13 +8,14 @@ from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
-from brahe import R_EARTH
 import numpy as np
-from scipy.ndimage import label
 import rasterio
 from affine import Affine
+from brahe import R_EARTH
 from rasterio.crs import CRS
+from scipy.ndimage import label
 
+from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
@@ -26,7 +27,6 @@ from utils.earth_utils import (
     intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
-from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 
 
 @dataclass
@@ -321,10 +321,10 @@ class EarthImageSimulator:
     BLUE_MARBLE_BRIGHTNESS_FACTOR = 2.7
 
     def __init__(
-            self,
-            geotiff_cache: GeoTIFFCache | None = None,
-            inpaint_blue_marble: bool = True,
-            blue_marble_month: str | None = None
+        self,
+        geotiff_cache: GeoTIFFCache | None = None,
+        inpaint_blue_marble: bool = True,
+        blue_marble_month: str | None = None,
     ):
         """
         Initialize the Earth image simulator.
@@ -353,7 +353,9 @@ class EarthImageSimulator:
         """
         assert mask.dtype == bool, "mask must be a binary mask."
 
-        labeled_connected_components, num_labels = label(mask, structure=np.ones((3, 3), dtype=bool))
+        labeled_connected_components, num_labels = label(
+            mask, structure=np.ones((3, 3), dtype=bool)
+        )
 
         for label_id in range(1, num_labels + 1):
             connected_component_mask = labeled_connected_components == label_id

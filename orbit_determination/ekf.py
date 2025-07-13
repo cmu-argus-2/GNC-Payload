@@ -12,6 +12,7 @@ from brahe import Epoch
 from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
 from utils.math_utils import Drp2q, G, R, left_q, rot_2_q  # right_q
+from vision_inference.logger import Logger
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -182,7 +183,7 @@ class EKF:
         # (higher likelihood with fewer measurements)
         if z0.shape[0] == 0:
             self.no_measurement()
-            print("No measurements taken")
+            Logger.log("INFO", "No measurements taken")
             return
 
         # Let R take the dimensionality of the number of measurements
@@ -210,10 +211,9 @@ class EKF:
             # Check for ill-conditioned matrix and add regularization if necessary
             if i == 0:
                 cond = np.linalg.cond(S)
-                print(cond)
                 if cond > self.cond_threshold:
                     S += np.eye(S.shape[0]) * 1e-6
-                    print("Ill-conditioned matrix detected. Regularization applied.")
+                    Logger.log("WARNING", "Ill-conditioned matrix detected. Regularization applied.")
 
             K = self.P_p @ H.T @ np.linalg.inv(S)
 

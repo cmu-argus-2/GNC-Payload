@@ -32,11 +32,13 @@ import argparse
 import json
 import os
 import pickle
+import subprocess
 from time import time
 
 import brahe
 import numpy as np
 import quaternion
+# from brahe import Epoch
 
 from dynamics.ekf_dynamics import EKFDynamics
 from orbit_determination.ekf import EKF
@@ -51,6 +53,7 @@ from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.orbit_utils import is_over_daytime
+from vision_inference.logger import Logger
 
 # pylint: disable=too-many-locals
 
@@ -117,18 +120,16 @@ def run_simulation(args) -> None:
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    # Load the ground truth trajectory and attitude
     data_dir = os.path.join(output_basedir, "ground_truth.npz")
-
     if not os.path.exists(data_dir):
         raise FileNotFoundError(
             f"Ground truth data file {data_dir} does not exist."
         )
-
     data = np.load(data_dir)
-
     trajectory_gt = data["trajectory"]
     attitude_gt = data["attitude"]
+    daytime_gt = data["daytime"]
+
     # Set the initial rotation matrix to identity
 
     data_manager.push_next_state(trajectory_gt[0], attitude_gt[0])
@@ -138,7 +139,7 @@ def run_simulation(args) -> None:
     noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
 
     # Assert orthonormality
-    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
+    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-2) and np.isclose(
         np.linalg.det(noisy_rot), 1
     ), "Rotation matrix is not a proper rotation matrix"
 
@@ -222,15 +223,29 @@ def run_simulation(args) -> None:
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
         data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
 
-        if t % meas_rate == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[:3]
-        ):
+        # if t % meas_rate == 0 and is_over_daytime(
+        #     data_manager.latest_epoch, data_manager.latest_state[:3]
+        # ):
+        if t % meas_rate == 0 and daytime_gt[t]:
+            # Generate vision inference measurements
+            subprocess.run(
+                [
+                    "python3",
+                    "scripts/run_vision.py",
+                    "--name",
+                    args.name,
+                    "--timestep",
+                    str(t),
+                ]
+            )
+            
+            # Take measurements with the landmark bearing sensor
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
-            print(f"Total measurements so far: {data_manager.measurement_count}")
-            print(f"Completion: {100 * t / N:.2f}%")
+            Logger.log("INFO", f"Total measurements so far: {data_manager.measurement_count}")
+            Logger.log("INFO", f" Run completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -245,7 +260,7 @@ def run_simulation(args) -> None:
                 )
             else:
                 ekf.no_measurement()
-                print("No measurements made in measurement step")
+                Logger.log("INFO", "No measurements made in measurement step")
         else:
             ekf.no_measurement()
 

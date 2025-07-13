@@ -1,15 +1,15 @@
 from time import perf_counter
 
-from matplotlib import pyplot as plt
 import numpy as np
 from brahe.constants import R_EARTH
+from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
 from tqdm import trange
 
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
-from vision_inference.frame import Frame
 from utils.earth_utils import get_nadir_rotation, lat_lon_to_ecef
+from vision_inference.frame import Frame
 
 CONTIGUOUS_US_CENTER_LAT_LON = np.array([39.8283, -98.5795])
 FLORIDA_17R_CENTER_LAT_LON = np.array([32.0, -81.0])
@@ -94,9 +94,7 @@ def simulate_image(
     ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
     start_time = perf_counter()
-    frame = simulator.simulate_image(
-        ecef_position, ecef_R_body, camera_model_manager["x+"]
-    )
+    frame = simulator.simulate_image(ecef_position, ecef_R_body, camera_model_manager["x+"])
     print(f"Image simulation took {perf_counter() - start_time:.2f} seconds")
 
     print(f"Simulated image is {'blank' if np.all(frame.image == 0) else 'not blank'}")
