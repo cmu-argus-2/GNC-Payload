@@ -37,7 +37,6 @@ from time import time
 import brahe
 import numpy as np
 import quaternion
-# from brahe import Epoch
 
 from dynamics.ekf_dynamics import EKFDynamics
 from orbit_determination.ekf import EKF
