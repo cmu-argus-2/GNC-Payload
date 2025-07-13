@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple
 
 import brahe
+import cv2
 import numpy as np
 from brahe import R_EARTH, Epoch
 from scipy.spatial.transform import Rotation
@@ -17,6 +18,7 @@ from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
 from vision_inference.landmark_detector import LandmarkDetector
+from vision_inference.logger import Logger
 from vision_inference.ml_pipeline import MLPipeline
 
 
@@ -277,6 +279,8 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         cubesat_position: np.ndarray,
         eci_R_body: np.ndarray,
         camera_model: CameraModel,
+        index: int,
+        output_dir: str,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Take a set of landmark bearing measurements.
@@ -295,10 +299,21 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         ecef_R_body = ecef_R_eci @ eci_R_body
 
         # simulate image
-        frame = self.earth_image_simulator.simulate_image(position_ecef, ecef_R_body, camera_model)
+        frame, lat_lon = self.earth_image_simulator.simulate_image_for_training(position_ecef, ecef_R_body, camera_model)
+        camera_name = camera_model.get_camera_name()
+        suffix = f"{index}_{camera_name}"
+
+        cv2.imwrite(
+        os.path.join(output_dir, f"img_{suffix}.png"),
+        cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR),
+        )
+        np.savez_compressed(
+        os.path.join(output_dir, f"lat_lon_{suffix}.npz"),
+        lat_lon
+        )
 
         if np.all(frame.image == 0):
-            print("No image detected")
+            Logger.log("INFO", "No image detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         # run the ML pipeline on the image
@@ -331,3 +346,44 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
 
         # TODO: output confidences too
         return bearing_unit_vectors_body, landmark_positions_eci
+
+
+class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
+    """
+    A sensor that uses already calculated landmark bearing measurements and landmark locations to provide correct measurements at each timestep.
+    """
+
+    def __init__(self, output_basedir) -> None:
+        # Set up paths to stored data
+        self.VIS_INF_DIR = "vis_inf"
+        self.base_bearing_dir = output_basedir
+
+    def load_measurements(self, timestep, camera_name):
+        # Load the bearing vectors and landmark positions from the stored data
+        base_name = f"{timestep}_{camera_name}"
+        file_path = os.path.join(self.base_bearing_dir, self.VIS_INF_DIR, str(timestep), "bearing_vectors", f"landmarks_{base_name}.npz")
+        try:
+            with np.load(file_path) as data:
+                bearing_vectors = data["bearing_vectors"]
+                landmark_positions = data["landmark_positions"]
+                Logger.log("INFO", f"Loaded bearing vectors with shape: {bearing_vectors.shape} for camera {camera_name} at timestep {timestep}")
+
+            if bearing_vectors.ndim == 1:
+                bearing_vectors = np.expand_dims(bearing_vectors, axis=0)
+                landmark_positions = np.expand_dims(landmark_positions, axis=0)
+            
+            return bearing_vectors, landmark_positions
+
+        except:
+            Logger.log("INFO", f"No measurements found for camera {camera_name} at timestep {timestep}.")
+            return np.zeros((0,3)), np.zeros((0,3))
+
+
+    def take_measurement(
+        self,
+        epoch: Epoch,
+        cubesat_position: np.ndarray,
+        eci_R_body: np.ndarray,
+        camera_model: CameraModel,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError("The take_measurement method is not implemented and shouldn't be used.")

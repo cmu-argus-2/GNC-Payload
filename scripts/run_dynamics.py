@@ -19,9 +19,10 @@ day (1) or night (0) side of the earth. We also store the arguments used to gene
 
 - /output_dir
     - /experiment_name
-        - trajectory_gt.npy
-        - attitude_gt.npy
-        - daytime_gt.npy
+        - ground_truth.npz
+            - trajectory
+            - attitude
+            - daytime
         - args.json
 """
 
@@ -33,11 +34,13 @@ import brahe
 import numpy as np
 import quaternion
 from brahe.epoch import Epoch
+from tqdm import tqdm
 
 from dynamics.orbital_dynamics import Dynamics
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from utils.config_utils import load_config, USER_CONFIG_PATH
 from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state, is_over_daytime
+from vision_inference.logger import Logger
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,16 +52,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--lat",
         type=float,
+        # No default value. If not provided, it will be generated randomly within the SSO bounds.
         help="Starting latitude of the spacecraft",
     )
     parser.add_argument(
         "--lon",
         type=float,
+        default=np.random.uniform(-180, 180),
         help="Starting longitude of the spacecraft",
     )
     parser.add_argument(
         "--altitude",
         type=float,
+        default=510e3 + np.random.uniform(-20e3, 20e3),
         help="Starting altitude of the spacecraft [m]",
     )
     parser.add_argument(
@@ -70,18 +76,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start_date",
         type=float,
+        # Start date between 2024-01-01 and 2025-01-01 (leap year so 366 days)
+        default=round(np.random.uniform(60310, 60676), 1),
         help="Start date of the spacecraft mission [MJD]",
     )
     parser.add_argument(
         "--northwards",
         type=bool,
-        default=True,
+        default=np.random.choice([True, False]),
         help="Whether the spacecraft is moving northwards. If False, the spacecraft will move southwards.",
     )
     parser.add_argument(
         "--angular_velocity",
         type=list,
-        default=[0, 0, np.pi / 18],
+        default=[0, 0, np.pi / 72],
         help="Angular velocity of the spacecraft [rad/s]",
     )
     parser.add_argument(
@@ -93,47 +101,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--duration",
         type=float,
-        default=2700,
+        default=3 * 90 * 60,
         help="Duration of the spacecraft mission [s]",
     )
     return parser.parse_args()
 
 
-def generate_trajectory(args) -> None:
+def generate_trajectory(args: argparse.Namespace) -> None:
     """
     Generate the trajectory of a spacecraft using the dynamics model.
     :param args: The command line arguments.
 
     :return: None
     """
-
-    # Check if altitude is provided and if not, generate a random altitude
-    # Then check that if a latitude is given, it is within the calculated sso bounds
-    if args.altitude is None:
-        args.altitude = 510e3 + np.random.uniform(-20e3, 20e3)
-        if args.lat is None:
-            max_lat = get_max_sso_latitude(args.altitude)
-            args.lat = np.random.uniform(-max_lat, max_lat)
-        else:
-            max_lat = get_max_sso_latitude(args.altitude)
-            if abs(args.lat) > max_lat:
-                raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-
-    else:
-        max_lat = get_max_sso_latitude(args.altitude)
-        if args.lat is not None and abs(args.lat) > max_lat:
-            raise ValueError(f"Latitude must be between -{max_lat} and {max_lat}")
-        else:
-            args.lat = np.random.uniform(-max_lat, max_lat)
-
-    if args.lon is None:
-        args.lon = np.random.uniform(-180, 180)
-
-    # Check if start date is provided and if not, generate a random start date
-    # Start date between 2024-01-01 and 2025-01-01 (leap year so 366 days)
-    if args.start_date is None:
-        # Get random start date and round to 1 decimal place
-        args.start_date = round(np.random.uniform(60310, 60676), 1)
+    max_lat = get_max_sso_latitude(args.altitude)
+    if args.lat is None:
+        args.lat = np.random.uniform(-max_lat, max_lat)
+    elif abs(args.lat) > max_lat:
+        raise ValueError(
+            f"Latitude must be between -{max_lat} and {max_lat} for an SSO orbit at an altitude of {args.altitude} m."
+        )
 
     config = load_config()
     config["solver"]["world_update_rate"] = args.frequency  # Hz
@@ -166,7 +153,7 @@ def generate_trajectory(args) -> None:
         use_sun_grav=False,
     )
 
-    for _ in range(0, N - 1):
+    for _ in tqdm(range(0, N - 1)):
         state = data_manager.latest_state
         q = data_manager.latest_attitude
 
@@ -186,12 +173,16 @@ def generate_trajectory(args) -> None:
     attitude = data_manager.eci_Rs_body
     daytime = np.array(daytime)
 
-    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_directory"], args.name)
+    output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_dir"], args.name)
     if not os.path.exists(f"{output_dir}"):
+        Logger.log("INFO", f"Creating output directory: {output_dir}")
         os.makedirs(f"{output_dir}")
-    np.save(f"{output_dir}/trajectory_gt.npy", trajectory)
-    np.save(f"{output_dir}/attitude_gt.npy", attitude)
-    np.save(f"{output_dir}/daytime_gt.npy", daytime)
+    np.savez_compressed(
+        f"{output_dir}/ground_truth.npz",
+        trajectory=trajectory,
+        attitude=attitude,
+        daytime=daytime
+    )
 
     # Store args as json
     with open(f"{output_dir}/args.json", "w") as jsonfile:
@@ -199,5 +190,4 @@ def generate_trajectory(args) -> None:
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    generate_trajectory(args)
+    generate_trajectory(parse_args())

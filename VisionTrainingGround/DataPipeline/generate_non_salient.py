@@ -58,27 +58,31 @@ class GeotaggedImage:
         assert self.lat_lon.shape == CameraModel.RESOLUTION + (2,)
         assert np.issubdtype(self.lat_lon.dtype, np.floating)
 
-    def save(self, region: str, file_prefix: str) -> None:
+    def save(self, region: str, file_prefix: str, save_lat_lon: bool, custom_dir:str=None ) -> None:
         """
         Save the image and lat/lon coordinates to the specified region and file prefix.
 
         :param region: The MGRS region.
         :param file_prefix: The prefix for the output files.
+        :param save_lat_lon: Whether to save the lat/lon coordinates. If False, only the image will be saved.
+        :param custom_dir: Optional custom directory to save the files. If None, the default training directory will be used.
         """
         self.assert_invariants()
 
         training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-        region_dir = os.path.join(training_dir, region)
+        region_dir = os.path.join(training_dir, region) if custom_dir is None else custom_dir
         os.makedirs(region_dir, exist_ok=True)
 
         cv2.imwrite(
             os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.IMAGE_SUFFIX}"),
             cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR),
         )
-        np.savez_compressed(
-            os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"),
-            lat_lon=self.lat_lon,
-        )
+
+        if save_lat_lon:
+            np.savez_compressed(
+                os.path.join(region_dir, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"),
+                lat_lon=self.lat_lon,
+            )
 
     @staticmethod
     def load(region: str, file_prefix: str, delete_bad_files: bool = True) -> "GeotaggedImage":
@@ -180,7 +184,67 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="Variation in off-nadir angle, in degrees.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--non-salient",
+        action="store_true",
+        default=False,
+        help="Generate training data for non-salient MGRS regions.",
+    )
+     # Load config
+    config = load_config()
+    salient_ids = config["vision"]["salient_mgrs_region_ids"]
+    args = parser.parse_args()
+    if args.non_salient:
+        # Generate full MGRS list using your zone_ranges_by_band
+        zone_ranges_by_band = {
+            'X': list(range(10, 29)) + list(range(38, 57)),
+            'W': list(range(1, 30)) + list(range(32, 61)),
+            'V': list(range(1, 23)) + list(range(29, 61)),
+            'U': list(range(9, 22)) + list(range(29, 61)),
+            'T': list(range(10, 22)) + list(range(30, 58)),
+            'S': list(range(10, 21)) + list(range(29, 55)),
+            'R': list(range(12, 18)) + list(range(29, 53)),
+            'Q': list(range(12, 21)) + list(range(27, 52)),
+            'P': list(range(16, 22)) + list(range(28, 40)) + list(range(43, 52)),
+            'N': list(range(17, 23)) + list(range(30, 40)) + list(range(47, 55)),
+            'M': list(range(17, 26)) + list(range(32, 38)) + list(range(47, 58)),
+            'L': list(range(17, 25)) + list(range(33, 40)) + list(range(49, 61)),
+            'K': list(range(19, 25)) + list(range(33, 41)) + list(range(50, 56)),
+            'J': list(range(19, 24)) + list(range(33, 37)) + list(range(51, 57)),
+            'H': list(range(19, 22)) + list(range(34, 36)) + list(range(50, 57)),
+            'G': list(range(18, 21)) + [55],
+            'F': list(range(18, 21)),
+            'E': list(range(20, 22)),
+            'D': list(range(29, 59)),
+            'C': list(range(2, 61)),
+        }
+        # zone_ranges_by_band = {
+        #     'Q': list(range(46, 52)),
+        #     'P': list(range(16, 22)) + list(range(28, 40)) + list(range(43, 52)),
+        #     'N': list(range(17, 23)) + list(range(30, 40)) + list(range(47, 55)),
+        #     'M': list(range(17, 26)) + list(range(32, 38)) + list(range(47, 58)),
+        #     'L': list(range(17, 25)) + list(range(33, 40)) + list(range(49, 61)),
+        #     'K': list(range(19, 25)) + list(range(33, 41)) + list(range(50, 56)),
+        #     'J': list(range(19, 24)) + list(range(33, 37)) + list(range(51, 57)),
+        #     'H': list(range(19, 22)) + list(range(34, 36)) + list(range(50, 57)),
+        #     'G': list(range(18, 21)) + [55],
+        #     'F': list(range(18, 21)),
+        #     'E': list(range(20, 22)),
+        #     'D': list(range(29, 59)),
+        #     'C': list(range(2, 61)),
+        # }
+
+        all_mgrs = []
+        for band, zones in zone_ranges_by_band.items():
+            all_mgrs.extend([f"{zone:02d}{band}" for zone in zones])
+
+        args.regions = all_mgrs
+        args.skip_regions = salient_ids
+    else:
+        args.regions = args.regions or salient_ids
+        args.skip_regions = args.skip_regions or []
+
+    return args
 
 
 def setup_region_directory(
@@ -274,6 +338,8 @@ def generate_training_image(
     nominal_altitude: float,
     altitude_variation: float,
     off_nadir_variation: float,
+    save_lat_lon: bool = True,
+    custom_dir: str = None
 ) -> None:
     """
     Generate a single training image using the EarthImageSimulator.
@@ -290,6 +356,8 @@ def generate_training_image(
     :param altitude_variation: The variation in altitude, in m. The actual altitude will be in the range
                                [nominal_altitude - altitude_variation, nominal_altitude + altitude_variation].
     :param off_nadir_variation: The maximum variation in off-nadir angle, in degrees.
+    :param save_lat_lon: Whether to save the lat/lon coordinates for each pixel. If False, only the image will be saved.
+    :param custom_dir: Optional custom directory to save the files. If None, the default training directory will be used.
     """
     # Without this the seed may be inherited from the calling process, leading to duplicate images
     rng = np.random.default_rng(np.random.SeedSequence(int(time() * 1e6) ^ os.getpid()))
@@ -333,7 +401,7 @@ def generate_training_image(
     )
 
     geotagged_image = GeotaggedImage(frame.image, lat_lon)
-    geotagged_image.save(region, file_prefix)
+    geotagged_image.save(region, file_prefix, save_lat_lon=save_lat_lon, custom_dir=custom_dir)
 
 
 def main() -> None:
@@ -346,27 +414,41 @@ def main() -> None:
     regions = sorted(set(args.regions) - set(args.skip_regions))
 
     training_dir = load_config(USER_CONFIG_PATH)["training_directory"]
-    for region in tqdm(regions, desc="Setting up region directories"):
-        region_dir: str = os.path.join(training_dir, region)
-        if not setup_region_directory(region_dir, args.overwrite, args.resume):
-            print(
-                f"Output directory {region_dir} could not be emptied. Set --overwrite to clear any existing data."
-            )
-            return
+    non_salient_output_dir = os.path.join(training_dir, "non-salient") if args.non_salient else None
+    if not args.non_salient:
+        for region in tqdm(regions, desc="Setting up region directories"):
+            region_dir: str = os.path.join(training_dir, region)
+            if not setup_region_directory(region_dir, args.overwrite, args.resume):
+                print(
+                    f"Output directory {region_dir} could not be emptied. Set --overwrite to clear any existing data."
+                )
+                return
+    else:
+        os.makedirs(non_salient_output_dir, exist_ok=True)
 
     def get_requests_generator() -> Generator[Tuple[str, str], None, None]:
         """
         :return: A generator that yields tuples of (region, file_prefix) for each image to be generated.
         """
-        file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
-        requests_generator = product(regions, file_prefixes_generator)
+        if args.non_salient:
+            total_images = args.num_images * len(regions)
+            file_prefixes_generator = (f"{i:05d}" for i in range(total_images))
+            requests_generator = zip([r for r in regions for _ in range(args.num_images)], file_prefixes_generator)
+        else:
+            file_prefixes_generator = (f"{i:05d}" for i in range(args.num_images))
+            requests_generator = product(regions, file_prefixes_generator)
 
         if args.resume:
-            requests_generator = (
-                (region_, file_prefix_)
-                for region_, file_prefix_ in requests_generator
-                if not os.path.exists(os.path.join(training_dir, region_, f"{file_prefix_}.png"))
-            )
+            requests = list(requests_generator)  
+
+            def resumed_requests():
+                for region_, file_prefix_ in requests:
+                    output_dir = non_salient_output_dir if args.non_salient else os.path.join(training_dir, region_)
+                    image_path = os.path.join(output_dir, f"{file_prefix_}.png")
+                    if not os.path.exists(image_path):
+                        yield (region_, file_prefix_)
+
+            requests_generator = resumed_requests()
         return requests_generator
 
     total_images = (
@@ -383,6 +465,8 @@ def main() -> None:
         nominal_altitude=args.nominal_altitude,
         altitude_variation=args.altitude_variation,
         off_nadir_variation=args.off_nadir_variation,
+        save_lat_lon=not args.non_salient,
+        custom_dir=non_salient_output_dir,
     )
     if args.num_processes > 1:
         log_file_path = os.path.join(training_dir, f"training_data_generation_log_{time()}.csv")

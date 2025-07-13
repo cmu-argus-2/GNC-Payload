@@ -1,8 +1,8 @@
 """
-NumPy Image Batch Processing Module for ML Inference
+Image Batch Processing Module for ML Inference
 
 This module provides datasets and data loading utilities for efficient batch processing 
-of NumPy-format image files (.npy) in machine learning inference tasks.
+of image files (.png) in machine learning inference tasks.
 
 Key features:
 - Brightness-based image filtering to exclude under-exposed frames
@@ -25,7 +25,7 @@ from vision_inference.logger import Logger
 
 class ImageSimInference(Dataset):
     """
-    Dataset class for processing numpy image files in batches.
+    Dataset class for processing image files in batches.
     Includes brightness filtering similar to frame_processor logic.
     """
     
@@ -33,7 +33,7 @@ class ImageSimInference(Dataset):
         self, 
         images_dir: str,
         transform: Optional[Callable] = None,
-        file_extension: str = "*.npy",
+        file_extension: str = "*.png",
         brightness_filter: bool = True,
         dark_threshold: float = 0.9,
         brightness_threshold: int = 60
@@ -42,9 +42,9 @@ class ImageSimInference(Dataset):
         Initialize the dataset.
         
         Args:
-            images_dir: Directory path containing numpy image files
+            images_dir: Directory path containing image files
             transform: Transformation to apply to images
-            file_extension: File extension pattern to match (default: "*.npy")
+            file_extension: File extension pattern to match (default: "*.png")
             brightness_filter: Whether to apply brightness filtering (default: True)
             dark_threshold: Maximum percentage of dark pixels allowed for valid images (default: 0.9)
             brightness_threshold: Pixel value below which pixels are considered dark (default: 60)
@@ -70,7 +70,9 @@ class ImageSimInference(Dataset):
             for path in all_image_paths:
                 try:
                     # Load and check brightness
-                    img = np.load(path)
+                    img = cv2.imread(path)
+                    if img is None:
+                        raise ValueError(f"Failed to load image: {path}")
                     if self._is_image_bright_enough(img):
                         self.image_paths.append(path)
                     else:
@@ -96,7 +98,11 @@ class ImageSimInference(Dataset):
             Boolean indicating if image is bright enough
         """
         try:
-            gray_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            if len(image.shape) == 3:
+                gray_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray_frame = image  # Already grayscale
+                
             dark_percentage = np.sum(gray_frame < self.brightness_threshold) / np.prod(gray_frame.shape)
             return dark_percentage <= self.dark_threshold
         except Exception as e:
@@ -119,8 +125,8 @@ class ImageSimInference(Dataset):
         image_path = self.image_paths[idx]
         
         try:
-            # Load numpy image file
-            if image_path.endswith('.npy'):
+            # Load image file
+            if image_path.endswith('.npy') or image_path.endswith('.npz'):
                 image = np.load(image_path)
             else:
                 image = cv2.imread(image_path)
@@ -128,6 +134,10 @@ class ImageSimInference(Dataset):
                     raise ValueError(f"Image {image_path} could not be loaded.")
 
             # Convert to PIL Image for transforms
+            # OpenCV uses BGR format, convert to RGB for PIL
+            if image.shape[2] == 3:  # Check if it has color channels
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                
             pil_image = Image.fromarray(image)
             if pil_image.mode != 'RGB':
                 Logger.log("WARNING", f"Image {image_path} is not RGB, converting to RGB")

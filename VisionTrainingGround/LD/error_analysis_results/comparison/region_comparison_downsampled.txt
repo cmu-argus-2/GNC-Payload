@@ -1,0 +1,552 @@
+Regional Comparison of Error Statistics
+========================================
+
+Region Rankings by Total RMSE:
+------------------------------
+1. Region 51J: RMSE = 2.60 pixels (from 28814 landmarks)
+2. Region 19J: RMSE = 2.62 pixels (from 27782 landmarks)
+3. Region 39P: RMSE = 2.72 pixels (from 24904 landmarks)
+4. Region 49S: RMSE = 2.79 pixels (from 28677 landmarks)
+5. Region 42R: RMSE = 2.89 pixels (from 27204 landmarks)
+6. Region 32S: RMSE = 3.00 pixels (from 29588 landmarks)
+7. Region 40R: RMSE = 3.00 pixels (from 29601 landmarks)
+8. Region 53L: RMSE = 3.20 pixels (from 28122 landmarks)
+9. Region 23L: RMSE = 3.29 pixels (from 26081 landmarks)
+10. Region 18S: RMSE = 3.30 pixels (from 23708 landmarks)
+11. Region 55J: RMSE = 3.38 pixels (from 27240 landmarks)
+12. Region 38K: RMSE = 3.60 pixels (from 28231 landmarks)
+13. Region 37Q: RMSE = 3.68 pixels (from 27101 landmarks)
+14. Region 10T: RMSE = 3.85 pixels (from 29551 landmarks)
+15. Region 52S: RMSE = 3.87 pixels (from 24224 landmarks)
+16. Region 18Q: RMSE = 3.89 pixels (from 29510 landmarks)
+17. Region 59G: RMSE = 3.92 pixels (from 22591 landmarks)
+18. Region 11R: RMSE = 3.94 pixels (from 20137 landmarks)
+19. Region 10S: RMSE = 3.98 pixels (from 24770 landmarks)
+20. Region 21H: RMSE = 4.10 pixels (from 23787 landmarks)
+21. Region 54U: RMSE = 4.10 pixels (from 26663 landmarks)
+22. Region 12R: RMSE = 4.16 pixels (from 22876 landmarks)
+23. Region 33S: RMSE = 4.24 pixels (from 23013 landmarks)
+24. Region 48M: RMSE = 4.26 pixels (from 27571 landmarks)
+25. Region 36L: RMSE = 4.30 pixels (from 27182 landmarks)
+26. Region 50M: RMSE = 4.54 pixels (from 26241 landmarks)
+27. Region 16T: RMSE = 4.63 pixels (from 27811 landmarks)
+28. Region 05V: RMSE = 4.71 pixels (from 24931 landmarks)
+29. Region 54S: RMSE = 4.71 pixels (from 25225 landmarks)
+30. Region 29Q: RMSE = 4.74 pixels (from 21459 landmarks)
+31. Region 33K: RMSE = 4.88 pixels (from 29148 landmarks)
+32. Region 35J: RMSE = 4.91 pixels (from 29297 landmarks)
+33. Region 09V: RMSE = 5.21 pixels (from 29315 landmarks)
+34. Region 46Q: RMSE = 5.36 pixels (from 26705 landmarks)
+35. Region 14Q: RMSE = 5.46 pixels (from 28924 landmarks)
+36. Region 30U: RMSE = 5.55 pixels (from 24657 landmarks)
+37. Region 33T: RMSE = 5.88 pixels (from 21302 landmarks)
+38. Region 32T: RMSE = 5.97 pixels (from 23509 landmarks)
+39. Region 57V: RMSE = 8.55 pixels (from 20426 landmarks)
+40. Region 15V: RMSE = 9.25 pixels (from 19391 landmarks)
+
+
+AGGREGATE STATISTICS ACROSS ALL REGIONS:
+----------------------------------------
+Total Landmarks: 1037269
+Weighted Mean Position Error: [-1.85, 0.71] pixels
+Weighted RMSE: 4.44 pixels
+
+Error Covariance Analysis:
+  Aggregate Error Covariance Matrix:
+    [7.5066, -0.2790]
+    [-0.2790, 6.7269]
+
+  X-Y Error Correlation: -0.0393
+  Principal Error Axes: 5.51 and 5.15 pixels
+  Error Ellipse Orientation: -17.80 degrees
+  Error Anisotropy Ratio: 1.07 (major/minor axis)
+
+Error Covariance Interpretation:
+  X and Y errors are largely uncorrelated
+  No strong directional bias: Error distribution is nearly circular
+
+----------------------------------------
+
+Detailed Statistics by Region:
+------------------------------
+
+Region 51J:
+  Count: 28814
+  Mean Position Error (x, y): [-1.58, 0.61] pixels
+  RMSE-Total: 2.60 pixels
+  Position Error Covariance Matrix:
+    [2.2618, -0.3750]
+    [-0.3750, 1.6188]
+  X-Y Error Correlation: -0.1960
+  Principal Error Axes: 3.12 and 2.41 pixels
+  Error Ellipse Orientation: -24.70 degrees
+  Error Anisotropy Ratio: 1.30
+
+Region 19J:
+  Count: 27782
+  Mean Position Error (x, y): [-1.59, 0.20] pixels
+  RMSE-Total: 2.62 pixels
+  Position Error Covariance Matrix:
+    [2.5075, -0.0354]
+    [-0.0354, 1.8245]
+  X-Y Error Correlation: -0.0165
+  Principal Error Axes: 3.17 and 2.70 pixels
+  Error Ellipse Orientation: -2.96 degrees
+  Error Anisotropy Ratio: 1.17
+
+Region 39P:
+  Count: 24904
+  Mean Position Error (x, y): [-1.44, 0.79] pixels
+  RMSE-Total: 2.72 pixels
+  Position Error Covariance Matrix:
+    [2.4113, -0.5727]
+    [-0.5727, 2.2614]
+  X-Y Error Correlation: -0.2453
+  Principal Error Axes: 3.41 and 2.65 pixels
+  Error Ellipse Orientation: -41.27 degrees
+  Error Anisotropy Ratio: 1.29
+
+Region 49S:
+  Count: 28677
+  Mean Position Error (x, y): [-0.60, 0.40] pixels
+  RMSE-Total: 2.79 pixels
+  Position Error Covariance Matrix:
+    [4.4105, -0.0213]
+    [-0.0213, 2.8505]
+  X-Y Error Correlation: -0.0060
+  Principal Error Axes: 4.20 and 3.38 pixels
+  Error Ellipse Orientation: -0.78 degrees
+  Error Anisotropy Ratio: 1.24
+
+Region 42R:
+  Count: 27204
+  Mean Position Error (x, y): [-1.68, 0.20] pixels
+  RMSE-Total: 2.89 pixels
+  Position Error Covariance Matrix:
+    [3.4271, 0.0638]
+    [0.0638, 2.0571]
+  X-Y Error Correlation: 0.0240
+  Principal Error Axes: 3.70 and 2.87 pixels
+  Error Ellipse Orientation: 2.66 degrees
+  Error Anisotropy Ratio: 1.29
+
+Region 32S:
+  Count: 29588
+  Mean Position Error (x, y): [-1.31, 0.91] pixels
+  RMSE-Total: 3.00 pixels
+  Position Error Covariance Matrix:
+    [3.7380, -0.5116]
+    [-0.5116, 2.7192]
+  X-Y Error Correlation: -0.1605
+  Principal Error Axes: 3.98 and 3.17 pixels
+  Error Ellipse Orientation: -22.56 degrees
+  Error Anisotropy Ratio: 1.26
+
+Region 40R:
+  Count: 29601
+  Mean Position Error (x, y): [-1.65, 0.52] pixels
+  RMSE-Total: 3.00 pixels
+  Position Error Covariance Matrix:
+    [3.6923, 0.0178]
+    [0.0178, 2.3364]
+  X-Y Error Correlation: 0.0061
+  Principal Error Axes: 3.84 and 3.06 pixels
+  Error Ellipse Orientation: 0.75 degrees
+  Error Anisotropy Ratio: 1.26
+
+Region 53L:
+  Count: 28122
+  Mean Position Error (x, y): [-1.33, 0.16] pixels
+  RMSE-Total: 3.20 pixels
+  Position Error Covariance Matrix:
+    [2.8338, 1.2390]
+    [1.2390, 5.6002]
+  X-Y Error Correlation: 0.3110
+  Principal Error Axes: 3.07 and 4.93 pixels
+  Error Ellipse Orientation: 159.07 degrees
+  Error Anisotropy Ratio: 0.62
+
+Region 23L:
+  Count: 26081
+  Mean Position Error (x, y): [-1.36, 0.13] pixels
+  RMSE-Total: 3.29 pixels
+  Position Error Covariance Matrix:
+    [4.9766, -0.0683]
+    [-0.0683, 3.9501]
+  X-Y Error Correlation: -0.0154
+  Principal Error Axes: 4.46 and 3.97 pixels
+  Error Ellipse Orientation: -3.79 degrees
+  Error Anisotropy Ratio: 1.12
+
+Region 18S:
+  Count: 23708
+  Mean Position Error (x, y): [-1.10, 0.53] pixels
+  RMSE-Total: 3.30 pixels
+  Position Error Covariance Matrix:
+    [7.8009, -0.5389]
+    [-0.5389, 1.6275]
+  X-Y Error Correlation: -0.1512
+  Principal Error Axes: 5.60 and 2.51 pixels
+  Error Ellipse Orientation: -4.95 degrees
+  Error Anisotropy Ratio: 2.23
+
+Region 55J:
+  Count: 27240
+  Mean Position Error (x, y): [-1.14, 1.03] pixels
+  RMSE-Total: 3.38 pixels
+  Position Error Covariance Matrix:
+    [4.3988, -0.8694]
+    [-0.8694, 4.6711]
+  X-Y Error Correlation: -0.1918
+  Principal Error Axes: 3.82 and 4.65 pixels
+  Error Ellipse Orientation: -139.45 degrees
+  Error Anisotropy Ratio: 0.82
+
+Region 38K:
+  Count: 28231
+  Mean Position Error (x, y): [-2.68, -0.14] pixels
+  RMSE-Total: 3.60 pixels
+  Position Error Covariance Matrix:
+    [2.4410, 0.3558]
+    [0.3558, 3.2746]
+  X-Y Error Correlation: 0.1259
+  Principal Error Axes: 3.04 and 3.69 pixels
+  Error Ellipse Orientation: 159.76 degrees
+  Error Anisotropy Ratio: 0.82
+
+Region 37Q:
+  Count: 27101
+  Mean Position Error (x, y): [-2.12, 0.67] pixels
+  RMSE-Total: 3.68 pixels
+  Position Error Covariance Matrix:
+    [5.3311, -0.6179]
+    [-0.6179, 3.2767]
+  X-Y Error Correlation: -0.1478
+  Principal Error Axes: 4.69 and 3.52 pixels
+  Error Ellipse Orientation: -15.51 degrees
+  Error Anisotropy Ratio: 1.33
+
+Region 10T:
+  Count: 29551
+  Mean Position Error (x, y): [-1.91, 0.38] pixels
+  RMSE-Total: 3.85 pixels
+  Position Error Covariance Matrix:
+    [6.6815, 0.2589]
+    [0.2589, 4.3150]
+  X-Y Error Correlation: 0.0482
+  Principal Error Axes: 5.18 and 4.14 pixels
+  Error Ellipse Orientation: 6.17 degrees
+  Error Anisotropy Ratio: 1.25
+
+Region 52S:
+  Count: 24224
+  Mean Position Error (x, y): [-1.32, 0.66] pixels
+  RMSE-Total: 3.87 pixels
+  Position Error Covariance Matrix:
+    [7.4170, -1.6972]
+    [-1.6972, 5.3834]
+  X-Y Error Correlation: -0.2686
+  Principal Error Axes: 5.79 and 4.21 pixels
+  Error Ellipse Orientation: -29.54 degrees
+  Error Anisotropy Ratio: 1.38
+
+Region 18Q:
+  Count: 29510
+  Mean Position Error (x, y): [-1.83, -0.16] pixels
+  RMSE-Total: 3.89 pixels
+  Position Error Covariance Matrix:
+    [5.7349, -1.6528]
+    [-1.6528, 6.0684]
+  X-Y Error Correlation: -0.2802
+  Principal Error Axes: 4.12 and 5.50 pixels
+  Error Ellipse Orientation: -137.88 degrees
+  Error Anisotropy Ratio: 0.75
+
+Region 59G:
+  Count: 22591
+  Mean Position Error (x, y): [-1.03, 0.68] pixels
+  RMSE-Total: 3.92 pixels
+  Position Error Covariance Matrix:
+    [6.5174, -0.0055]
+    [-0.0055, 7.3359]
+  X-Y Error Correlation: -0.0008
+  Principal Error Axes: 5.11 and 5.42 pixels
+  Error Ellipse Orientation: -179.62 degrees
+  Error Anisotropy Ratio: 0.94
+
+Region 11R:
+  Count: 20137
+  Mean Position Error (x, y): [-1.98, 1.07] pixels
+  RMSE-Total: 3.94 pixels
+  Position Error Covariance Matrix:
+    [6.1912, -1.7389]
+    [-1.7389, 4.2494]
+  X-Y Error Correlation: -0.3390
+  Principal Error Axes: 5.37 and 3.59 pixels
+  Error Ellipse Orientation: -30.41 degrees
+  Error Anisotropy Ratio: 1.49
+
+Region 10S:
+  Count: 24770
+  Mean Position Error (x, y): [-1.74, 0.98] pixels
+  RMSE-Total: 3.98 pixels
+  Position Error Covariance Matrix:
+    [6.0656, -1.8688]
+    [-1.8688, 5.7642]
+  X-Y Error Correlation: -0.3161
+  Principal Error Axes: 5.58 and 4.02 pixels
+  Error Ellipse Orientation: -42.69 degrees
+  Error Anisotropy Ratio: 1.39
+
+Region 21H:
+  Count: 23787
+  Mean Position Error (x, y): [-0.75, 1.22] pixels
+  RMSE-Total: 4.10 pixels
+  Position Error Covariance Matrix:
+    [6.8482, 1.1666]
+    [1.1666, 7.9028]
+  X-Y Error Correlation: 0.1586
+  Principal Error Axes: 4.94 and 5.88 pixels
+  Error Ellipse Orientation: 147.16 degrees
+  Error Anisotropy Ratio: 0.84
+
+Region 54U:
+  Count: 26663
+  Mean Position Error (x, y): [-0.85, 0.75] pixels
+  RMSE-Total: 4.10 pixels
+  Position Error Covariance Matrix:
+    [8.0946, -0.3352]
+    [-0.3352, 7.4114]
+  X-Y Error Correlation: -0.0433
+  Principal Error Axes: 5.74 and 5.39 pixels
+  Error Ellipse Orientation: -22.23 degrees
+  Error Anisotropy Ratio: 1.06
+
+Region 12R:
+  Count: 22876
+  Mean Position Error (x, y): [-1.54, 0.67] pixels
+  RMSE-Total: 4.16 pixels
+  Position Error Covariance Matrix:
+    [8.7277, -0.6996]
+    [-0.6996, 5.7772]
+  X-Y Error Correlation: -0.0985
+  Principal Error Axes: 5.96 and 4.74 pixels
+  Error Ellipse Orientation: -12.69 degrees
+  Error Anisotropy Ratio: 1.26
+
+Region 33S:
+  Count: 23013
+  Mean Position Error (x, y): [-0.81, 1.17] pixels
+  RMSE-Total: 4.24 pixels
+  Position Error Covariance Matrix:
+    [8.0257, -1.2958]
+    [-1.2958, 7.9701]
+  X-Y Error Correlation: -0.1620
+  Principal Error Axes: 6.10 and 5.18 pixels
+  Error Ellipse Orientation: -44.39 degrees
+  Error Anisotropy Ratio: 1.18
+
+Region 48M:
+  Count: 27571
+  Mean Position Error (x, y): [-1.14, 1.24] pixels
+  RMSE-Total: 4.26 pixels
+  Position Error Covariance Matrix:
+    [8.1808, -1.3807]
+    [-1.3807, 7.0866]
+  X-Y Error Correlation: -0.1813
+  Principal Error Axes: 6.04 and 4.96 pixels
+  Error Ellipse Orientation: -34.19 degrees
+  Error Anisotropy Ratio: 1.22
+
+Region 36L:
+  Count: 27182
+  Mean Position Error (x, y): [-1.98, 0.65] pixels
+  RMSE-Total: 4.30 pixels
+  Position Error Covariance Matrix:
+    [8.7736, -0.2989]
+    [-0.2989, 5.3520]
+  X-Y Error Correlation: -0.0436
+  Principal Error Axes: 5.93 and 4.62 pixels
+  Error Ellipse Orientation: -4.96 degrees
+  Error Anisotropy Ratio: 1.29
+
+Region 50M:
+  Count: 26241
+  Mean Position Error (x, y): [-0.00, 0.66] pixels
+  RMSE-Total: 4.54 pixels
+  Position Error Covariance Matrix:
+    [11.8900, 0.8446]
+    [0.8446, 8.2529]
+  X-Y Error Correlation: 0.0853
+  Principal Error Axes: 6.95 and 5.68 pixels
+  Error Ellipse Orientation: 12.46 degrees
+  Error Anisotropy Ratio: 1.22
+
+Region 16T:
+  Count: 27811
+  Mean Position Error (x, y): [-1.97, 0.92] pixels
+  RMSE-Total: 4.63 pixels
+  Position Error Covariance Matrix:
+    [8.3568, -0.8380]
+    [-0.8380, 8.3828]
+  X-Y Error Correlation: -0.1001
+  Principal Error Axes: 5.49 and 6.07 pixels
+  Error Ellipse Orientation: -135.44 degrees
+  Error Anisotropy Ratio: 0.90
+
+Region 05V:
+  Count: 24931
+  Mean Position Error (x, y): [-2.33, 1.26] pixels
+  RMSE-Total: 4.71 pixels
+  Position Error Covariance Matrix:
+    [7.1041, -1.3255]
+    [-1.3255, 8.1041]
+  X-Y Error Correlation: -0.1747
+  Principal Error Axes: 4.97 and 6.01 pixels
+  Error Ellipse Orientation: -145.33 degrees
+  Error Anisotropy Ratio: 0.83
+
+Region 54S:
+  Count: 25225
+  Mean Position Error (x, y): [-1.28, 0.58] pixels
+  RMSE-Total: 4.71 pixels
+  Position Error Covariance Matrix:
+    [12.8210, 1.6033]
+    [1.6033, 7.4285]
+  X-Y Error Correlation: 0.1643
+  Principal Error Axes: 7.28 and 5.29 pixels
+  Error Ellipse Orientation: 15.37 degrees
+  Error Anisotropy Ratio: 1.38
+
+Region 29Q:
+  Count: 21459
+  Mean Position Error (x, y): [-3.73, 0.58] pixels
+  RMSE-Total: 4.74 pixels
+  Position Error Covariance Matrix:
+    [4.1666, 0.1675]
+    [0.1675, 4.0824]
+  X-Y Error Correlation: 0.0406
+  Principal Error Axes: 4.15 and 3.98 pixels
+  Error Ellipse Orientation: 37.94 degrees
+  Error Anisotropy Ratio: 1.04
+
+Region 33K:
+  Count: 29148
+  Mean Position Error (x, y): [-3.76, 0.74] pixels
+  RMSE-Total: 4.88 pixels
+  Position Error Covariance Matrix:
+    [4.0402, 0.4779]
+    [0.4779, 5.1566]
+  X-Y Error Correlation: 0.1047
+  Principal Error Axes: 3.93 and 4.62 pixels
+  Error Ellipse Orientation: 159.72 degrees
+  Error Anisotropy Ratio: 0.85
+
+Region 35J:
+  Count: 29297
+  Mean Position Error (x, y): [-1.96, 0.84] pixels
+  RMSE-Total: 4.91 pixels
+  Position Error Covariance Matrix:
+    [9.6252, 0.2245]
+    [0.2245, 9.9606]
+  X-Y Error Correlation: 0.0229
+  Principal Error Axes: 6.17 and 6.35 pixels
+  Error Ellipse Orientation: 153.38 degrees
+  Error Anisotropy Ratio: 0.97
+
+Region 09V:
+  Count: 29315
+  Mean Position Error (x, y): [-3.23, 1.39] pixels
+  RMSE-Total: 5.21 pixels
+  Position Error Covariance Matrix:
+    [9.1464, -1.1956]
+    [-1.1956, 5.6900]
+  X-Y Error Correlation: -0.1657
+  Principal Error Axes: 6.17 and 4.61 pixels
+  Error Ellipse Orientation: -17.34 degrees
+  Error Anisotropy Ratio: 1.34
+
+Region 46Q:
+  Count: 26705
+  Mean Position Error (x, y): [-4.53, 0.97] pixels
+  RMSE-Total: 5.36 pixels
+  Position Error Covariance Matrix:
+    [4.3529, -0.8291]
+    [-0.8291, 2.8585]
+  X-Y Error Correlation: -0.2350
+  Principal Error Axes: 4.35 and 3.16 pixels
+  Error Ellipse Orientation: -23.99 degrees
+  Error Anisotropy Ratio: 1.38
+
+Region 14Q:
+  Count: 28924
+  Mean Position Error (x, y): [-3.83, 0.37] pixels
+  RMSE-Total: 5.46 pixels
+  Position Error Covariance Matrix:
+    [9.9901, -1.7128]
+    [-1.7128, 5.0532]
+  X-Y Error Correlation: -0.2411
+  Principal Error Axes: 6.49 and 4.25 pixels
+  Error Ellipse Orientation: -17.38 degrees
+  Error Anisotropy Ratio: 1.53
+
+Region 30U:
+  Count: 24657
+  Mean Position Error (x, y): [-2.33, 0.47] pixels
+  RMSE-Total: 5.55 pixels
+  Position Error Covariance Matrix:
+    [13.1100, -0.0196]
+    [-0.0196, 12.0090]
+  X-Y Error Correlation: -0.0016
+  Principal Error Axes: 7.24 and 6.93 pixels
+  Error Ellipse Orientation: -1.02 degrees
+  Error Anisotropy Ratio: 1.04
+
+Region 33T:
+  Count: 21302
+  Mean Position Error (x, y): [-3.42, 0.78] pixels
+  RMSE-Total: 5.88 pixels
+  Position Error Covariance Matrix:
+    [10.8450, -0.0051]
+    [-0.0051, 11.4290]
+  X-Y Error Correlation: -0.0005
+  Principal Error Axes: 6.59 and 6.76 pixels
+  Error Ellipse Orientation: -179.50 degrees
+  Error Anisotropy Ratio: 0.97
+
+Region 32T:
+  Count: 23509
+  Mean Position Error (x, y): [-2.72, 1.32] pixels
+  RMSE-Total: 5.97 pixels
+  Position Error Covariance Matrix:
+    [15.9300, -0.8167]
+    [-0.8167, 10.6310]
+  X-Y Error Correlation: -0.0628
+  Principal Error Axes: 8.01 and 6.48 pixels
+  Error Ellipse Orientation: -8.57 degrees
+  Error Anisotropy Ratio: 1.24
+
+Region 57V:
+  Count: 20426
+  Mean Position Error (x, y): [-0.30, 4.62] pixels
+  RMSE-Total: 8.55 pixels
+  Position Error Covariance Matrix:
+    [16.9860, 3.9793]
+    [3.9793, 34.6140]
+  X-Y Error Correlation: 0.1641
+  Principal Error Axes: 8.03 and 11.91 pixels
+  Error Ellipse Orientation: 167.85 degrees
+  Error Anisotropy Ratio: 0.67
+
+Region 15V:
+  Count: 19391
+  Mean Position Error (x, y): [-1.72, -1.70] pixels
+  RMSE-Total: 9.25 pixels
+  Position Error Covariance Matrix:
+    [38.4410, 0.6171]
+    [0.6171, 41.3220]
+  X-Y Error Correlation: 0.0155
+  Principal Error Axes: 12.38 and 12.88 pixels
+  Error Ellipse Orientation: 168.40 degrees
+  Error Anisotropy Ratio: 0.96
+

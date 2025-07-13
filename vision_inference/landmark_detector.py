@@ -18,18 +18,20 @@ Date: [Creation or Last Update Date]
 
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from time import perf_counter
 from typing import Dict, List, Sequence
 
-import cv2
+from more_itertools import batched
 import numpy as np
 import torch
 from PIL import Image
-from tqdm import tqdm
+import cv2
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
+from sensors.camera_model import CameraModel
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 
@@ -128,6 +130,12 @@ class LandmarkDetections:
             == len(self.confidences)
         ), "All arrays should have the same length."
 
+        assert (
+            np.all(self.pixel_coordinates >= 0)
+            and np.all(self.pixel_coordinates[:, 0] <= CameraModel.IMAGE_WIDTH - 1)
+            and np.all(self.pixel_coordinates[:, 1] <= CameraModel.IMAGE_HEIGHT - 1)
+        ), "pixel_coordinates should be within image bounds."
+
     @staticmethod
     def stack(detections: List["LandmarkDetections"]) -> "LandmarkDetections":
         """
@@ -146,7 +154,7 @@ class LandmarkDetections:
             pixel_coordinates=np.row_stack([det.pixel_coordinates for det in detections]),
             latlons=np.row_stack([det.latlons for det in detections]),
             class_ids=np.concatenate([det.class_ids for det in detections]),
-            region_ids=np.concatenate([d.region_ids for d in detections]),
+            region_ids=np.concatenate([det.region_ids for det in detections]),
             confidences=np.concatenate([det.confidences for det in detections]),
         )
 
@@ -157,8 +165,7 @@ class LandmarkDetector:
     """
 
     CONFIDENCE_THRESHOLD = 0.5
-    # TODO: Can we increase this to the full resolution (2592, 4608) on the Jetson?
-    IMAGE_SIZE = (1088, 1920)
+    IMAGE_SIZE = CameraModel.RESOLUTION
 
     def __init__(self, region_id: str):
         """
@@ -167,7 +174,7 @@ class LandmarkDetector:
         """
         Logger.log("INFO", f"Initializing LandmarkDetector for region {region_id}.")
         models_dir = load_config(USER_CONFIG_PATH)["models_directory"]
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.region_id = region_id
         try:
             self.model = YOLO(
@@ -179,6 +186,8 @@ class LandmarkDetector:
         except Exception as e:
             Logger.log("ERROR", f"Failed to load necessary data: {e}")
             raise
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
         Logger.log("INFO", f"Model device: {self.model.device}")
 
@@ -208,7 +217,6 @@ class LandmarkDetector:
         """
         return os.path.join(region_id, "bounding_boxes.csv")
 
-
     @staticmethod
     def load_ground_truth(ground_truth_path: str) -> np.ndarray:
         """
@@ -227,9 +235,61 @@ class LandmarkDetector:
             Logger.log("ERROR", f"Configuration error: {e}")
             raise
 
-    def detect_landmarks(self, frame: Frame) -> LandmarkDetections:
+    def _process_results(self, frame: Frame, result: Results) -> LandmarkDetections:
         """
-        Detects landmarks in an input image using a pretrained YOLO model and extracts relevant information.
+        Process the results from YOLO and generate a LandmarkDetections object.
+
+        Args:
+            frame: The Frame that the results are associated with. Only used for logging.
+            result: The results to process.
+
+        Returns:
+            The resulting LandmarkDetections object.
+        """
+        landmarks = result.boxes
+        if len(landmarks) == 0:
+            Logger.log(
+                "INFO",
+                f"{frame.debug_str} No landmarks detected in Region {self.region_id}.",
+            )
+            return LandmarkDetections.empty()
+
+        xywh = landmarks.xywh.cpu().numpy()
+        class_ids = landmarks.cls.cpu().numpy().astype(int)
+        confidences = landmarks.conf.cpu().numpy()
+
+        valid_indices = (
+            np.all(xywh >= 0, axis=1)
+            & (xywh[:, 0] <= CameraModel.IMAGE_WIDTH - 1)
+            & (xywh[:, 1] <= CameraModel.IMAGE_HEIGHT - 1)
+        )
+        if not np.all(valid_indices):
+            Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
+            if not np.any(valid_indices):
+                Logger.log(
+                    "INFO",
+                    f"{frame.debug_str} No valid landmarks detected in Region {self.region_id}.",
+                )
+                return LandmarkDetections.empty()
+            xywh = xywh[valid_indices]
+            class_ids = class_ids[valid_indices]
+            confidences = confidences[valid_indices]
+
+        landmark_detections = LandmarkDetections(
+            pixel_coordinates=xywh[:, :2],
+            latlons=self.ground_truth[class_ids, :2],
+            class_ids=class_ids,
+            region_ids=np.array([self.region_id] * len(class_ids)),
+            confidences=confidences,
+        )
+        landmark_detections.assert_invariants()
+        return landmark_detections
+
+    def detect_landmarks(
+        self, frames: Sequence[Frame], batch_size: int = 8
+    ) -> List[LandmarkDetections]:
+        """
+        Detects landmarks in a set of input images using a pretrained YOLO model and extracts relevant information.
 
         The detection process filters out landmarks with low confidence scores (below 0.5)
         and invalid bounding box dimensions.
@@ -237,85 +297,67 @@ class LandmarkDetector:
         facilitating further analysis or processing.
 
         Args:
-            frame: The input Frame on which to perform landmark detection.
+            frames: The input Frames on which to perform landmark detection. Does not need to be a multiple of
+                    batch_size.
+            batch_size: The number of input Frames to process in each batch.
 
         Returns:
             A LandmarkDetections object containing the detected landmarks and associated data.
         """
+        if len(frames) == 0:
+            Logger.log("INFO", "No frames provided for landmark detection.")
+            return []
+
         Logger.log(
             "INFO",
-            f"[Camera {frame.camera_name} frame {frame.frame_id}] Starting the landmark detection process.",
+            f"{', '.join([frame.debug_str for frame in frames])} Starting the landmark detection process.",
         )
 
         try:
-            # Detect landmarks using the YOLO model
-            start_time = perf_counter()
-            results: Results = self.model.predict(
-                Image.fromarray(frame.image),
-                conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
-                imgsz=LandmarkDetector.IMAGE_SIZE,
-                verbose=False,
-            )
-            inference_time = perf_counter() - start_time
-
             landmark_detections = []
-
-            for result in results:
-                landmarks = result.boxes
-                if len(landmarks) == 0:
+            for batch in batched(frames, batch_size):
+                start_time = perf_counter()
+                results_sequence: Sequence[Results] = self.model.predict(
+                    # TODO: can we directly pass numpy arrays instead
+                    [Image.fromarray(frame.image) for frame in batch],
+                    conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
+                    imgsz=LandmarkDetector.IMAGE_SIZE,
+                    verbose=False,
+                )
+                inference_time = perf_counter() - start_time
+                if len(results_sequence) != len(batch):
+                    Logger.log("ERROR", f"Mismatch: YOLO returned {len(results_sequence)} results for a batch of {len(batch)}")
                     continue
 
-                xywh = landmarks.xywh.cpu().numpy()
-                class_ids = landmarks.cls.cpu().numpy().astype(int)
-                confidences = landmarks.conf.cpu().numpy()
-
-                valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
-                if not np.all(valid_indices):
-                    Logger.log("INFO", "Skipping landmark with invalid bounding box dimensions.")
-                    if not np.any(valid_indices):
-                        continue
-                    xywh = xywh[valid_indices]
-                    class_ids = class_ids[valid_indices]
-                    confidences = confidences[valid_indices]
-
-                landmark_detections.append(
-                    LandmarkDetections(
-                        pixel_coordinates=xywh[:, :2],
-                        latlons=self.ground_truth[class_ids, :2],
-                        class_ids=class_ids,
-                        region_ids=np.array([self.region_id] * len(class_ids)),
-                        confidences=confidences,
-                    )
+                landmark_detections.extend(
+                    [
+                        self._process_results(frame, results)
+                        for frame, results in zip(frames, results_sequence)
+                    ]
                 )
-
-            landmark_detections = LandmarkDetections.stack(landmark_detections)
-
-            if len(landmark_detections) == 0:
                 Logger.log(
                     "INFO",
-                    f"[Camera {frame.camera_name} frame {frame.frame_id}] No landmarks detected in Region {self.region_id}.",
+                    f"Inference completed for batch of {len(batch)} in {inference_time:.2f} seconds.",
                 )
-                return LandmarkDetections.empty()
 
+            total_detections = sum(len(det) for det in landmark_detections)
             Logger.log(
                 "INFO",
-                f"[Camera {frame.camera_name} frame {frame.frame_id}] "
-                f"{len(landmark_detections)} landmarks detected.",
+                f"{total_detections} landmarks detected in total.",
             )
-            Logger.log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
 
             # Logging details for each detected landmark
-            Logger.log(
-                "INFO",
-                f"[Camera {frame.camera_name} frame {frame.frame_id}] "
-                f"class_id\tpixel_coordinates\tlatlon\tconfidence",
-            )
-            for (x, y), (lat, lon), class_id, confidence in landmark_detections:
-                Logger.log(
-                    "INFO",
-                    f"[Camera {frame.camera_name} frame {frame.frame_id}] "
-                    f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
-                )
+            # for frame, detections in zip(frames, landmark_detections):
+            #     Logger.log(
+            #         "INFO",
+            #         f"{frame.debug_str} class_id\tpixel_coordinates\tlatlon\tconfidence",
+            #     )
+                # for (x, y), (lat, lon), class_id, region_id, confidence in detections:
+                #     Logger.log(
+                #         "INFO",
+                #         f"{frame.debug_str} "
+                #         f"{class_id}\t({x:.0f}, {y:.0f})\t({lat:.2f}, {lon:.2f})\t{confidence:.2f}",
+                #     )
 
             return landmark_detections
 
@@ -323,17 +365,17 @@ class LandmarkDetector:
             Logger.log("ERROR", f"Detection process failed: {e}")
             raise
 
-    def batch_detect_landmarks(
+
+    def png_detect_landmarks(
         self,
-        npy_paths: List[str],
-        batch_size: int = 8,
+        png_paths: List[str],
+        batch_size: int = 1,
     ) -> Dict[str, LandmarkDetections]:
         """
-        Perform GPU-accelerated landmark detection on multiple NumPy (.npy) files using batching.
+        Perform GPU-accelerated landmark detection on multiple PNG image files.
 
         Args:
-            npy_paths: List of paths to numpy files containing images for landmark detection
-            batch_size: Number of images to process in each GPU batch
+            png_paths: List of paths to PNG files for landmark detection
 
         Returns:
             Dictionary mapping file paths to their corresponding LandmarkDetections
@@ -343,49 +385,50 @@ class LandmarkDetector:
             f"Initialized LandmarkDetector for GPU batch processing in region {self.region_id}",
         )
 
-        # Process in batches to utilize GPU effectively
         results = {}
-        total_batches = (len(npy_paths) + batch_size - 1) // batch_size
 
-        Logger.log("INFO", f"Processing {len(npy_paths)} NumPy files in {total_batches} batches...")
-        batch_iterator = tqdm(range(0, len(npy_paths), batch_size), total=total_batches)
+        Logger.log("INFO", f"Processing {len(png_paths)} PNG files in batches...")
 
-        for batch_start in batch_iterator:
-            # Get batch paths
-            batch_end = min(batch_start + batch_size, len(npy_paths))
-            batch_paths = npy_paths[batch_start:batch_end]
+        # Load and prepare images
+        images = []
+        valid_paths = []
 
-            # Load and prepare batch images
-            batch_images = []
-            valid_paths = []
+        for png_path in png_paths:
+            try:
+                # Use cv2 to read PNG files
+                image = cv2.imread(png_path)
+                if image is None:
+                    raise ValueError(f"Failed to load image: {png_path}")
+                # Convert from BGR to RGB for consistency with the rest of the pipeline
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                images.append(image)
+                valid_paths.append(os.path.basename(png_path))
+            except Exception as e:
+                Logger.log("ERROR", f"Error loading PNG file {png_path}: {e}")
+                results[os.path.basename(png_path)] = LandmarkDetections.empty()
 
-            for npy_path in batch_paths:
-                try:
-                    # Load NumPy array
-                    array = np.load(npy_path)
-                    batch_images.append(array)
-                    valid_paths.append(os.path.basename(npy_path))
+        if len(images) == 0:
+            raise ValueError("None of the PNG files could be loaded!")
+        for img in images:
+            assert img.ndim == 3 and img.shape[2] == 3, "Image must be RGB"
+        frames = [
+            Frame(image=image, camera_name="x+", timestamp=datetime.now())
+            for image in images
+        ]
+        
+        landmark_detections = self.detect_landmarks(frames, batch_size=batch_size)
 
-                except Exception as e:
-                    Logger.log("ERROR", f"Error loading NumPy file {npy_path}: {e}")
-                    results[os.path.basename(npy_path)] = LandmarkDetections.empty()
-
-            # No valid images in this batch
-            if not batch_images:
-                continue
-
-            # Process batch and get dictionary results directly
-            batch_results = self._process_image_batch_direct(batch_images, valid_paths)
-
-            # Update the results dictionary with batch results
-            results.update(batch_results)
+        results.update({
+            valid_path: landmark_detection
+            for valid_path, landmark_detection in zip(valid_paths, landmark_detections)
+        })
 
         # Log summary
         success_count = sum(1 for detections in results.values() if len(detections) > 0)
         total_landmarks = sum(len(detections) for detections in results.values())
 
         Logger.log(
-            "INFO", f"Batch processing complete: {len(results)}/{len(npy_paths)} files processed"
+            "INFO", f"Batch processing complete: {len(results)}/{len(png_paths)} files processed"
         )
         Logger.log(
             "INFO",
@@ -393,85 +436,3 @@ class LandmarkDetector:
         )
 
         return results
-
-    def _process_image_batch_direct(
-        self, images: List[np.ndarray], image_names: List[str]
-    ) -> Dict[str, LandmarkDetections]:
-        """
-        Process a batch of image arrays through the YOLO model at once to leverage GPU parallelism.
-
-        Args:
-            images: List of numpy arrays representing images
-            image_names: List of corresponding image names (not file paths)
-
-        Returns:
-            Dictionary mapping image names to their corresponding LandmarkDetections
-        """
-        if not images:
-            return {}
-
-        try:
-            # Convert images to PIL format for YOLO
-            pil_images = [Image.fromarray(img) for img in images]
-            start_time = perf_counter()
-            batch_results = self.model.predict(
-                pil_images,
-                conf=LandmarkDetector.CONFIDENCE_THRESHOLD,
-                imgsz=LandmarkDetector.IMAGE_SIZE,
-                verbose=False,
-                batch=len(pil_images),  # Explicitly set batch size
-            )
-            inference_time = perf_counter() - start_time
-            avg_time_per_image = inference_time / len(pil_images)
-            Logger.log(
-                "INFO",
-                f"Batch inference completed in {inference_time:.3f}s "
-                f"(avg: {avg_time_per_image:.3f}s/image) on {self.model.device}",
-            )
-
-            # Process results for each image
-            detections_dict = {}
-            for i, (name, result) in enumerate(zip(image_names, batch_results)):
-                landmarks = result.boxes
-                if len(landmarks) == 0:
-                    Logger.log(
-                        "INFO", f"[Image: {name}] No landmarks detected in region {self.region_id}."
-                    )
-                    continue
-
-                # Extract detection data
-                xywh = landmarks.xywh.cpu().numpy()
-                class_ids = landmarks.cls.cpu().numpy().astype(int)
-                confidences = landmarks.conf.cpu().numpy()
-
-                # Filter valid detections
-                valid_indices = np.all(xywh[:, 2:] >= 0, axis=1)
-                if not np.all(valid_indices):
-                    Logger.log(
-                        "INFO",
-                        f"[Image: {name}] Skipping landmark(s) with invalid bounding box dimensions.",
-                    )
-                    if not np.any(valid_indices):
-                        continue
-
-                    xywh = xywh[valid_indices]
-                    class_ids = class_ids[valid_indices]
-                    confidences = confidences[valid_indices]
-
-                # Create LandmarkDetections object
-                detections = LandmarkDetections(
-                    pixel_coordinates=xywh[:, :2],
-                    latlons=self.ground_truth[class_ids, :2],
-                    class_ids=class_ids,
-                    region_ids=np.array([self.region_id] * len(class_ids)),
-                    confidences=confidences,
-                )
-
-                Logger.log("INFO", f"[Image: {name}] {len(detections)} landmarks detected.")
-                detections_dict[name] = detections
-            return detections_dict
-
-        except Exception as e:
-            Logger.log("ERROR", f"Batch detection failed: {e}")
-            # Return empty detections for all images in case of failure
-            return {name: LandmarkDetections.empty() for name in image_names}

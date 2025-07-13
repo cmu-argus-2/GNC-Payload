@@ -8,10 +8,10 @@ from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
 
-from brahe import R_EARTH
 import numpy as np
 import rasterio
 from affine import Affine
+from brahe import R_EARTH
 from rasterio.crs import CRS
 from scipy.ndimage import label
 
@@ -263,8 +263,10 @@ class GeoTIFFCache:
     def validate_salient_region_data_exists(geotiff_folder: str) -> None:
         """
         Check if all salient region folders exist in the specified GeoTIFF folder and are not empty.
+
         Parameters:
             geotiff_folder: Path to the folder containing GeoTIFF files.
+
         Raises:
             FileNotFoundError: If one or more region folders are not found or are empty.
         """
@@ -285,9 +287,11 @@ class GeoTIFFCache:
     def load_geotiff_data(self, region: str) -> GeoTIFFData | None:
         """
         Load GeoTIFF data for a specific region.
+
         Note that this function is dynamically wrapped with an LRU cache in the constructor, so it will cache its
         outputs for recent regions. This makes it likely that temporally adjacent images will be loaded from the cache,
         resulting in consistent image appearance.
+
         :param region: The MGRS region to load data for.
         :return: A GeoTIFFData object, or None if there is no data for the specified region.
         """
@@ -317,13 +321,14 @@ class EarthImageSimulator:
     BLUE_MARBLE_BRIGHTNESS_FACTOR = 2.7
 
     def __init__(
-            self,
-            geotiff_cache: GeoTIFFCache | None = None,
-            inpaint_blue_marble: bool = True,
-            blue_marble_month: str | None = None
+        self,
+        geotiff_cache: GeoTIFFCache | None = None,
+        inpaint_blue_marble: bool = True,
+        blue_marble_month: str | None = None,
     ):
         """
         Initialize the Earth image simulator.
+
         Parameters:
             geotiff_cache: The GeoTIFFCache to use. If None, a default GeoTIFFCache will be created.
             inpaint_blue_marble: Whether to inpaint from the Blue Marble dataset for Earth pixels with no valid data.
@@ -338,15 +343,19 @@ class EarthImageSimulator:
     def trim_small_connected_components(mask: np.ndarray, min_size: int = 3) -> np.ndarray:
         """
         Remove small connected components from the provided binary mask.
+
         Parameters:
             mask: A binary mask to trim.
             min_size: The minimum size of connected components to keep.
+
         Returns:
             The trimmed binary mask.
         """
         assert mask.dtype == bool, "mask must be a binary mask."
 
-        labeled_connected_components, num_labels = label(mask, structure=np.ones((3, 3), dtype=bool))
+        labeled_connected_components, num_labels = label(
+            mask, structure=np.ones((3, 3), dtype=bool)
+        )
 
         for label_id in range(1, num_labels + 1):
             connected_component_mask = labeled_connected_components == label_id
@@ -362,10 +371,12 @@ class EarthImageSimulator:
         """
         Simulate an Earth image given the satellite position, attitude, and camera model.
         This method also returns the latitudes and longitudes for each pixel.
+
         Parameters:
             position_ecef: A numpy array of shape (3,) representing the satellite position in ECEF coordinates.
             ecef_R_body: A numpy array of shape (3, 3) representing the rotation matrix from body to ECEF coordinates.
             camera_model: The camera model to use to simulate the image.
+
         Returns:
             A Tuple containing:
             - The simulated Frame object.
@@ -383,11 +394,11 @@ class EarthImageSimulator:
 
         # TODO: see if we can avoid calculating this for every pixel
         mgrs_regions = calculate_mgrs_zones(lat_lon)
-        present_regions = np.unique(mgrs_regions[mgrs_regions != None])
+        present_regions = np.unique(mgrs_regions[mgrs_regions != b""])
 
         image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
         for region in present_regions:
-            geotiff_data = self.cache.load_geotiff_data(region)
+            geotiff_data = self.cache.load_geotiff_data(str(region, encoding="ascii"))
             if geotiff_data is None:
                 continue
 
