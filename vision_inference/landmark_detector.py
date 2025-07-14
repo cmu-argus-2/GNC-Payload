@@ -282,6 +282,7 @@ class LandmarkDetector:
             region_ids=np.array([self.region_id] * len(class_ids)),
             confidences=confidences,
         )
+        # TODO: Check if we can only activate the asserts in debug mode
         landmark_detections.assert_invariants()
         return landmark_detections
 
@@ -332,7 +333,7 @@ class LandmarkDetector:
                 landmark_detections.extend(
                     [
                         self._process_results(frame, results)
-                        for frame, results in zip(frames, results_sequence)
+                        for frame, results in zip(batch, results_sequence)
                     ]
                 )
                 Logger.log(

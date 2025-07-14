@@ -374,7 +374,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             
             return bearing_vectors, landmark_positions
 
-        except:
+        except (FileNotFoundError):
             Logger.log("INFO", f"No measurements found for camera {camera_name} at timestep {timestep}.")
             return np.zeros((0,3)), np.zeros((0,3))
 

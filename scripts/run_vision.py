@@ -468,5 +468,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # The load_brahe_data_files() function is currently disabled because it is only required
+    # in specific scenarios where Brahe data files need to be preloaded. Uncomment this line
+    # if preloading is necessary for your use case.
+
     # load_brahe_data_files()
     main()
