@@ -3,12 +3,11 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import argparse
-from typing import List
-import warnings
 import time
 
 from utils.earth_utils import get_MGRS_grid  
 from utils.config_utils import load_config, MAIN_CONFIG_PATH
+from vision_inference.logger import Logger
 
 def calculate_sigmoid_params(x1, y1, x2, y2):
     logit1 = np.log(y1 / (1 - y1))
@@ -33,7 +32,7 @@ def compute_label(lat_lon_path, salient_boundaries, region_indices, k, x0):
         start = time.time()
         lat_lon_array = lat_lon_data['lat_lon']
         end = time.time()
-        print(f"Loaded lat_lon data in {end - start:.2f} seconds")
+        Logger.log("INFO", f"Loaded lat_lon data in {end - start:.2f} seconds")
         total_pixels = lat_lon_array.shape[0] * lat_lon_array.shape[1]
         lat = lat_lon_array[:, :, 0]
         lon = lat_lon_array[:, :, 1]
@@ -51,7 +50,7 @@ def compute_label(lat_lon_path, salient_boundaries, region_indices, k, x0):
                 fraction = pixel_count.item() / total_pixels
                 label_vector[idx] = custom_sigmoid(fraction, k, x0)
         end = time.time()
-        print(f"Computed label vector in {end - start:.2f} seconds")
+        Logger.log("INFO", f"Computed label vector in {end - start:.2f} seconds")
         return label_vector.numpy()
 
 def main(root_dir, salient_regions):
@@ -65,16 +64,16 @@ def main(root_dir, salient_regions):
         # Check if there already is a vector_labels.npz file
         region_labels_path = os.path.join(root_dir, region_dir, "vector_labels.npz")
         if os.path.isfile(region_labels_path):
-            print(f"Skipping {region_dir} as vector_labels.npz already exists.")
+            Logger.log("INFO", f"Skipping {region_dir} as vector_labels.npz already exists.")
             continue
         region_path = os.path.join(root_dir, region_dir)
         if not os.path.isdir(region_path):
             continue
-        print("Region:", os.path.basename(region_dir))
+        Logger.log("INFO", f"Region: {os.path.basename(region_dir)}")
         cache = {}
         for file in sorted(os.listdir(region_path)):
             if file.endswith(("_lat_lon.npz")):
-                print(f"Processing {file} in region {region_dir}")
+                Logger.log("INFO", f"Processing {file} in region {region_dir}")
                 base = file.replace("_lat_lon.npz", "")
                 lat_lon_path = os.path.join(region_path, file)
                 label = compute_label(lat_lon_path, boundaries, region_indices, k, x0)
@@ -82,7 +81,7 @@ def main(root_dir, salient_regions):
 
         if cache:
             np.savez(os.path.join(region_path, "vector_labels.npz"), **cache)
-            print(f"Saved labels for {region_dir}")
+            Logger.log("INFO", f"Saved labels for {region_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

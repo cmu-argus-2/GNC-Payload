@@ -292,7 +292,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
-        print(f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
+        Logger.log("INFO", f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
 
         ecef_R_eci = brahe.frames.rECItoECEF(epoch)
         position_ecef = ecef_R_eci @ cubesat_position
@@ -329,10 +329,10 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         MLPipeline.visualize_landmarks(frame, landmark_detections, region_slices, output_dir)
 
         if len(region_slices) is None:
-            print("No salient regions detected")
+            Logger.log("INFO", "No salient regions detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
         if len(landmark_detections) == 0:
-            print("No landmarks detected")
+            Logger.log("INFO", "No landmarks detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.latlons)
@@ -342,7 +342,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         )
         bearing_unit_vectors_body = (camera_model.body_R_camera @ bearing_unit_vectors_cf.T).T
 
-        print(f"Detected {len(landmark_positions_eci)} landmarks")
+        Logger.log("INFO", f"Detected {len(landmark_positions_eci)} landmarks")
 
         # TODO: output confidences too
         return bearing_unit_vectors_body, landmark_positions_eci

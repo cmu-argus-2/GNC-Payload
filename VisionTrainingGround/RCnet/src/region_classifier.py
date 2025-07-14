@@ -7,14 +7,8 @@ It leverages EfficientNet-B0 as the backbone, supports logging with Weights & Bi
 and provides utilities for dataset preparation, training, and performance evaluation.
 """
 
-import logging
 import os
-import random
-import sys
 import time
-import traceback
-from collections import defaultdict
-from io import BytesIO
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
@@ -23,7 +17,6 @@ import psutil
 import torch
 from data_loader import MGRSImageDataset as ImageDataset
 from plotter import Plotter
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms

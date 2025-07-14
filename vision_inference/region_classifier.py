@@ -15,7 +15,7 @@ Date: [Creation or Last Update Date]
 import os
 from collections import defaultdict
 from time import perf_counter
-from typing import List, Optional
+from typing import List
 
 import cv2
 import torch

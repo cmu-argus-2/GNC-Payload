@@ -9,7 +9,6 @@ import argparse
 import torch
 
 from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
-from utils.config_utils import USER_CONFIG_PATH, load_config
 
 
 def parse_args():

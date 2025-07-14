@@ -11,16 +11,14 @@ Classes:
 import json
 import os
 import random
-import time
 import warnings
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
-from utils.earth_utils import get_MGRS_grid
 from vision_inference.logger import Logger
 
 
@@ -108,7 +106,7 @@ class MGRSImageDataset(Dataset):
         else:  # test
             self.files = self.files[train_size + val_size :]
 
-        print(f"Total {split} images: {len(self.files)}")
+        Logger.log("INFO", f"Total {split} images: {len(self.files)}")
 
     def _parse_region_and_id(self, img_path: str) -> Tuple[str, str]:
         region = os.path.basename(os.path.dirname(img_path))
