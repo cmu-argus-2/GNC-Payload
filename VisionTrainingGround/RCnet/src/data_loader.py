@@ -21,6 +21,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from utils.earth_utils import get_MGRS_grid
+from vision_inference.logger import Logger
 
 
 class MGRSImageDataset(Dataset):
@@ -50,7 +51,7 @@ class MGRSImageDataset(Dataset):
         """
         self.root_dir = root_dir
         self.transform = transform
-        self.salient_regions = sorted(salient_regions)
+        self.salient_regions = sorted(salient_regions or [])
 
         # Create mapping from region to index
         self.salient_region_indices = {region: i for i, region in enumerate(self.salient_regions)}
@@ -58,9 +59,7 @@ class MGRSImageDataset(Dataset):
         # Set sigmoid parameters
         self.sigmoid_params = self._calculate_sigmoid_params(0.2, 0.05, 0.3, 0.95)
 
-        print(
-            f"Sigmoid parameters: k={self.sigmoid_params['k']:.4f}, x0={self.sigmoid_params['x0']:.4f}"
-        )
+        Logger.log("INFO", f"Sigmoid parameters: k={self.sigmoid_params['k']:.4f}, x0={self.sigmoid_params['x0']:.4f}")
 
         # Collect images and their corresponding lat/lon files
         self.files = []

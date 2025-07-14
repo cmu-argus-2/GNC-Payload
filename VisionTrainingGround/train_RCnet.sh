@@ -21,4 +21,4 @@ echo "Final Output Path: $FINAL_OUTPUT_PATH"
 # python $CURR_DIR/RCnet/src/main.py  --train_flag --save_plot_flag --data_dir "/mnt/sdb2/training2" --non_salient_data_dir "/mnt/sda2/training_non_salient/non-salient" --model_save_path "$CURR_DIR/RCnet/model/model.pth" --save_plot_path "$CURR_DIR/RCnet/results/loss_vs_epoch.png" --learning_rate 0.0001 --epochs 10
 
 # Testing
-python $CURR_DIR/RCnet/src/main.py --data_dir "/mnt/sdb2/training2" --model_load_path "$(pwd)/RCnet/chkpts/model1.pth" 
+python "$CURR_DIR/RCnet/src/main.py" --data_dir "/mnt/sdb2/training2" --model_load_path "$(pwd)/RCnet/chkpts/model1.pth" 

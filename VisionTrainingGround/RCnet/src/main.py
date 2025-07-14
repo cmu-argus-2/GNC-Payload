@@ -7,8 +7,8 @@ This script initializes and runs the training pipeline
 import argparse
 
 import torch
-from region_classifier import TrainRegionClassifier
 
+from VisionTrainingGround.RCnet.src.region_classifier import TrainRegionClassifier
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 

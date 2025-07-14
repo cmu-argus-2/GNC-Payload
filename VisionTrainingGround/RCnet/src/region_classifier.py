@@ -31,6 +31,7 @@ from tqdm.auto import tqdm
 
 import wandb
 from vision_inference.region_classifier import RegionClassifier as BaseRegionClassifier
+from vision_inference.logger import Logger
 
 
 class TrainRegionClassifier(BaseRegionClassifier):
@@ -120,17 +121,15 @@ class TrainRegionClassifier(BaseRegionClassifier):
             # Use all regions from configuration using the parent class's method
             try:
                 selected_classes = BaseRegionClassifier.load_region_ids()
-                print(f"Using {len(selected_classes)} regions from configuration")
+                Logger.log("INFO", f"Using {len(selected_classes)} regions from configuration")
             except Exception as e:
                 # Fallback to directory scanning if config loading fails
                 selected_classes = sorted(os.listdir(data_path + "/train"))
-                print(
-                    "Warning: Failed to load regions from config, using all available classes for training!"
-                )
-                print(f"Error: {e}")
+                Logger.log("WARNING", "Failed to load regions from config, using all available classes for training!")
+                Logger.log("ERROR", f"Error: {e}")
 
         self.regions = selected_classes
-        print("Using regions:", self.regions)
+        Logger.log("INFO", f"Using regions: {self.regions}")
 
         # Define transforms for training and testing sets
         self.train_transform = transforms.Compose(
@@ -211,9 +210,9 @@ class TrainRegionClassifier(BaseRegionClassifier):
             # persistent_workers=True
         )
 
-        print(f"Train dataset size: {len(train_dataset)}")
-        print(f"Validation dataset size: {len(val_dataset)}")
-        print(f"Test dataset size: {len(test_dataset)}")
+        Logger.log("INFO", f"Train dataset size: {len(train_dataset)}")
+        Logger.log("INFO", f"Validation dataset size: {len(val_dataset)}")
+        Logger.log("INFO", f"Test dataset size: {len(test_dataset)}")
 
     def train(self, epochs: int = 10, learning_rate: float = 1e-3) -> None:
         """
@@ -255,12 +254,12 @@ class TrainRegionClassifier(BaseRegionClassifier):
             )
 
             mem_start_epoch = proc.memory_info().rss / 1024**2  # in MB
-            print(f"[Epoch {epoch+1}] start memory: {mem_start_epoch:.1f} MB")
+            Logger.log("INFO", f"[Epoch {epoch+1}] start memory: {mem_start_epoch:.1f} MB")
             wandb.log({"epoch_start_memory_MB": mem_start_epoch})
 
             # pylint: disable=unused-variable
             for batch_idx, (data, targets) in enumerate(progress_bar):
-                print("Completed batch:", batch_idx)
+                Logger.log("INFO", f"Completed batch: {batch_idx}")
                 batch_size = data.size(0)
                 processed_images += batch_size
 
@@ -292,7 +291,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
 
             epoch_loss /= total_images  # Compute average batch loss
             mem_end_epoch = proc.memory_info().rss / 1024**2
-            print(f"Epoch [{epoch+1}/{epochs}] Avg Loss: {epoch_loss:.4f} | end memory: {mem_end_epoch:.1f} MB")
+            Logger.log("INFO", f"Epoch [{epoch+1}/{epochs}] Avg Loss: {epoch_loss:.4f} | end memory: {mem_end_epoch:.1f} MB")
             wandb.log({
                 "epoch": epoch+1,
                 "epoch_loss": epoch_loss,
@@ -382,9 +381,9 @@ class TrainRegionClassifier(BaseRegionClassifier):
             }
         )
 
-        print(f"Validation F1 Score: {f1_score * 100:.2f}%")
-        print(f"Validation Precision: {precision * 100:.2f}%")
-        print(f"Validation Recall: {recall * 100:.2f}%")
+        Logger.log("INFO", f"Validation F1 Score: {f1_score * 100:.2f}%")
+        Logger.log("INFO", f"Validation Precision: {precision * 100:.2f}%")
+        Logger.log("INFO", f"Validation Recall: {recall * 100:.2f}%")
 
         return f1_score * 100  # Return F1 score as percentage
 
@@ -540,9 +539,9 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 }
             )
 
-            print(f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
-            print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
-            print(f"Total Inf time:{tot_time}")
+            Logger.log("INFO", f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
+            Logger.log("INFO", f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
+            Logger.log("INFO", f"Total Inf time:{tot_time}")
             # Generate binary predictions
             # all_preds = (all_features > 0.5).astype(int)
 
