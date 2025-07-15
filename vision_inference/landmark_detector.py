@@ -389,33 +389,41 @@ class LandmarkDetector:
         results = {}
 
         Logger.log("INFO", f"Processing {len(png_paths)} PNG files in batches...")
+        Logger.log("INFO", f"Image paths: {', '.join(png_paths)}")
 
         # Load and prepare images
         images = []
         valid_paths = []
+        frames = []
 
         for png_path in png_paths:
             try:
                 # Use cv2 to read PNG files
                 image = cv2.imread(png_path)
+                
                 if image is None:
                     raise ValueError(f"Failed to load image: {png_path}")
+                assert image.ndim == 3 and image.shape[2] == 3, "Image must be RGB"
                 # Convert from BGR to RGB for consistency with the rest of the pipeline
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 images.append(image)
                 valid_paths.append(os.path.basename(png_path))
+
+                fname, _ = os.path.splitext(os.path.basename(png_path))
+                parts = fname.split("_")
+                if len(parts) < 3 or parts[0] != "img":
+                    Logger.log("ERROR", f"Unexpected filename format: {fname}")
+                    raise ValueError(f"Unexpected filename format: {fname}")
+                camera_name = parts[-1]
+                frames.append(Frame(image=image, camera_name=camera_name, timestamp=datetime.now()))
+
             except Exception as e:
                 Logger.log("ERROR", f"Error loading PNG file {png_path}: {e}")
                 results[os.path.basename(png_path)] = LandmarkDetections.empty()
 
         if len(images) == 0:
+            Logger.log("ERROR", "No valid PNG files were loaded for landmark detection.")
             raise ValueError("None of the PNG files could be loaded!")
-        for img in images:
-            assert img.ndim == 3 and img.shape[2] == 3, "Image must be RGB"
-        frames = [
-            Frame(image=image, camera_name="x+", timestamp=datetime.now())
-            for image in images
-        ]
         
         landmark_detections = self.detect_landmarks(frames, batch_size=batch_size)
 

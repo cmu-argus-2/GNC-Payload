@@ -362,6 +362,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
         # Load the bearing vectors and landmark positions from the stored data
         base_name = f"{timestep}_{camera_name}"
         file_path = os.path.join(self.base_bearing_dir, self.VIS_INF_DIR, str(timestep), "bearing_vectors", f"landmarks_{base_name}.npz")
+        Logger.log("INFO", f"Looking for bearing vectors from {file_path} for camera {camera_name} at timestep {timestep}")
         try:
             with np.load(file_path) as data:
                 bearing_vectors = data["bearing_vectors"]

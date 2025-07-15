@@ -249,10 +249,12 @@ def save_landmark_detections(
     save_dir = os.path.join(output_dir, args.name, OUTPUT_DIR, str(args.timestep), "landmark_detections")
     os.makedirs(save_dir, exist_ok=True)
 
+    landmarks_detected = False
     for img_name, detections in LD_results.items():
         if len(detections) == 0:
             continue
 
+        landmarks_detected = True  
         # Use the basename without extension as the file name
         base_name = os.path.splitext(os.path.basename(img_name))[0]
         # swap the "img" in the base name with "inf"
@@ -269,8 +271,11 @@ def save_landmark_detections(
             confidences=detections.confidences,
         )
 
-    Logger.log("INFO", f"Landmark detection results saved to {save_dir}")
-
+    if landmarks_detected:    
+        Logger.log(
+            "INFO",
+            f"Saved landmark detection results for {len(LD_results)} images to {save_dir}",
+        )
 
 def save_bearing_vectors_and_positions(
     bearing_unit_vectors_body: np.ndarray,
@@ -396,7 +401,7 @@ def main():
             if len(detections) > 0:
                 Logger.log(
                     "INFO",
-                    f"Example - Image: {os.path.basename(img_name)}, "
+                    f"Image: {os.path.basename(img_name)}, "
                     f"Region(s): {np.unique(detections.region_ids)}, "
                     f"Landmarks: {len(detections)}",
                 )
@@ -462,9 +467,12 @@ def main():
         bearing_paths.append(file_path)
 
     # Print summary
-    Logger.log(
-        "INFO", f"Saved bearing vectors and landmark positions for {len(bearing_paths)} images"
-    )
+    if len(bearing_paths) > 0:
+        Logger.log(
+            "INFO", f"Saved bearing vectors and landmark positions for {len(bearing_paths)} images"
+        )
+    else:
+        Logger.log("INFO", "No bearing vectors or landmark positions saved - no detections found")
 
 
 if __name__ == "__main__":
