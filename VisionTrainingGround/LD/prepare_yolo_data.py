@@ -43,6 +43,7 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef
 from utils.function_utils import unpack_and_call
 from vision_inference.landmark_detector import LandmarkDetector
+from vision_inference.logger import Logger
 from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
 from VisionTrainingGround.LD.select_bounding_boxes import BOUNDING_BOXES_VISUALIZATION_FILE_NAME
@@ -366,8 +367,8 @@ def generate_yolo_label(
     try:
         geotagged_image = GeotaggedImage.load(region_id, file_prefix)
     except Exception:
-        print(
-            f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping generating YOLO label for them."
+        Logger.log("WARNING",
+            f"Failed to load geotagged image for: {region_id=}, {file_prefix=}. "
         )
         return
 
@@ -436,6 +437,7 @@ def generate_yolo_label(
 
 def main():
     args = parse_args()
+
     if args.overwrite and args.resume:
         raise ValueError("Cannot use --overwrite and --resume at the same time.")
     regions = sorted(set(args.regions) - set(args.skip_regions))

@@ -245,7 +245,7 @@ def run_simulation(args) -> None:
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
             Logger.log("INFO", f"Total measurements so far: {data_manager.measurement_count}")
-            Logger.log("INFO", f" Run completion: {100 * t / N:.2f}%")
+            Logger.log("INFO", f"Run completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements

@@ -15,15 +15,15 @@ import os
 import glob
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
-from typing import List, Tuple, Callable, Optional
+from torch.utils.data import Dataset
+from typing import Tuple, Callable, Optional
 import cv2
 from PIL import Image
 
 from vision_inference.logger import Logger
 
 
-class NumpyImageDataset(Dataset):
+class ImageSimInference(Dataset):
     """
     Dataset class for processing image files in batches.
     Includes brightness filtering similar to frame_processor logic.

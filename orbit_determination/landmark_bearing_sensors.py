@@ -292,7 +292,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
                  and a numpy array of shape (N, 3) containing the landmark positions in ECI coordinates.
         """
-        print(f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
+        Logger.log("INFO", f"Taking measurement at {epoch=}, {cubesat_position=}, {eci_R_body=}")
 
         ecef_R_eci = brahe.frames.rECItoECEF(epoch)
         position_ecef = ecef_R_eci @ cubesat_position
@@ -329,10 +329,10 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         MLPipeline.visualize_landmarks(frame, landmark_detections, region_slices, output_dir)
 
         if len(region_slices) is None:
-            print("No salient regions detected")
+            Logger.log("INFO", "No salient regions detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
         if len(landmark_detections) == 0:
-            print("No landmarks detected")
+            Logger.log("INFO", "No landmarks detected")
             return np.zeros(shape=(0, 3)), np.zeros(shape=(0, 3))
 
         landmark_positions_ecef = lat_lon_to_ecef(landmark_detections.latlons)
@@ -342,7 +342,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         )
         bearing_unit_vectors_body = (camera_model.body_R_camera @ bearing_unit_vectors_cf.T).T
 
-        print(f"Detected {len(landmark_positions_eci)} landmarks")
+        Logger.log("INFO", f"Detected {len(landmark_positions_eci)} landmarks")
 
         # TODO: output confidences too
         return bearing_unit_vectors_body, landmark_positions_eci
@@ -362,6 +362,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
         # Load the bearing vectors and landmark positions from the stored data
         base_name = f"{timestep}_{camera_name}"
         file_path = os.path.join(self.base_bearing_dir, self.VIS_INF_DIR, str(timestep), "bearing_vectors", f"landmarks_{base_name}.npz")
+        Logger.log("INFO", f"Looking for bearing vectors from {file_path} for camera {camera_name} at timestep {timestep}")
         try:
             with np.load(file_path) as data:
                 bearing_vectors = data["bearing_vectors"]
@@ -374,7 +375,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             
             return bearing_vectors, landmark_positions
 
-        except:
+        except (FileNotFoundError):
             Logger.log("INFO", f"No measurements found for camera {camera_name} at timestep {timestep}.")
             return np.zeros((0,3)), np.zeros((0,3))
 
