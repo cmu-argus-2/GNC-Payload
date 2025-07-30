@@ -31,7 +31,7 @@ from utils.earth_utils import get_mgrs_region_dimensions
 from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
-
+BOUNDING_BOXES_VISUALIZATION_FILE_NAME = "bounding_boxes.png"
 
 def parse_args() -> argparse.Namespace:
     """
@@ -126,7 +126,7 @@ def generate_saliency_map(
     :param region_id: The MGRS region to generate the saliency map for.
     :return: The saliency map as a GeoTIFFData object.
     """
-    file_prefixes = get_common_file_name_prefixes(region_dir)
+    file_prefixes = get_common_file_name_prefixes(region_dir, ignore_names=[BOUNDING_BOXES_VISUALIZATION_FILE_NAME])
     if len(file_prefixes) == 0:
         raise ValueError("No matching PNG and lat/lon files found.")
 

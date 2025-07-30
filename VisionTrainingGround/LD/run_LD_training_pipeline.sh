@@ -7,9 +7,9 @@ python run_saliency_analysis.py \
   --regions $regions \
   --overwrite \
   --num_processes 10 \
-  --gsd 50.0 \
-  --bounding_box_size 7200 \
-  --num_boxes 50
+  --gsd 5.0 
+  # --bounding_box_size 7200 \
+  # --num_boxes 50
 
 python prepare_yolo_data.py \
   --regions $regions \
