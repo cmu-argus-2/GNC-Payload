@@ -38,7 +38,7 @@ def run_simulation(trial) -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 0.5 * 90 * 60  # s
+    config["mission"]["duration"] = 100  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -110,9 +110,9 @@ def run_simulation(trial) -> None:
 
         # Apply noise to x, y to generate angular wobble around the primary rotation axis z
         # One rotation every 10 seconds to model a relatively slow wobble
-        w = rot + 0.05 * np.array(
-            [np.cos(2 * np.pi * t / (10 / dt)), np.sin(2 * np.pi * t / (10 / dt)), 0]
-        )
+        w = rot #+ 0.05 * np.array(
+        #     [np.cos(2 * np.pi * t / (10 / dt)), np.sin(2 * np.pi * t / (10 / dt)), 0]
+        # )
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
         gyro_meas, _ = imu.update(w, np.zeros((3)))
@@ -124,9 +124,10 @@ def run_simulation(trial) -> None:
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
-        if t % 120 == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
-        ):
+        if t % 20 == 0:
+        # and is_over_daytime(
+        #     data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
+        # ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
