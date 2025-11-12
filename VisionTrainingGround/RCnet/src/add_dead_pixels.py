@@ -1,6 +1,8 @@
+import random
+
 import torch
 import torchvision.transforms as transforms
-import random
+
 
 class AddDeadPixels(torch.nn.Module):
     def __init__(self, dead_pixel_percentage: float = 0.05):

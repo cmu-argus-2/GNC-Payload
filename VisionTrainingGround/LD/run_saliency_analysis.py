@@ -179,9 +179,7 @@ def generate_saliency_map(
     return region_saliency_map
 
 
-def run_saliency_analysis_for_region(
-    region: str, overwrite: bool, gsd: float
-) -> None:
+def run_saliency_analysis_for_region(region: str, overwrite: bool, gsd: float) -> None:
     """
     Run the saliency analysis for a single region.
 
@@ -194,7 +192,9 @@ def run_saliency_analysis_for_region(
     saliency_map_file = os.path.join(region_dir, SALIENCY_MAP_FILE_NAME)
     if os.path.exists(saliency_map_file):
         if not overwrite:
-            print(f"Output file {saliency_map_file} already exists and --overwrite is not set. Skipping.")
+            print(
+                f"Output file {saliency_map_file} already exists and --overwrite is not set. Skipping."
+            )
             return
         os.remove(saliency_map_file)
 

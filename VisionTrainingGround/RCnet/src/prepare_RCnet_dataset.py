@@ -1,9 +1,11 @@
+import argparse
 import os
 import random
-import argparse
-from PIL import Image
-import shutil
 import re
+import shutil
+
+from PIL import Image
+
 
 def convert_tif_to_png(input_path, output_path):
     """
@@ -20,6 +22,7 @@ def convert_tif_to_png(input_path, output_path):
         # Save as .jpg
         img.save(output_path, "PNG")
 
+
 def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2):
     """
     Processes .tif images, converts them to .jpg, splits into train/val/test, and saves them
@@ -33,7 +36,7 @@ def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2
     """
     # Get class directories
     classes = os.listdir(root_dir)
-    
+
     # Create train, val, and test directories
     train_dir = os.path.join(output_dir, "train")
     val_dir = os.path.join(output_dir, "val")
@@ -54,10 +57,12 @@ def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2
         class_dir = os.path.join(root_dir, class_name)
         if not os.path.isdir(class_dir):
             continue
-        
+
         # Get all .tif files for this class
-        all_tif_files = [os.path.join(class_dir, file) for file in os.listdir(class_dir) if file.endswith(".tif")]
-        
+        all_tif_files = [
+            os.path.join(class_dir, file) for file in os.listdir(class_dir) if file.endswith(".tif")
+        ]
+
         # Shuffle the files
         random.shuffle(all_tif_files)
 
@@ -68,8 +73,8 @@ def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2
 
         # Split files into train, val, and test sets
         train_files = all_tif_files[:train_count]
-        val_files = all_tif_files[train_count:train_count + val_count]
-        test_files = all_tif_files[train_count + val_count:]
+        val_files = all_tif_files[train_count : train_count + val_count]
+        test_files = all_tif_files[train_count + val_count :]
 
         # Define output paths for this class
         train_class_dir = os.path.join(train_dir, class_name)
@@ -88,7 +93,7 @@ def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2
                 file_name = os.path.splitext(os.path.basename(file_path))[0]
 
                 # Check if the file name ends with three digits
-                if re.search(r'\d{3}$', file_name):  # Regex to match three digits at the end
+                if re.search(r"\d{3}$", file_name):  # Regex to match three digits at the end
                     # Define target path for the .png file
                     target_file_name = file_name + ".png"
                     target_file_path = os.path.join(target_dir, target_file_name)
@@ -102,17 +107,38 @@ def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2
         process_files(val_files, val_class_dir)
         process_files(test_files, test_class_dir)
 
-        print(f"Processed {len(train_files)} train images, {len(val_files)} val images, and {len(test_files)} test images for class '{class_name}'.")
+        print(
+            f"Processed {len(train_files)} train images, {len(val_files)} val images, and {len(test_files)} test images for class '{class_name}'."
+        )
 
     print(f"Finished processing. Saved to {output_dir}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Convert .tif images to .png and create train/val/test splits while maintaining folder structure.")
-    parser.add_argument("--root_dir", type=str, required=True, help="Path to the root directory containing .tif images.")
-    parser.add_argument("--output_dir", type=str, required=True, help="Path to the output directory for splits.")
-    parser.add_argument("--test_ratio", type=float, default=0.2, help="Fraction of images for testing (default: 0.2).")
-    parser.add_argument("--val_ratio", type=float, default=0.2, help="Fraction of images for validation (default: 0.2).")
+    parser = argparse.ArgumentParser(
+        description="Convert .tif images to .png and create train/val/test splits while maintaining folder structure."
+    )
+    parser.add_argument(
+        "--root_dir",
+        type=str,
+        required=True,
+        help="Path to the root directory containing .tif images.",
+    )
+    parser.add_argument(
+        "--output_dir", type=str, required=True, help="Path to the output directory for splits."
+    )
+    parser.add_argument(
+        "--test_ratio",
+        type=float,
+        default=0.2,
+        help="Fraction of images for testing (default: 0.2).",
+    )
+    parser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=0.2,
+        help="Fraction of images for validation (default: 0.2).",
+    )
 
     args = parser.parse_args()
 

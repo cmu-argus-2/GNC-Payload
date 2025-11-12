@@ -17,21 +17,14 @@ The script will generate (append in the args.json case) the following contents i
 - /output_dir
     - /experiment_name
         - args.json
-
-The state data contains a dictionary with the following fields:
-    - timestep: The time step
-    - prior_position: The prior position estimate
-    - prior_velocity: The prior velocity estimate
-    - prior_attitude: The prior attitude estimate
-    - prior_covariance: The prior covariance estimate
-    - posterior_position: The posterior position estimate
-    - posterior_velocity: The posterior velocity estimate
-    - posterior_attitude: The posterior attitude estimate
-    - posterior_covariance: The posterior covariance estimate
-    - gyro_bias_estimate: The estimated gyro bias
-    - gyro_bias: The actual gyro bias
-    - unmodelled_acceleration: The unmodelled acceleration estimate
-    - drag_scalar_estimate: The drag scalar estimate
+        - /ekf_data
+            - pos_state
+            - vel_state
+            - ua_state
+            - pos_cov_trace
+            - gyro_bias_state
+            - actual_bias
+            - drag_scalar_state
 
 """
 
@@ -39,6 +32,7 @@ import argparse
 import json
 import os
 import pickle
+import subprocess
 from time import time
 
 import brahe
@@ -58,9 +52,12 @@ from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.orbit_utils import is_over_daytime
+from vision_inference.logger import Logger
+
+# from brahe import Epoch
+
 
 # pylint: disable=too-many-locals
-# pylint: disable=E1136, duplicate-code
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,11 +76,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_simulation(sim_args: argparse.Namespace) -> None:
+def run_simulation(args) -> None:
     """
     Run the simulation.
 
-    :param sim_args: The command line arguments.
+    :param args: The command line arguments.
 
     :return: None
     """
@@ -96,12 +93,12 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
-        raise ValueError(f"Error in args.json in {sim_args.name}: {e}") from e
+        raise ValueError(f"Error in args.json in {args.name}: {e}")
 
     # Check that if a name was provided it matches the one in the json file
     assert (
-        arg_data["name"] == sim_args.name
-    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {sim_args.name}"
+        arg_data["name"] == args.name
+    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
 
     f = arg_data["frequency"]
     mission_duration = arg_data["duration"]
@@ -125,26 +122,24 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    # Load the ground truth trajectory and attitude
     data_dir = os.path.join(output_basedir, "ground_truth.npz")
-
     if not os.path.exists(data_dir):
         raise FileNotFoundError(f"Ground truth data file {data_dir} does not exist.")
-
     data = np.load(data_dir)
-
     trajectory_gt = data["trajectory"]
     attitude_gt = data["attitude"]
+    daytime_gt = data["daytime"]
+
     # Set the initial rotation matrix to identity
 
-    data_manager.push_next_state(trajectory_gt[0], attitude_gt[0], np.zeros(3))
+    data_manager.push_next_state(trajectory_gt[0], attitude_gt[0])
 
     # Apply error to init_rot and ensure orthonormality
-    noisy_rot = attitude_gt[0] + np.random.normal(0, 1e-3, (3, 3))
+    noisy_rot = attitude_gt[0] + np.random.normal(0, 1e-2, (3, 3))
     noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
 
     # Assert orthonormality
-    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
+    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-2) and np.isclose(
         np.linalg.det(noisy_rot), 1
     ), "Rotation matrix is not a proper rotation matrix"
 
@@ -161,25 +156,24 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
     rot = np.array(angular_velocity)
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(16) * 1e-16
+    Q = np.eye(16) * 1e-12
     # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-12
+    Q[6:9, 6:9] = np.eye(3) * 1e-9
     # Bias uncertainty also larger
-    Q[13:16, 13:16] = np.eye(3) * 1e-12
+    Q[13:16, 13:16] = np.eye(3) * 1e-9
 
-    P = np.diag(
-        [5e-3] * 3  # r
-        + [5e-3] * 3  # v
-        + [1e-4] * 3  # ua
-        + [1e-4]  # drag
-        + [1e-4] * 3  # quaternion
-        + [1e-4] * 3  # gyro bias
-    )
+    P = np.eye(16)
+    P[0:3, 0:3] *= 5
+    P[3:6, 3:6] *= 5
+    P[6:9, 6:9] *= 1e-4
+    P[9:10, 9:10] *= 1e-4
+    P[10:13, 10:13] *= 1e-4
+    P[13:16, 13:16] *= 1e-4
 
     ekf_dynamics = EKFDynamics(
         config=config,
-        use_drag=True,
-        use_j2=True,
+        use_drag=False,
+        use_j2=False,
         use_j34=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
@@ -193,9 +187,9 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
     gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
     ekf = EKF(
         # error ranges are in meters and m/s
-        r=trajectory_gt[0][0:3] + np.random.normal(0, 10, 3),
-        v=trajectory_gt[0][3:6] + np.random.normal(0, 1e-2, 3),
-        ua=np.random.normal(0, 1e-8, 3) * ua_scale,
+        r=trajectory_gt[0][0:3] + np.random.normal(0, 5000, 3),
+        v=trajectory_gt[0][3:6] + np.random.normal(0, 10, 3),
+        ua=np.random.normal(0, 1e-5, 3) * ua_scale,
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
@@ -226,17 +220,31 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
         imu_gyro_bias = imu.get_bias()[0]
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
-        data_manager.push_next_state(trajectory_gt[t], attitude_gt[t], w)
+        data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
 
-        if t % meas_rate == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
-        ):
+        # if t % meas_rate == 0 and is_over_daytime(
+        #     data_manager.latest_epoch, data_manager.latest_state[:3]
+        # ):
+        if t % meas_rate == 0 and daytime_gt[t]:
+            # Generate vision inference measurements
+            subprocess.run(
+                [
+                    "python3",
+                    "scripts/run_vision.py",
+                    "--name",
+                    args.name,
+                    "--timestep",
+                    str(t),
+                ]
+            )
+
+            # Take measurements with the landmark bearing sensor
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
-            print(f"Total measurements so far: {data_manager.measurement_count}")
-            print(f"Completion: {100 * t / N:.2f}%")
+            Logger.log("INFO", f"Total measurements so far: {data_manager.measurement_count}")
+            Logger.log("INFO", f"Run completion: {100 * t / N:.2f}%")
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -251,7 +259,7 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
                 )
             else:
                 ekf.no_measurement()
-                print("No measurements made in measurement step")
+                Logger.log("INFO", "No measurements made in measurement step")
         else:
             ekf.no_measurement()
 

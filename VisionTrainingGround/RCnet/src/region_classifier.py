@@ -8,23 +8,22 @@ and provides utilities for dataset preparation, training, and performance evalua
 """
 
 import os
-import random
 import time
-from collections import defaultdict
-from io import BytesIO
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import psutil
 import torch
 import wandb
-from data_loader import CustomImageDataset
+from data_loader import MGRSImageDataset as ImageDataset
 from plotter import Plotter
-from sklearn.manifold import TSNE
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from tqdm.auto import tqdm
 
+from vision_inference.logger import Logger
 from vision_inference.region_classifier import RegionClassifier as BaseRegionClassifier
 
 
@@ -72,6 +71,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
     def __init__(
         self,
         data_path: str,
+        non_salient_data_path: Optional[str] = None,
         selected_classes: Optional[List[str]] = None,
         save_plot_flag: bool = False,
         save_plot_path: Optional[str] = None,
@@ -86,18 +86,23 @@ class TrainRegionClassifier(BaseRegionClassifier):
             save_plot_path (str): Path to save the loss plot.
         """
         # Prepare data first to get the number of classes
-        self._prepare_data(data_path, selected_classes)
+        self._prepare_batch_data(data_path, non_salient_data_path, selected_classes)
 
         # Now initialize the parent class with our number of classes and skip weight loading
-        super().__init__(load_weights=False)
         assert len(self.regions) == BaseRegionClassifier.NUM_CLASSES, "Number of classes mismatch!"
+        super().__init__(load_weights=False)
 
         # Initialize training specific components
         self.plotter = Plotter()
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
-    def _prepare_data(self, data_path: str, selected_classes: Optional[List[str]]) -> None:
+    def _prepare_batch_data(
+        self,
+        data_path: str,
+        non_salient_data_path: Optional[str],
+        selected_classes: Optional[List[str]],
+    ) -> None:
         """
         Prepares the dataset by applying transformations and loading it into DataLoaders.
 
@@ -109,26 +114,27 @@ class TrainRegionClassifier(BaseRegionClassifier):
             # Use all regions from configuration using the parent class's method
             try:
                 selected_classes = BaseRegionClassifier.load_region_ids()
-                print(f"Using {len(selected_classes)} regions from configuration")
+                Logger.log("INFO", f"Using {len(selected_classes)} regions from configuration")
             except Exception as e:
                 # Fallback to directory scanning if config loading fails
                 selected_classes = sorted(os.listdir(data_path + "/train"))
-                print(
-                    "Warning: Failed to load regions from config, using all available classes for training!"
+                Logger.log(
+                    "WARNING",
+                    "Failed to load regions from config, using all available classes for training!",
                 )
-                print(f"Error: {e}")
+                Logger.log("ERROR", f"Error: {e}")
 
         self.regions = selected_classes
-        print("Using regions:", self.regions)
+        Logger.log("INFO", f"Using regions: {self.regions}")
 
         # Define transforms for training and testing sets
         self.train_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
-                transforms.RandomRotation(10),
+                # transforms.RandomRotation(10),
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
+                # transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
                 # transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -136,13 +142,13 @@ class TrainRegionClassifier(BaseRegionClassifier):
             ]
         )
 
-        self.val_transform = transforms.Compose(
+        self.test_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 # transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.75, 1.33)),
-                transforms.RandomRotation(10),
+                # transforms.RandomRotation(10),
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-                transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
+                # transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                 # transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
@@ -150,25 +156,59 @@ class TrainRegionClassifier(BaseRegionClassifier):
         )
 
         # Load datasets with appropriate transforms
-        train_dataset = CustomImageDataset(
-            root_dir=data_path + "/train",
-            selected_classes=self.regions,
+        train_dataset = ImageDataset(
+            data_path,
+            non_salient_data_path,
+            selected_classes,
             transform=self.train_transform,
+            split="train",
         )
-        test_dataset = CustomImageDataset(
-            root_dir=data_path + "/test",
-            selected_classes=self.regions,
-            transform=self.val_transform,
+        val_dataset = ImageDataset(
+            data_path,
+            non_salient_data_path,
+            selected_classes,
+            transform=self.test_transform,
+            split="val",
         )
-        val_dataset = CustomImageDataset(
-            root_dir=data_path + "/val", selected_classes=self.regions, transform=self.val_transform
+        test_dataset = ImageDataset(
+            data_path,
+            non_salient_data_path,
+            selected_classes,
+            transform=self.test_transform,
+            split="test",
         )
 
-        # Create DataLoader objects for training and testing sets
-        self.train_loader = DataLoader(dataset=train_dataset, batch_size=16, shuffle=True)
-        self.test_loader = DataLoader(dataset=test_dataset, batch_size=16, shuffle=False)
-        self.val_loader = DataLoader(dataset=val_dataset, batch_size=16, shuffle=True)
-        print("Init Dataloaders")
+        # Create data loaders
+        self.train_loader = DataLoader(
+            train_dataset,
+            batch_size=128,
+            shuffle=True,
+            num_workers=0,  # Do not use multiple workers, we hit I/O limits on the HDD
+            pin_memory=False,
+            # persistent_workers=True
+        )
+
+        self.val_loader = DataLoader(
+            val_dataset,
+            batch_size=128,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+            # persistent_workers=True
+        )
+
+        self.test_loader = DataLoader(
+            test_dataset,
+            batch_size=128,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+            # persistent_workers=True
+        )
+
+        Logger.log("INFO", f"Train dataset size: {len(train_dataset)}")
+        Logger.log("INFO", f"Validation dataset size: {len(val_dataset)}")
+        Logger.log("INFO", f"Test dataset size: {len(test_dataset)}")
 
     def train(self, epochs: int = 10, learning_rate: float = 1e-3) -> None:
         """
@@ -188,15 +228,39 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 "dataset": "Sentinel",
             },
         )
+        wandb.watch(self.model, log="all", log_freq=100)
 
         # CHANGED: Use BCE loss instead of BCEWithLogitsLoss since model already applies sigmoid
         criterion = nn.BCELoss()  # BCE loss for multi-label classification
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
+        proc = psutil.Process(os.getpid())
+
         for epoch in range(epochs):
             epoch_loss = 0.0  # Initialize epoch loss
+            total_images = len(self.train_loader.dataset)
+            processed_images = 0
+
+            progress_bar = tqdm(
+                self.train_loader,
+                desc=f"Epoch {epoch + 1}/{epochs}",
+                leave=True,
+                unit="batch",
+                total=len(self.train_loader),
+            )
+
+            mem_start_epoch = proc.memory_info().rss / 1024**2  # in MB
+            Logger.log("INFO", f"[Epoch {epoch+1}] start memory: {mem_start_epoch:.1f} MB")
+            wandb.log({"epoch_start_memory_MB": mem_start_epoch})
+
             # pylint: disable=unused-variable
-            for batch_idx, (data, targets) in enumerate(self.train_loader):
+            for batch_idx, (data, targets) in enumerate(progress_bar):
+                Logger.log("INFO", f"Completed batch: {batch_idx}")
+                batch_size = data.size(0)
+                processed_images += batch_size
+
+                mem_before = proc.memory_info().rss / 1024**2
+
                 data = data.to(self.device)
                 targets = targets.to(self.device).float()  # Ensure targets are float for BCE
                 scores = self.model(data)  # Model already applies sigmoid
@@ -204,22 +268,44 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                wandb.log({"batch_loss": loss.item()})
-                epoch_loss += loss.item() * data.size(0)  # Accumulate batch loss
 
-                # Log file names and class labels during training
-                # with open('RCnet/results/training_results.txt', 'a') as f:
-                #     for img_name, label in self.train_loader.dataset.files:
-                #         f.write(f"{img_name}\t{label}\n")
+                # Update progress bar with image count and loss
+                progress_bar.set_postfix(
+                    {"imgs": f"{processed_images}/{total_images}", "loss": f"{loss.item():.4f}"}
+                )
 
-            epoch_loss /= len(self.train_loader.dataset)  # Compute average batch loss
-            print(f"Epoch [{epoch+1}/{epochs}], Avg. Loss: {epoch_loss:.4f}")
-            wandb.log({"epoch": epoch, "loss": epoch_loss})
+                mem_after = proc.memory_info().rss / 1024**2
+                wandb.log(
+                    {
+                        "batch_loss": loss.item(),
+                        "batch_memory_before_MB": mem_before,
+                        "batch_memory_after_MB": mem_after,
+                        "batch_memory_delta_MB": mem_after - mem_before,
+                    },
+                    commit=True,
+                )
+
+                epoch_loss += loss.item() * batch_size  # Accumulate batch loss
+
+            epoch_loss /= total_images  # Compute average batch loss
+            mem_end_epoch = proc.memory_info().rss / 1024**2
+            Logger.log(
+                "INFO",
+                f"Epoch [{epoch+1}/{epochs}] Avg Loss: {epoch_loss:.4f} | end memory: {mem_end_epoch:.1f} MB",
+            )
+            wandb.log(
+                {
+                    "epoch": epoch + 1,
+                    "epoch_loss": epoch_loss,
+                    "epoch_end_memory_MB": mem_end_epoch,
+                },
+                commit=True,
+            )
             self.plotter.update_loss(epoch_loss)
 
-            if epoch % 2 == 0:
-                self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
-                self.validate()
+            # if epoch % 2 == 0:
+            self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
+            self.validate()
             if epoch == epochs - 1:
                 test_accuracy = self.evaluate()
                 wandb.log({"test_accuracy": test_accuracy})
@@ -264,7 +350,8 @@ class TrainRegionClassifier(BaseRegionClassifier):
         false_negatives = 0
 
         with torch.no_grad():  # No gradient is needed for validation
-            for images, labels in self.val_loader:  # Use the validation data loader
+            progress_bar = tqdm(self.val_loader, desc="Validating", leave=True, unit="batch")
+            for images, labels in progress_bar:  # Use the progress_bar instead of self.val_loader
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)  # Model already applies sigmoid
@@ -297,9 +384,9 @@ class TrainRegionClassifier(BaseRegionClassifier):
             }
         )
 
-        print(f"Validation F1 Score: {f1_score * 100:.2f}%")
-        print(f"Validation Precision: {precision * 100:.2f}%")
-        print(f"Validation Recall: {recall * 100:.2f}%")
+        Logger.log("INFO", f"Validation F1 Score: {f1_score * 100:.2f}%")
+        Logger.log("INFO", f"Validation Precision: {precision * 100:.2f}%")
+        Logger.log("INFO", f"Validation Recall: {recall * 100:.2f}%")
 
         return f1_score * 100  # Return F1 score as percentage
 
@@ -333,7 +420,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         class_images = {i: [] for i in range(len(self.regions))}  # Store images per class
         tot_time = 0
         with torch.no_grad():
-            for batch in self.test_loader:
+            for batch in tqdm(self.test_loader, desc="Evaluating", leave=False):
                 images, labels = batch
                 images = images.to(self.device)
                 labels = labels.to(self.device)
@@ -455,8 +542,83 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 }
             )
 
-            print(f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
-            print(f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
-            print(f"Total Inf time:{tot_time}")
+            Logger.log("INFO", f"F1 score of the network on the test images: {f1_score * 100:.2f}%")
+            Logger.log("INFO", f"Exact match ratio: {exact_match_ratio * 100:.2f}%")
+            Logger.log("INFO", f"Total Inf time:{tot_time}")
+            # Generate binary predictions
+            # all_preds = (all_features > 0.5).astype(int)
 
-            return f1_score * 100
+            # save labels and preds
+            # data = np.load(os.path.join(os.path.dirname(output_file), "predictions.npz"))  # update this path if needed
+            # all_preds = data["predictions"]
+            # all_labels = data["labels"]
+
+            # num_classes = all_labels.shape[1]
+            # multi_label_cm = np.zeros((num_classes, num_classes), dtype=int)
+
+            # # Iterate over all samples
+            # for true_vec, pred_vec in zip(all_labels, all_preds):
+            #     true_indices = np.where(true_vec == 1)[0]
+            #     pred_indices = np.where(pred_vec == 1)[0]
+            #     for ti in true_indices:
+            #         for pi in pred_indices:
+            #             multi_label_cm[ti, pi] += 1
+
+            # fig, ax = plt.subplots(figsize=(12, 12))
+            # disp = ConfusionMatrixDisplay(multi_label_cm, display_labels=self.regions)
+            # disp.plot(ax=ax, xticks_rotation=90, cmap='Blues', colorbar=False)
+            # ax.set_title("Multi-label Confusion Matrix")
+            # summary_cm_path = os.path.join(os.path.dirname(output_file), "multi_label_confusion_matrix.png")
+            # plt.savefig(summary_cm_path)
+            # plt.close()
+
+            # wandb.log({"multi_label_confusion_matrix": wandb.Image(summary_cm_path)})
+            # cls_10s = self.regions.index("10S")
+            # cls_10t = self.regions.index("10T")
+
+            # def get_group(vec, cls_10s, cls_10t):
+            #     has_10s = vec[cls_10s] == 1
+            #     has_10t = vec[cls_10t] == 1
+            #     if has_10s and has_10t:
+            #         return 2  # both
+            #     elif has_10s:
+            #         return 0  # only 10S
+            #     elif has_10t:
+            #         return 1  # only 10T
+            #     else:
+            #         return 3  # other
+
+            # # Ensure binary
+            # all_preds = (all_preds > 0.5).astype(int)
+            # all_labels = (all_labels > 0.5).astype(int)
+
+            # # Initialize 4x4 matrix
+            # matrix_4x4 = np.zeros((4, 4), dtype=int)
+
+            # for true_vec, pred_vec in zip(all_labels, all_preds):
+            #     gt_group = get_group(true_vec, cls_10s, cls_10t)
+            #     pred_group = get_group(pred_vec, cls_10s, cls_10t)
+            #     matrix_4x4[gt_group, pred_group] += 1
+
+            # row_labels = ["GT: only 10S", "GT: only 10T", "GT: both", "GT: other"]
+            # col_labels = ["Pred: only 10S", "Pred: only 10T", "Pred: both", "Pred: other"]
+
+            # fig, ax = plt.subplots(figsize=(8, 6))
+            # im = ax.imshow(matrix_4x4, cmap='Blues')
+
+            # # Annotate
+            # for i in range(4):
+            #     for j in range(4):
+            #         ax.text(j, i, matrix_4x4[i, j], ha="center", va="center", color="black")
+
+            # ax.set_xticks(np.arange(4))
+            # ax.set_yticks(np.arange(4))
+            # ax.set_xticklabels(col_labels, rotation=45, ha="right")
+            # ax.set_yticklabels(row_labels)
+            # ax.set_title("Custom 4x4 Confusion Matrix (10S vs 10T)")
+            # plt.tight_layout()
+            # plt.savefig("RCnet/results/custom_10s_10t_matrix.png")
+            # plt.show()
+            # wandb.log({"custom_10S_10T_matrix": wandb.Image("RCnet/results/custom_10s_10t_matrix.png")})
+            # # return f1_score * 100
+            # return 0.0  # Placeholder for actual accuracy calculation

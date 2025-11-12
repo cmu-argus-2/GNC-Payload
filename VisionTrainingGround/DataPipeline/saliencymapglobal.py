@@ -1,6 +1,7 @@
 import cv2
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def highlight_top_n_salient_regions(image_path, top_n=16):
     # Load the image (Earth image in this case)
@@ -21,7 +22,9 @@ def highlight_top_n_salient_regions(image_path, top_n=16):
     _, binary_mask = cv2.threshold(saliency_map, 0.5, 1, cv2.THRESH_BINARY)
 
     # Find contours in the saliency map
-    contours, _ = cv2.findContours((binary_mask * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        (binary_mask * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
 
     # Sort contours by area (largest to smallest)
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
@@ -44,15 +47,16 @@ def highlight_top_n_salient_regions(image_path, top_n=16):
     plt.subplot(1, 2, 1)
     plt.imshow(image_rgb)
     plt.title("Original Earth Image")
-    plt.axis('off')
+    plt.axis("off")
 
     # Image with Highlighted Top N Salient Regions
     plt.subplot(1, 2, 2)
     plt.imshow(image_with_boxes)
     plt.title(f"Top {top_n} Salient Regions")
-    plt.axis('off')
+    plt.axis("off")
 
     plt.show()
 
+
 # Example usage
-highlight_top_n_salient_regions('worldmap.jpg', top_n=100)  # Replace with your Earth image path
+highlight_top_n_salient_regions("worldmap.jpg", top_n=100)  # Replace with your Earth image path

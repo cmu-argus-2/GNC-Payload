@@ -1,17 +1,29 @@
-import os
-import requests
-from itertools import product
 import argparse
+import os
+from itertools import product
+from time import sleep
 
+import requests
 from requests.exceptions import ChunkedEncodingError
 from tqdm import tqdm
-from time import sleep
 
 from image_simulation.blue_marble_simulator import MONTH_NAMES
 
-
 BASE_URL = "https://eoimages.gsfc.nasa.gov/images/imagerecords"
-DATASET_IDS_BY_MONTH = ["73938", "73967", "73992", "74017", "74042", "76487", "74092", "74117", "74142", "74167", "74192", "74218"]
+DATASET_IDS_BY_MONTH = [
+    "73938",
+    "73967",
+    "73992",
+    "74017",
+    "74042",
+    "76487",
+    "74092",
+    "74117",
+    "74142",
+    "74167",
+    "74192",
+    "74218",
+]
 RESOLUTION = "3x21600x21600"
 
 
@@ -56,8 +68,16 @@ def download_image(url: str, output_path: str, max_retries=100) -> None:
     assert response.headers.get("Content-Type") == "image/png"
     assert response.headers.get("Accept-Ranges") == "bytes"
 
-    with open(output_path, "wb") as f, tqdm(total=int(total_length), unit="B", unit_scale=True,
-                                            unit_divisor=1024, desc="Downloading") as pbar:
+    with (
+        open(output_path, "wb") as f,
+        tqdm(
+            total=int(total_length),
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            desc="Downloading",
+        ) as pbar,
+    ):
         for retry in range(max_retries):
             try:
                 headers["Range"] = f"bytes={pbar.n}-"

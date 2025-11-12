@@ -57,6 +57,16 @@ class CameraModel:
         # and to avoid needing to call hash(self) in the cache implementation
         self.ray_directions_body = cache(self.get_ray_directions_body)
 
+    @property
+    def get_camera_name(self) -> str:
+        """
+        Get the name of the camera.
+
+        Returns:
+            The name of the camera.
+        """
+        return self.camera_name
+
     def get_camera_position(
         self, body_position: np.ndarray, frame_R_body: np.ndarray
     ) -> np.ndarray:
@@ -125,6 +135,7 @@ class CameraModel:
     def pixel_to_bearing_unit_vector(self, pixel_coords: np.ndarray) -> np.ndarray:
         """
         Converts pixel coordinates to bearing unit vectors in the body frame.
+        Note that the output will be incorrect for any pixel coordinates outside the image bounds.
 
         Parameters:
             pixel_coords: An array of shape (N, 2) with pixel coordinates.
@@ -135,7 +146,30 @@ class CameraModel:
         # since it'll be cached anyway, we can just look up the desired values
         ray_directions_body = self.get_ray_directions_body()
         u, v = pixel_coords.T
-        return ray_directions_body[v, u, :]
+        u = np.clip(u, 0, CameraModel.IMAGE_WIDTH - 1)
+        v = np.clip(v, 0, CameraModel.IMAGE_HEIGHT - 1)
+
+        # Get integer and fractional parts
+        u0 = np.floor(u).astype(int)
+        v0 = np.floor(v).astype(int)
+        u1 = np.minimum(u0 + 1, CameraModel.IMAGE_WIDTH - 1)
+        v1 = np.minimum(v0 + 1, CameraModel.IMAGE_HEIGHT - 1)
+
+        # Calculate interpolation weights
+        wu = u - u0
+        wv = v - v0
+
+        # Perform bilinear interpolation
+        vectors = (
+            (1 - wu)[:, None] * (1 - wv)[:, None] * ray_directions_body[v0, u0]
+            + wu[:, None] * (1 - wv)[:, None] * ray_directions_body[v0, u1]
+            + (1 - wu)[:, None] * wv[:, None] * ray_directions_body[v1, u0]
+            + wu[:, None] * wv[:, None] * ray_directions_body[v1, u1]
+        )
+
+        # Normalize the interpolated vectors to ensure they are unit vectors
+        vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+        return vectors
 
 
 class CameraModelManager:

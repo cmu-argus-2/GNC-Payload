@@ -342,8 +342,12 @@ def get_mgrs_region_dimensions(region_id: str) -> tuple[float, float, float]:
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
 
     region_height = (np.abs(max_lat - min_lat) / 360) * 2 * np.pi * R_EARTH
-    region_top_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(max_lat))
-    region_bottom_width = (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(min_lat))
+    region_top_width = (
+        (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(max_lat))
+    )
+    region_bottom_width = (
+        (np.abs(max_lon - min_lon) / 360) * 2 * np.pi * R_EARTH * np.cos(np.deg2rad(min_lat))
+    )
     return region_height, region_top_width, region_bottom_width
 
 
@@ -361,7 +365,11 @@ def get_mgrs_region_area(region_id: str) -> float:
     min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
 
     # Taking the definite integral of R_EARTH**2 * cos(lat) dlat dlon over the region yields the following formula.
-    return R_EARTH**2 * np.deg2rad(max_lon - min_lon) * (np.sin(np.deg2rad(max_lat)) - np.sin(np.deg2rad(min_lat)))
+    return (
+        R_EARTH**2
+        * np.deg2rad(max_lon - min_lon)
+        * (np.sin(np.deg2rad(max_lat)) - np.sin(np.deg2rad(min_lat)))
+    )
 
 
 def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -> np.ndarray:
@@ -595,12 +603,12 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
         height = HP_LOWER_LIMIT
 
     # Sun right ascension, declination
-    ra_sun = math.atan2(r_sun[1] , r_sun[0])
+    ra_sun = math.atan2(r_sun[1], r_sun[0])
     if ra_sun < 0:
         # Adjust for negative angles to ensure ra_sun is in [0, 2*pi]
         ra_sun += 2 * math.pi
     # declination of the sun in radians
-    dec_sun =  math.asin(r_sun[2]/np.linalg.norm(r_sun))  
+    dec_sun = math.asin(r_sun[2] / np.linalg.norm(r_sun))
 
     # Unit vector u towards the apex of the diurnal bulge
     # in inertial geocentric coordinates

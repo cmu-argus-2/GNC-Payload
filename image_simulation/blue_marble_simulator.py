@@ -9,10 +9,10 @@ A2 B2 C2 D2
 
 import os
 from typing import Tuple
-from PIL import Image
-from affine import Affine
 
 import numpy as np
+from affine import Affine
+from PIL import Image
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
@@ -33,9 +33,7 @@ IMG_LON_BOUNDS = {
 
 
 def get_blue_marble_img(
-        month: str,
-        img_name: str,
-        query_bounds: Tuple[float, float, float, float] | None = None
+    month: str, img_name: str, query_bounds: Tuple[float, float, float, float] | None = None
 ) -> Tuple[np.ndarray, Affine]:
     """
     Get the portion of the Blue Marble image for the given month, image name, and the specified bounds.
@@ -52,7 +50,9 @@ def get_blue_marble_img(
             - The requested portion of the Blue Marble image, as a numpy array.
             - An affine transformation matrix mapping lat/lon coordinates to pixel coordinates in the returned image.
     """
-    path = os.path.join(load_config(USER_CONFIG_PATH)["blue_marble_directory"], month, f"{img_name}.png")
+    path = os.path.join(
+        load_config(USER_CONFIG_PATH)["blue_marble_directory"], month, f"{img_name}.png"
+    )
     assert os.path.exists(path), f"Blue Marble image not found: {path}"
 
     img_min_lat, img_max_lat = IMG_LAT_BOUNDS[img_name[1]]
@@ -147,8 +147,12 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
 
         img_min_lat, img_max_lat = IMG_LAT_BOUNDS[img_name[1]]
         img_min_lon, img_max_lon = IMG_LON_BOUNDS[img_name[0]]
-        assert img_query_min_lat >= img_min_lat and img_query_max_lat <= img_max_lat, "Latitude out of bounds."
-        assert img_query_min_lon >= img_min_lon and img_query_max_lon <= img_max_lon, "Longitude out of bounds."
+        assert (
+            img_query_min_lat >= img_min_lat and img_query_max_lat <= img_max_lat
+        ), "Latitude out of bounds."
+        assert (
+            img_query_min_lon >= img_min_lon and img_query_max_lon <= img_max_lon
+        ), "Longitude out of bounds."
 
         img, transform = get_blue_marble_img(
             month,

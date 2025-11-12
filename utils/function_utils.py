@@ -1,7 +1,8 @@
-from typing import Callable, TypeVar, ParamSpec
+from typing import Callable, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
 
 def unpack_and_call(func: Callable[P, R], args: P.args) -> R:
     """

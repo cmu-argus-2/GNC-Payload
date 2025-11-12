@@ -104,7 +104,7 @@ class MLPipeline:
         total_detections = 0
         for region_id in pred_regions:
             detector = LandmarkDetector(region_id)
-            detections = detector.detect_landmarks(frame_obj)
+            detections = detector.detect_landmarks([frame_obj])
 
             landmark_detections.append(detections)
             region_slices[region_id] = slice(total_detections, total_detections + len(detections))

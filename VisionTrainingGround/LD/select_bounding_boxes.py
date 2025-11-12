@@ -101,7 +101,10 @@ def find_best_bounding_boxes(
         raise ValueError(
             "The number of bounding boxes requested is larger than the number of pixels in the saliency map."
         )
-    if window_size > saliency_map.image_data.shape[0] or window_size > saliency_map.image_data.shape[1]:
+    if (
+        window_size > saliency_map.image_data.shape[0]
+        or window_size > saliency_map.image_data.shape[1]
+    ):
         raise ValueError(
             "The bounding box size is larger than the saliency map dimensions. "
             "Please select a smaller bounding box size."
@@ -163,7 +166,7 @@ def find_best_bounding_boxes(
 
 
 def create_bounding_boxes_visualization(
-        saliency_map: GeoTIFFData, bounding_boxes_lat_lon: np.ndarray, output_file_path: str
+    saliency_map: GeoTIFFData, bounding_boxes_lat_lon: np.ndarray, output_file_path: str
 ) -> None:
     """
     Create a PNG visualization of the bounding boxes on the saliency map.
@@ -172,12 +175,26 @@ def create_bounding_boxes_visualization(
     :param bounding_boxes_lat_lon: The bounding boxes to draw on the saliency map.
     :param output_file_path: The file path to save the visualization to.
     """
-    visualization = cv2.cvtColor(np.rint(255 * saliency_map.image_data).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    visualization = cv2.cvtColor(
+        np.rint(255 * saliency_map.image_data).astype(np.uint8), cv2.COLOR_GRAY2BGR
+    )
 
-    for *_, top_left_lat, top_left_lon, bottom_right_lat, bottom_right_lon in bounding_boxes_lat_lon:
-        top_left_u, top_left_v, top_left_valid = saliency_map.get_pixel_coordinates(np.array([top_left_lat, top_left_lon]))
-        bottom_right_u, bottom_right_v, bottom_right_valid = saliency_map.get_pixel_coordinates(np.array([bottom_right_lat, bottom_right_lon]))
-        assert top_left_valid and bottom_right_valid, "Bounding box coordinates are outside the saliency map bounds."
+    for (
+        *_,
+        top_left_lat,
+        top_left_lon,
+        bottom_right_lat,
+        bottom_right_lon,
+    ) in bounding_boxes_lat_lon:
+        top_left_u, top_left_v, top_left_valid = saliency_map.get_pixel_coordinates(
+            np.array([top_left_lat, top_left_lon])
+        )
+        bottom_right_u, bottom_right_v, bottom_right_valid = saliency_map.get_pixel_coordinates(
+            np.array([bottom_right_lat, bottom_right_lon])
+        )
+        assert (
+            top_left_valid and bottom_right_valid
+        ), "Bounding box coordinates are outside the saliency map bounds."
 
         cv2.rectangle(
             visualization,

@@ -30,6 +30,13 @@ class Frame:
         # convert hash to hex string
         self.frame_id = f"{hash(self.timestamp):x}"
 
+    @property
+    def debug_str(self) -> str:
+        """
+        :return: A debug string providing metadata about this Frame.
+        """
+        return f"[Camera {self.camera_name} frame {self.frame_id}]"
+
     def resize(self, width: int = 640, height: int = 480) -> np.ndarray:
         """
         Resize the image contained in this Frame to the specified width and height.

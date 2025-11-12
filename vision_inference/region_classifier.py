@@ -14,18 +14,21 @@ Date: [Creation or Last Update Date]
 
 # pylint: disable=too-few-public-methods,import-error
 import os
+from collections import defaultdict
 from time import perf_counter
 from typing import List
 
 import torch
 from PIL import Image
 from torch import nn
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
+from vision_inference.numpy_dataloader import ImageSimInference
 
 
 class RegionClassifier:
@@ -56,7 +59,11 @@ class RegionClassifier:
             # Load Custom model weights if required
             if load_weights:
                 self.model.load_state_dict(
-                    torch.load(RegionClassifier.get_model_weights_path(), map_location=self.device)
+                    torch.load(
+                        RegionClassifier.get_model_weights_path(),
+                        map_location=self.device,
+                        weights_only=False,
+                    )
                 )
                 self.model.eval()
                 Logger().log("INFO", "Model loaded successfully.")
@@ -144,6 +151,93 @@ class RegionClassifier:
         )
         Logger().log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids
+
+    def _prepare_batch_data(self, images_dir: str, num_workers: int = 0) -> None:
+        """
+        Prepares the data loader for batch image classification.
+
+        Args:
+            images_dir (str): Directory containing images to classify
+            num_workers (int): Number of worker processes to use for data loading.
+                              Higher values may improve performance on multi-core systems.
+
+        Returns:
+            None: Sets up the dataset and dataloader attributes for the class.
+        """
+        self.images_dir = images_dir
+        self.dataset = ImageSimInference(images_dir=images_dir, transform=self.transforms)
+        self.dataloader = DataLoader(
+            self.dataset, batch_size=16, shuffle=False, num_workers=num_workers
+        )
+
+    def classify_region_batch(
+        self, images_dir: str, num_workers: int = 0
+    ) -> tuple[dict[str, List[str]], dict[str, List[str]]]:
+        """
+        Classify regions in a batch of images from a directory.
+
+        Args:
+            images_dir (str): Directory containing images to classify
+            num_workers (int): Number of worker processes for data loading
+
+        Returns:
+            tuple: Two dictionaries containing the classification results:
+                - reg2img (dict[str, List[str]]): Mapping from region IDs to lists of image filenames
+                - img2reg (dict[str, List[str]]): Mapping from image filenames to lists of region IDs
+
+        Raises:
+            Exception: If the batch classification process fails
+        """
+        Logger.log("INFO", f"Starting batch classification of images from {images_dir}")
+
+        try:
+            # Prepare data loader
+            self._prepare_batch_data(images_dir, num_workers)
+
+            img2reg = defaultdict(list)
+            reg2img = defaultdict(list)
+            batch_start_time = perf_counter()
+
+            # Import tqdm for progress tracking
+            from tqdm import tqdm
+
+            total_batches = len(self.dataloader)
+
+            # Process each batch with tqdm progress bar
+            with torch.no_grad():
+                for batch_idx, (images, paths) in tqdm(
+                    enumerate(self.dataloader),
+                    total=total_batches,
+                    desc="Classifying regions",
+                    unit="batch",
+                ):
+                    images = images.to(self.device)
+
+                    # Forward pass
+                    probabilities = self.model(images)
+                    predicted = (probabilities > RegionClassifier.CONFIDENCE_THRESHOLD).float()
+
+                    # Extract predictions for each image in batch
+                    for i in range(images.size(0)):
+                        img_predicted_indices = predicted[i].nonzero(as_tuple=True)[0]
+                        img_predicted_regions = [
+                            self.region_ids[idx.item()] for idx in img_predicted_indices
+                        ]
+                        image_name = os.path.basename(paths[i])
+                        for region in img_predicted_regions:
+                            img2reg[image_name].append(region)
+                            reg2img[region].append(image_name)
+
+            total_time = perf_counter() - batch_start_time
+            Logger.log(
+                "INFO",
+                f"Batch classification completed. Processed {len(self.dataset)} images, and classified {len(img2reg)} of them in {total_time:.2f} seconds",
+            )
+            return reg2img, img2reg
+
+        except Exception as e:
+            Logger.log("ERROR", f"Batch classification failed: {e}")
+            raise
 
 
 class ClassifierEfficient(nn.Module):

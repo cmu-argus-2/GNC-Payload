@@ -13,20 +13,18 @@ from brahe import Epoch
 from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
 from utils.math_utils import der_rp2q, left_q, left_q_3, quat2rotm, rot_2_q  # right_q
-from vision_inference.logger import Logger
 
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
-# pylint: disable=R0913
-# too-many-positional-arguments
+# pylint: disable=too-many-positional-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
 # pylint: disable=too-many-locals
 # pylint: disable=E1136  # pylint/issues/9590
-class EKF:
+class SREKF:
     """
-    Extended Kalman Filter
+    Square-Root Extended Kalman Filter
     """
 
     def __init__(
@@ -189,7 +187,7 @@ class EKF:
         # (higher likelihood with fewer measurements)
         if z0.shape[0] == 0:
             self.no_measurement()
-            Logger.log("INFO", "No measurements taken")
+            print("No measurements taken")
             return
 
         # Let R take the dimensionality of the number of measurements
@@ -220,11 +218,10 @@ class EKF:
             # Check for ill-conditioned matrix and add regularization if necessary
             if i == 0:
                 cond = np.linalg.cond(S)
+                print(cond)
                 if cond > self.cond_threshold:
                     S += np.eye(S.shape[0]) * 1e-6
-                    Logger.log(
-                        "WARNING", "Ill-conditioned matrix detected. Regularization applied."
-                    )
+                    print("Ill-conditioned matrix detected. Regularization applied.")
 
             K = self.P_p @ H.T @ np.linalg.inv(S)
 
