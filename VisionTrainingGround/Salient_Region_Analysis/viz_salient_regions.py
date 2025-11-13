@@ -6,7 +6,7 @@ from sal_region_selection import select_mgrs_labels
 from utils.earth_utils import get_MGRS_grid
 
 
-def lat_lon_to_pixel(lat, lon, img_width, img_height):
+def lat_lon_to_pixel(lat: float, lon: float, img_width: int, img_height: int) -> tuple[int, int]:
     """
     Converts latitude and longitude to pixel coordinates.
     Assumes the map spans from -180 to 180 degrees longitude and -90 to 90 degrees latitude.
@@ -22,7 +22,9 @@ def lat_lon_to_pixel(lat, lon, img_width, img_height):
     return x, y
 
 
-def highlight_regions(image_path, output_path, regions):
+def highlight_regions(
+    image_path: str, output_path: str, regions: dict[str, tuple[float, float, float, float]]
+) -> None:
     """Highlights specified MGRS regions on a world map."""
     # Load the image
     img = cv2.imread(image_path)
@@ -57,5 +59,5 @@ def highlight_regions(image_path, output_path, regions):
 
 
 if __name__ == "__main__":
-    regions_to_highlight = select_mgrs_labels("sorted_region_saliencys.csv", n=40)
+    regions_to_highlight = select_mgrs_labels("sorted_region_saliencys_no_cloud.csv", n=40)
     highlight_regions("world_saliency.jpg", "highlighted_map_edited.jpg", regions_to_highlight)

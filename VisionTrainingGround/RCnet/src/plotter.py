@@ -22,7 +22,6 @@ Usage Example:
 """
 
 import os
-from typing import Optional
 
 import matplotlib.pyplot as plt
 
@@ -75,7 +74,7 @@ class Plotter:
         plt.draw()
         plt.pause(0.001)
 
-    def save_plot(self, file_path: Optional[str] = "loss_plot.png") -> None:
+    def save_plot(self, file_path: str = "loss_plot.png") -> None:
         """
         Saves the training loss plot to the specified file path.
 

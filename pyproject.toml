@@ -41,9 +41,6 @@ show_error_codes = true
 # Complain if we can't find type hints for dependencies
 ignore_missing_imports = true
 
-# Force mypy to analyze the library as best as it can
-follow_untyped_imports = true
-
 
 [tool.isort]
 # Use the "black" profile to align with Black's formatting style

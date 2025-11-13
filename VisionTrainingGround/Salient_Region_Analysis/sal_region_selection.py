@@ -1,8 +1,10 @@
+from typing import List
+
 import pandas as pd
 
 
 # Helper function to check if two MGRS labels share an edge or corner
-def is_adjacent(label1, label2):
+def is_adjacent(label1: str, label2: str) -> bool:
     # Extract number and letter from the MGRS labels
     num1, letter1 = int(label1[:-1]), label1[-1]
     num2, letter2 = int(label2[:-1]), label2[-1]
@@ -23,12 +25,12 @@ def is_adjacent(label1, label2):
 
 
 # Function to select labels based on value and adjacency conditions
-def select_mgrs_labels(csv_file, n=None):
+def select_mgrs_labels(csv_file: str, n: int = 0) -> List[str]:
     # Read the CSV file
     df = pd.read_csv(csv_file)
 
     # Extract the MGRS number
-    df["Number"] = df["Label"].str.extract("(\d+)")
+    df["Number"] = df["Label"].str.extract("(\\d+)")
 
     # Sort by Value in descending order to easily pick the highest first
     df = df.sort_values(by="Value", ascending=False)
@@ -90,19 +92,25 @@ def select_mgrs_labels(csv_file, n=None):
         "54T",
     ]
     final_labels.extend(old_regions)
-    final_labels.remove("43V")
-    final_labels.remove("45V")
-    final_labels.remove("13U")
-    final_labels.remove("11U")
-    final_labels.remove("17T")
-    final_labels.remove("17R")
-    final_labels.remove("53S")
-    final_labels.remove("54T")
-    final_labels.remove("41T")
-    final_labels.remove("44T")
-    final_labels.remove("47T")
-    final_labels.remove("34Q")
-    final_labels.remove("31R")
+
+    rem_labels = [
+        "43V",
+        "13U",
+        "11U",
+        "17T",
+        "17R",
+        "53S",
+        "54T",
+        "41T",
+        "44T",
+        "47T",
+        "34Q",
+        "31R",
+    ]
+    for lbl in rem_labels:
+        if lbl in final_labels:
+            final_labels.remove(lbl)
+
     final_labels = list(set(final_labels))
     print(len(final_labels), final_labels)
 

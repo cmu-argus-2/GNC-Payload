@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 P = ParamSpec("P")
 R = TypeVar("R")
+# mypy: ignore-errors
 
 
 @deprecated(
@@ -41,13 +42,13 @@ class MemoryAwareProcessPool:
                                             to reclaim memory.
         :param poll_interval: The interval at which to poll the system memory usage, in seconds.
         """
-        self.num_workers = num_workers
-        self.low_memory_usage_threshold = low_memory_usage_threshold
-        self.high_memory_usage_threshold = high_memory_usage_threshold
-        self.poll_interval = poll_interval
+        self.num_workers: int = num_workers
+        self.low_memory_usage_threshold: float = low_memory_usage_threshold
+        self.high_memory_usage_threshold: float = high_memory_usage_threshold
+        self.poll_interval: float = poll_interval
 
-        self.job_queue = Queue()
-        self.result_queue = Queue()
+        self.job_queue: Queue = Queue()
+        self.result_queue: Queue = Queue()
 
         # shared array mapping worker processes to the job ID they are currently working on
         self.worker_job_ids: SynchronizedArray = Array("i", [-1] * self.num_workers)
@@ -203,7 +204,9 @@ class MemoryAwareProcessPool:
             else nullcontext()
         )
         output_log_file = (
-            open(output_log_path, "w") if output_log_path is not None else nullcontext()
+            open(output_log_path, "w", encoding="utf-8")
+            if output_log_path is not None
+            else nullcontext()
         )
 
         start_time = perf_counter()

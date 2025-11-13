@@ -7,7 +7,7 @@ import shutil
 from PIL import Image
 
 
-def convert_tif_to_png(input_path, output_path):
+def convert_tif_to_png(input_path: str, output_path: str) -> None:
     """
     Converts a .tif image to .jpg format and saves it.
 
@@ -23,7 +23,9 @@ def convert_tif_to_png(input_path, output_path):
         img.save(output_path, "PNG")
 
 
-def split_and_convert_images(root_dir, output_dir, test_ratio=0.2, val_ratio=0.2):
+def split_and_convert_images(
+    root_dir: str, output_dir: str, test_ratio: float = 0.2, val_ratio: float = 0.2
+) -> None:
     """
     Processes .tif images, converts them to .jpg, splits into train/val/test, and saves them
     while maintaining the folder structure.

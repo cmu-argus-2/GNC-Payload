@@ -7,7 +7,7 @@ import numpy as np
 from utils.earth_utils import ecef_to_lat_lon, lat_lon_to_ecef
 
 
-def test_geodetic_conversion():
+def test_geodetic_conversion() -> None:
     """
     Test the geodetic conversion functions.
     """

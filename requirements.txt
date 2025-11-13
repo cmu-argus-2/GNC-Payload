@@ -5,7 +5,7 @@ earthengine_api==1.4.5
 jax
 pre-commit==4.1.0
 matplotlib==3.10.0
-mypy
+mypy>= 1.14
 numpy==1.26.4
 numpy-quaternion
 opencv_contrib_python==4.11.0.86
@@ -23,3 +23,5 @@ torchvision==0.20.1
 typeguard==4.4.1
 tqdm==4.67.1
 wandb==0.19.4
+deprecated
+more-itertools

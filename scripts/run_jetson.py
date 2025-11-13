@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_simulation(args) -> None:
+def run_simulation(args: argparse.Namespace) -> None:
     """
     Run the simulation.
 
@@ -86,14 +86,14 @@ def run_simulation(args) -> None:
     """
 
     user_config = load_config(USER_CONFIG_PATH)
-    output_basedir = os.path.join(user_config["output_dir"], args.name)
+    output_basedir = os.path.join(user_config["output_directory"], args.name)
     # Load json
     try:
-        with open(os.path.join(output_basedir, "args.json"), "r") as jsonfile:
+        with open(os.path.join(output_basedir, "args.json"), "r", encoding="utf-8") as jsonfile:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
-        raise ValueError(f"Error in args.json in {args.name}: {e}")
+        raise ValueError(f"Error in args.json in {args.name}: {e}") from e
 
     # Check that if a name was provided it matches the one in the json file
     assert (
@@ -125,7 +125,7 @@ def run_simulation(args) -> None:
     data_dir = os.path.join(output_basedir, "ground_truth.npz")
     if not os.path.exists(data_dir):
         raise FileNotFoundError(f"Ground truth data file {data_dir} does not exist.")
-    data = np.load(data_dir)
+    data: dict = np.load(data_dir)
     trajectory_gt = data["trajectory"]
     attitude_gt = data["attitude"]
     daytime_gt = data["daytime"]
@@ -162,13 +162,18 @@ def run_simulation(args) -> None:
     # Bias uncertainty also larger
     Q[13:16, 13:16] = np.eye(3) * 1e-9
 
-    P = np.eye(16)
-    P[0:3, 0:3] *= 5
-    P[3:6, 3:6] *= 5
-    P[6:9, 6:9] *= 1e-4
-    P[9:10, 9:10] *= 1e-4
-    P[10:13, 10:13] *= 1e-4
-    P[13:16, 13:16] *= 1e-4
+    P: np.ndarray = np.diag(
+        np.concatenate(
+            [
+                [5] * 3,
+                [5] * 3,
+                [1e-4] * 3,
+                [1e-4],
+                [1e-4] * 3,
+                [1e-4] * 3,
+            ]
+        )
+    )
 
     ekf_dynamics = EKFDynamics(
         config=config,
@@ -179,8 +184,8 @@ def run_simulation(args) -> None:
         use_drag_scalar=True,
         use_moon_grav=False,
         use_sun_grav=False,
-        ua_scale=ua_scale,
     )
+    # ua_scale=ua_scale,
 
     # Initialize IMU and EKF
     imu = IMU.get_default_imu(dt)

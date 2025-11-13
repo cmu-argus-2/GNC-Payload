@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def highlight_top_n_salient_regions(image_path, top_n=16):
+def highlight_top_n_salient_regions(image_path: str, top_n: int = 16) -> None:
     # Load the image (Earth image in this case)
     image = cv2.imread(image_path)
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB for visualization

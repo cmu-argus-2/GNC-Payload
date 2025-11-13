@@ -4,7 +4,7 @@ import os
 from PIL import Image
 
 
-def convert_tif_to_jpg(source_dir, target_dir):
+def convert_tif_to_jpg(source_dir: str, target_dir: str) -> None:
     # Check if the source directory exists
     if not os.path.exists(source_dir):
         print(f"The source directory {source_dir} does not exist.")

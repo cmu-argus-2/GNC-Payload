@@ -125,9 +125,9 @@ def generate_trajectory(args: argparse.Namespace) -> None:
         )
 
     config = load_config()
-    config["solver"]["world_update_rate"] = sim_args.frequency  # Hz
-    config["mission"]["duration"] = sim_args.duration  # s
-    config["mission"]["start_date"] = sim_args.start_date
+    config["solver"]["world_update_rate"] = args.frequency  # Hz
+    config["mission"]["duration"] = args.duration  # s
+    config["mission"]["start_date"] = args.start_date
 
     dt = 1 / config["solver"]["world_update_rate"]
 
@@ -139,16 +139,16 @@ def generate_trajectory(args: argparse.Namespace) -> None:
 
     initial_state = get_sso_orbit_state(
         starting_epoch,
-        sim_args.lat,
-        sim_args.lon,
-        sim_args.altitude,
-        northwards=sim_args.northwards,
+        args.lat,
+        args.lon,
+        args.altitude,
+        northwards=args.northwards,
     )
     initial_rot = np.eye(3)
     daytime.append(1 if is_over_daytime(starting_epoch, initial_state[0:3]) else 0)
-    data_manager.push_next_state(initial_state, initial_rot, np.array(sim_args.angular_velocity))
+    data_manager.push_next_state(initial_state, initial_rot, np.array(args.angular_velocity))
 
-    w = np.array(sim_args.angular_velocity)
+    w = np.array(args.angular_velocity)
 
     ground_truth_dynamics = Dynamics(
         config=config,
@@ -189,7 +189,7 @@ def generate_trajectory(args: argparse.Namespace) -> None:
 
     # Store args as json
     with open(f"{output_dir}/args.json", "w", encoding="utf-8") as jsonfile:
-        json.dump(sim_args.__dict__, jsonfile, indent=4)
+        json.dump(args.__dict__, jsonfile, indent=4)
 
 
 if __name__ == "__main__":

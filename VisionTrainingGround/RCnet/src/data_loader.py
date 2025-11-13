@@ -116,7 +116,9 @@ class MGRSImageDataset(Dataset):
         img_id = os.path.splitext(os.path.basename(img_path))[0]
         return region, img_id
 
-    def _calculate_sigmoid_params(self, x1, y1, x2, y2):
+    def _calculate_sigmoid_params(
+        self, x1: float, y1: float, x2: float, y2: float
+    ) -> dict[str, float]:
         """Calculate the parameters for the sigmoid function based on two points."""
         logit1 = np.log(y1 / (1 - y1))
         logit2 = np.log(y2 / (1 - y2))
@@ -126,7 +128,7 @@ class MGRSImageDataset(Dataset):
 
         return {"k": k, "x0": x0}
 
-    def _custom_sigmoid(self, x):
+    def _custom_sigmoid(self, x: float) -> float:
         """Apply a custom sigmoid function with the calculated parameters."""
         k = self.sigmoid_params["k"]
         x0 = self.sigmoid_params["x0"]

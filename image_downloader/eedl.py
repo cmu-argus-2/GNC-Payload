@@ -3,9 +3,11 @@ eedl.py
 Earth Engine Downloader
 A script to download satellite images from the Google Earth Engine API.
 The script can download images from the Landsat 8, Landsat 9, and Sentinel 2 sensors.
-The script can download images from a specified geographical region, date range, and cloud cover percentage range.
+The script can download images from a specified geographical region, date range, and cloud 
+cover percentage range.
 The script can also download images from a specified MGRS grid region.
-The script can also create custom mosaics by selecting random points within a region and creating a mosaic around each point.
+The script can also create custom mosaics by selecting random points within a region and 
+creating a mosaic around each point.
 Images are downloaded in either the GeoTIFF or PNG format.
 Custom mosaic images are saved directly to Google Drive.
 Default Landsat and Sentinel images are saved to the local file system.
@@ -79,14 +81,14 @@ def get_date_filter(i_date, f_date):
 
 
 def get_collection(
-    sensor,
-    ee_region_filter,
-    ee_date_filter,
+    sensor: str,
+    ee_region_filter: ee.filter,
+    ee_date_filter: ee.filter,
     ee_bands=None,
-    cloud_cover_min=0.0,
-    cloud_cover_max=30.0,
-    date_sort=True,
-):
+    cloud_cover_min: float = 0.0,
+    cloud_cover_max: float = 30.0,
+    date_sort: bool = True,
+) -> ee.imagecollection:
     """
     Retrieves a filtered collection of Landsat images based on the specified parameters.
 
@@ -128,9 +130,10 @@ def get_collection(
     return ee_collection
 
 
-def get_points_in_region(ee_region, num_points, pts_scale, pts_seed):
+def get_points_in_region(ee_region: ee.geometry, num_points: int, pts_scale: float, pts_seed: int):
     """
-    Selects random points within a specified region, focusing on land areas. Uses MODIS land/water data to filter out water bodies.
+    Selects random points within a specified region, focusing on land areas. Uses MODIS land/water
+    data to filter out water bodies.
 
     Parameters:
     ee_region (ee.Geometry): The region within which to select points.
@@ -160,9 +163,12 @@ def make_rectangle(ee_point, h_pt_buffer, v_pt_buffer=None):
     Creates a rectangle geometry around a given point.
 
     Parameters:
-    ee_point (dict): A dictionary containing the 'coordinates' key, which holds the longitude and latitude of the point.
-    h_pt_buffer (float): A float value containing the radius in meters to horizontally extend rectangle bounds from the point.
-    v_pt_buffer (float): A float value containing the radius in meters to vertically extend rectangle bounds from the point. Defaults to None.
+    ee_point (dict): A dictionary containing the 'coordinates' key, which holds the
+    longitude and latitude of the point.
+    h_pt_buffer (float): A float value containing the radius in meters to horizontally
+    extend rectangle bounds from the point.
+    v_pt_buffer (float): A float value containing the radius in meters to vertically extend
+    rectangle bounds from the point. Defaults to None.
 
     Returns:
     ee.Geometry.Rectangle: A rectangle geometry centered around the given point with a fixed buffer.
@@ -190,7 +196,7 @@ def make_rectangle(ee_point, h_pt_buffer, v_pt_buffer=None):
     return pt_rect
 
 
-def get_url(index):
+def get_url(index: int) -> str:
     """
     Generates a download URL for a satellite image from the Earth Engine image collection.
 
@@ -220,7 +226,7 @@ def get_url(index):
 
 
 @retry(tries=10, delay=1, backoff=2)
-def get_and_download_url(index):
+def get_and_download_url(index: int) -> None:
     """
     Downloads an image from a retrieved URL and saves it to a specified path.
     This function will retry up to 10 times with increasing delays if the download fails.
@@ -250,7 +256,7 @@ def get_and_download_url(index):
     print("Download", out_name, "done")
 
 
-def argument_parser():
+def argument_parser() -> argparse.Namespace:
     """
     Parses command line arguments.
     """

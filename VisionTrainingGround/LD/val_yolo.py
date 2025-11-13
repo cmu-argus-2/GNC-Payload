@@ -15,13 +15,14 @@ Optional arguments:
 import argparse
 import subprocess
 import time
+from argparse import Namespace
 
 import torch
 import wandb
 from ultralytics import YOLO
 
 
-def parse_args():
+def parse_args() -> Namespace:
     """
     Parses command-line arguments to specify configuration for YOLO training.
 
@@ -54,7 +55,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_gpu_power_usage():
+def get_gpu_power_usage() -> float:
     """
     Get GPU power usage using nvidia-smi.
     Returns the power usage in watts.
@@ -70,10 +71,10 @@ def get_gpu_power_usage():
         return power
     except Exception as e:
         print(f"Error fetching GPU power usage: {e}")
-        return None
+        return 0.0
 
 
-def train_yolo():
+def train_yolo() -> None:
     """
     Main function to load and validate a YOLO model using specified command-line arguments.
 

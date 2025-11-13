@@ -60,7 +60,7 @@ class ImageSimInference(Dataset):
 
         if not all_image_paths:
             Logger.log("WARNING", f"No files matching '{file_extension}' found in {images_dir}")
-            self.image_paths = []
+            self.image_paths: list[str] = []
             return
 
         # Filter images based on brightness if enabled

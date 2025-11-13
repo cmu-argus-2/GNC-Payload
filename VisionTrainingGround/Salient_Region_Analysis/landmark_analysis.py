@@ -1,5 +1,10 @@
+"""
+Landmark analysis.
+"""
+
 import argparse
 import os
+from argparse import Namespace
 from multiprocessing import Pool, cpu_count
 
 import cv2
@@ -17,7 +22,10 @@ CALCULATE_LANDMARKS = None
 VISUALIZE_LANDMARKS = None
 
 
-def parse_args():
+def parse_args() -> Namespace:
+    """
+    Parse input arguments.
+    """
     parser = argparse.ArgumentParser(description="Landmark Analysis")
     parser.add_argument(
         "-r", "--regions", type=str, default=["17R"], help="Region to analyze", nargs="+"
@@ -43,7 +51,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def landmarks_at_scale(region, scale):
+def landmarks_at_scale(region: str, scale: int) -> list[list[float]]:
+    """
+    Docstring.
+    """
     im = cv2.imread("bm1k_consolidated_maps/" + region + ".jpg")
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     # kernel = np.ones((scale, scale), np.uint8) / (scale * scale)
@@ -52,7 +63,7 @@ def landmarks_at_scale(region, scale):
     landmark_list = []
     height, width = im.shape
     while 1:
-        maxsum = 0
+        maxsum = 0.0
         for i in range(width - scale + 1):
             for j in range(height - scale + 1):
                 cursum = im[j : j + scale, i : i + scale].sum()
@@ -80,7 +91,10 @@ def landmarks_at_scale(region, scale):
     return landmark_list
 
 
-def visualize_landmarks(region, landmarks):
+def visualize_landmarks(region: str, landmarks: list[tuple[float, float, float, float]]) -> None:
+    """
+    Visualize landmarks.
+    """
     if not os.path.exists(landmarks_path):
         os.makedirs(landmarks_path)
     if not os.path.exists(landmarks_visualization_path):
@@ -93,7 +107,9 @@ def visualize_landmarks(region, landmarks):
     cv2.imshow(region, im)
 
 
-def get_absolute_landmarks(region, landmarks):
+def get_absolute_landmarks(
+    region: str, landmarks: list[tuple[float, float, float, float]]
+) -> list[list[float]]:
     bounds = get_MGRS_grid()[region]
     reg_im = cv2.imread("bm1k_regions/world_jun/" + region + ".jpg")
     reg_im_height, reg_im_width = reg_im.shape[:2]

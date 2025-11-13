@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,11 +10,11 @@ from torchvision import transforms
 
 # Define the DirectionalBlur transformation
 class DirectionalBlur:
-    def __init__(self, velocity, angular_velocity):
-        self.velocity = velocity
-        self.angular_velocity = angular_velocity
+    def __init__(self, velocity: float, angular_velocity: float) -> None:
+        self.velocity: float = velocity
+        self.angular_velocity: float = angular_velocity
 
-    def __call__(self, img):
+    def __call__(self, img: Image) -> Image:
         # Compute blur kernel parameters
         angle = np.degrees(np.arctan2(self.angular_velocity, self.velocity))
         kernel_size = max(1, int(np.hypot(self.velocity, self.angular_velocity) * 10))
@@ -62,14 +63,16 @@ train_transform = transforms.Compose(
 
 
 # Function to get files within a specified range
-def get_files_in_range(folder_path, start_index, end_index, extension=".tif"):
+def get_files_in_range(
+    folder_path: str, start_index: int, end_index: int, extension: str = ".tif"
+) -> List[str]:
     all_files = sorted(f for f in os.listdir(folder_path) if f.endswith(extension))
     selected_files = all_files[start_index : end_index + 1]
     return [os.path.join(folder_path, file) for file in selected_files]
 
 
 # Function to visualize original and augmented images
-def visualize_augmentations(image_paths):
+def visualize_augmentations(image_paths: List[str]) -> None:
     for image_path in image_paths:
         # Load the image
         original_image = Image.open(image_path).convert("RGB")

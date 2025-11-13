@@ -4,7 +4,7 @@ import cv2
 from PIL import Image, ImageDraw
 
 
-def draw_landmark_boxes(base_path, image_name):
+def draw_landmark_boxes(base_path: str, image_name: str) -> None:
     # Define the paths
     image_path = os.path.join(base_path, "val/images", image_name)
     label_path = os.path.join(base_path, "va/labels", os.path.splitext(image_name)[0] + ".txt")
