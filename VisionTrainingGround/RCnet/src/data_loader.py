@@ -25,6 +25,7 @@ from vision_inference.logger import Logger
 class MGRSImageDataset(Dataset):
     """A custom dataset for loading images with MGRS grid-based multi-hot encoding."""
 
+    # pylint: disable=R0912,R0913,R0914,R0917
     def __init__(
         self,
         root_dir: str,
@@ -99,7 +100,7 @@ class MGRSImageDataset(Dataset):
         total_size = len(self.files)
         train_size = int(train_ratio * total_size)
         val_size = int(val_ratio * total_size)
-        test_size = total_size - train_size - val_size
+        # test_size = total_size - train_size - val_size
 
         # Split the data
         if split == "train":
@@ -147,7 +148,7 @@ class MGRSImageDataset(Dataset):
         label_vector = torch.zeros(len(self.salient_regions), dtype=torch.float32)
 
         if json_path:  # non-salient images do not have a JSON file, label defaults to zero
-            with open(json_path, "r") as f:
+            with open(json_path, "r", encoding="utf-8") as f:
                 region_counts = json.load(f)
             total_count = sum(region_counts.values())
             for mgrs_zone, count in region_counts.items():

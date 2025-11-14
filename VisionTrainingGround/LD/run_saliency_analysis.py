@@ -113,6 +113,7 @@ def get_common_file_name_prefixes(input_dir: str, ignore_names: Iterable[str] = 
     return common_file_prefixes
 
 
+# pylint: disable=too-many-locals
 def generate_saliency_map(
     region_dir: str, output_file: str, gsd: float, region_id: str
 ) -> GeoTIFFData:
@@ -141,7 +142,7 @@ def generate_saliency_map(
     )
     region_saliency_map.remap_to_mgrs_region(region_id)
     region_saliency_map_counts = np.zeros((height, width), dtype=int)
-    saliency_computer = cv2.saliency.StaticSaliencyFineGrained_create()
+    saliency_computer: cv2.saliency = cv2.saliency.StaticSaliencyFineGrained_create()
 
     for file_prefix in tqdm(file_prefixes, desc=f"Processing images for region {region_id}"):
         try:

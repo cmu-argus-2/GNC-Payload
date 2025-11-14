@@ -11,7 +11,10 @@ from utils.earth_utils import get_MGRS_grid
 from vision_inference.logger import Logger
 
 
-def calculate_sigmoid_params(x1, y1, x2, y2):
+def calculate_sigmoid_params(x1: float, y1: float, x2: float, y2: float) -> tuple[float, float]:
+    """
+    Calculate sigmoid curve parameters from two points.
+    """
     logit1 = np.log(y1 / (1 - y1))
     logit2 = np.log(y2 / (1 - y2))
     k = (logit2 - logit1) / (x2 - x1)
@@ -19,11 +22,19 @@ def calculate_sigmoid_params(x1, y1, x2, y2):
     return k, x0
 
 
-def custom_sigmoid(x, k, x0):
+def custom_sigmoid(x: float, k: float, x0: float) -> float:
+    """
+    Compute value of sigmoid function at point x with parameters k and x0.
+    """
     return 1 / (1 + np.exp(-k * (x - x0)))
 
 
-def precompute_region_boundaries(salient_regions, mgrs_grid):
+def precompute_region_boundaries(
+    salient_regions: list[str], mgrs_grid: dict[str, tuple[float, float, float, float]]
+) -> dict[str, tuple[float, float, float, float]]:
+    """
+    Pre-compute region boundaries.
+    """
     boundaries = {}
     for region in salient_regions:
         if region in mgrs_grid:
@@ -32,7 +43,8 @@ def precompute_region_boundaries(salient_regions, mgrs_grid):
     return boundaries
 
 
-def compute_label(lat_lon_path, salient_boundaries, region_indices, k, x0):
+def compute_label(lat_lon_path: str, salient_boundaries, region_indices, k, x0):
+    """ """
     with np.load(lat_lon_path, mmap_mode="r") as lat_lon_data:
         start = time.time()
         lat_lon_array = lat_lon_data["lat_lon"]
@@ -56,7 +68,10 @@ def compute_label(lat_lon_path, salient_boundaries, region_indices, k, x0):
         return label_vector.numpy()
 
 
-def main(root_dir, salient_regions):
+def main(root_dir: str, salient_regions: list[str]) -> None:
+    """
+    Docstring to shut up pylint
+    """
     salient_regions = sorted(salient_regions)
     region_indices = {region: i for i, region in enumerate(salient_regions)}
     mgrs_grid = get_MGRS_grid()

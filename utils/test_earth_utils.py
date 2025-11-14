@@ -14,8 +14,9 @@ def test_geodetic_conversion() -> None:
     # Generate a grid of latitude and longitude values
     latitudes = np.linspace(-90, 90, num=10)
     longitudes = np.linspace(-180, 180, num=10)
-    lon_grid, lat_grid = np.meshgrid(longitudes, latitudes)
-    lat_lon = np.stack((lat_grid, lon_grid), axis=2)  # Shape (H, W, 2)
+    mesh_output: list[np.ndarray] = np.meshgrid(longitudes, latitudes)
+    lon_grid, lat_grid = mesh_output  # pylint: disable=unpacking-non-sequence
+    lat_lon: np.ndarray = np.stack((lat_grid, lon_grid), axis=2)  # Shape (H, W, 2)
 
     # Convert lat/lon to ECEF using the inverse function
     ecef_points = lat_lon_to_ecef(lat_lon)
@@ -24,8 +25,12 @@ def test_geodetic_conversion() -> None:
     lat_lon_reconstructed = ecef_to_lat_lon(ecef_points)
 
     # Compute differences
-    lat_diff = lat_lon[:, :, 0] - lat_lon_reconstructed[:, :, 0]
-    lon_diff = lat_lon[:, :, 1] - lat_lon_reconstructed[:, :, 1]
+    lat_diff: np.ndarray = (
+        lat_lon[:, :, 0] - lat_lon_reconstructed[:, :, 0]
+    )  # pylint: disable=E1136
+    lon_diff: np.ndarray = (
+        lat_lon[:, :, 1] - lat_lon_reconstructed[:, :, 1]
+    )  # pylint: disable=E1136
 
     # Print maximum differences
     print("Maximum latitude difference (degrees):", np.max(np.abs(lat_diff)))

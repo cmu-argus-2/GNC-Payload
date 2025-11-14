@@ -30,6 +30,7 @@ class ImageSimInference(Dataset):
     Includes brightness filtering similar to frame_processor logic.
     """
 
+    # pylint: disable=R0913,R0917
     def __init__(
         self,
         images_dir: str,
@@ -78,7 +79,7 @@ class ImageSimInference(Dataset):
                         self.image_paths.append(path)
                     else:
                         skipped_count += 1
-                except Exception as e:
+                except ValueError as e:
                     Logger.log("ERROR", f"Error checking brightness for {path}: {e}")
                     skipped_count += 1
 
@@ -112,7 +113,7 @@ class ImageSimInference(Dataset):
                 gray_frame.shape
             )
             return dark_percentage <= self.dark_threshold
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             Logger.log("ERROR", f"Error in brightness calculation: {e}")
             return False  # Reject images we can't process
 

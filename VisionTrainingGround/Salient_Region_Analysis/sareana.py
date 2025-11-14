@@ -6,6 +6,7 @@ import csv
 
 import cv2
 import numpy as np
+from cv2.typing import MatLike
 
 from utils.earth_utils import get_MGRS_grid
 
@@ -28,13 +29,14 @@ def sareana(
     Salient Region analysis function.
     """
     if not use_sal_only:
-        cloud_im = cv2.imread(cloud_im_path)
-        cloud_im = ~cv2.cvtColor(cloud_im, cv2.COLOR_BGR2GRAY)
+        cloud_im: MatLike = cv2.imread(cloud_im_path)
+        gray_im: MatLike = cv2.cvtColor(cloud_im, cv2.COLOR_BGR2GRAY)
+        cloud_im = ~gray_im
         cv2.imwrite("inverse_cloud_map.jpg", cloud_im)
         cloud_im = cloud_im.astype("float32")
         cloud_im = cloud_im / cloud_im.max()
 
-    saliency_im = cv2.imread(saliency_im_path)
+    saliency_im: MatLike = cv2.imread(saliency_im_path)
     # if image is rgb, convert to grayscale
     if len(saliency_im.shape) > 2 and saliency_im.shape[2] == 3:
         saliency_im = cv2.cvtColor(saliency_im, cv2.COLOR_BGR2GRAY)
@@ -91,33 +93,33 @@ def sareana(
 
     reg_sals_sorted = sorted(reg_sals.items(), key=lambda x: x[1], reverse=True)
 
-    with open("prioritized_regions.csv", "w") as f:
+    with open("prioritized_regions.csv", "w", encoding="utf-8") as f2:
         for key2, val in reg_sals_sorted:
             if val == 0.0:
                 break
-            f.write(key2 + ",")
+            f2.write(key2 + ",")
 
     return reg_sals_sorted
 
 
 if __name__ == "__main__":
     mgrs_grid = get_MGRS_grid()
-    use_saliency_only = True
+    USE_SALIENCY_ONLY = True
 
     # Set use_saliency_only to True if you want to use only saliency map data
     sorted_reg_sals = sareana(
-        "world_saliency.jpg", "world_saliency.jpg", mgrs_grid, use_saliency_only
+        "world_saliency.jpg", "world_saliency.jpg", mgrs_grid, USE_SALIENCY_ONLY
     )
 
     print(sorted_reg_sals)
-    np_file_name = (
+    NP_FILE_NAME = (
         "sorted_region_saliencys_no_cloud.npy"
-        if use_saliency_only
+        if USE_SALIENCY_ONLY
         else "sorted_region_saliencys.npy"
     )
-    np.save(np_file_name, sorted_reg_sals)
+    np.save(NP_FILE_NAME, sorted_reg_sals)
 
-    with open(np_file_name[:-4] + ".csv", "w", newline="") as f:
+    with open(NP_FILE_NAME[:-4] + ".csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["Label", "Value"])  # Header
         writer.writerows(sorted_reg_sals)  # Write data

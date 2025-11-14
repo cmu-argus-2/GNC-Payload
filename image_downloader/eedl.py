@@ -80,6 +80,7 @@ def get_date_filter(i_date, f_date):
     return ee_date_filter
 
 
+# pylint: disable=R0913,R0917
 def get_collection(
     sensor: str,
     ee_region_filter: ee.filter,
@@ -113,6 +114,8 @@ def get_collection(
     elif sensor == "s2":
         collection_string = "COPERNICUS/S2_HARMONIZED"
         cloud_string = "CLOUDY_PIXEL_PERCENTAGE"
+    else:
+        raise ValueError("Invalid sensor.")
 
     if ee_bands is None:
         ee_bands = ["B4", "B3", "B2"]

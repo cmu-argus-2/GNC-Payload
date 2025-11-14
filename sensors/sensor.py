@@ -10,26 +10,32 @@ from sensors.bias import Bias, BiasParams
 
 
 class SensorNoiseParams:
+    """
+    Sensor noise parameters.
+    """
+
     def __init__(
         self,
-        biasParams: BiasParams,
+        bias_params: BiasParams,
         sigma_v: float,
         scale_factor_error: float,
     ) -> None:
-        """Parameters for a time-varying bias modeled as a random walk
+        """
+        Parameters for a time-varying bias modeled as a random walk
 
         Args:
             biasParams (BiasParams): bias parameters
-            sigma_w (float): continuous-time power spectral density of additive white noise to sensor output [units/sqrt(Hz)]
+            sigma_w (float): continuous-time power spectral density of additive white noise
+            to sensor output [units/sqrt(Hz)]
             scale_factor_error (float): multiplier [-]
         """
-        self.bias_params = biasParams
+        self.bias_params = bias_params
         self.sigma_v = sigma_v
         self.scale_factor_error = scale_factor_error
 
     @staticmethod
     def get_random_params(
-        biasParams: BiasParams,
+        bias_params: BiasParams,
         sigma_v_range: list,
         scale_factor_error_range: list,
     ) -> "SensorNoiseParams":
@@ -45,13 +51,17 @@ class SensorNoiseParams:
             SensorNoiseParams: sensor noise parameters
         """
         return SensorNoiseParams(
-            biasParams,
+            bias_params,
             np.random.uniform(*sigma_v_range),
             np.random.uniform(*scale_factor_error_range),
         )
 
 
 class Sensor:
+    """
+    Sensor class.
+    """
+
     def __init__(self, dt: float, sensor_noise_params: SensorNoiseParams) -> None:
         """
         Sensor class that adds noise to a clean signal.
@@ -99,6 +109,10 @@ class Sensor:
 
 
 class TriAxisSensor:
+    """
+    Triaxis sensor class.
+    """
+
     def __init__(self, dt: float, axes_params: list, misalignment_range: list) -> None:
         """
         Class that creates a noisy tri-axis signal.

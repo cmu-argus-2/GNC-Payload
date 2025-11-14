@@ -9,7 +9,7 @@ from torchvision import transforms
 from utils.earth_utils import get_MGRS_grid
 
 
-def calculate_sigmoid_params(x1, y1, x2, y2):
+def calculate_sigmoid_params(x1: float, y1: float, x2: float, y2: float) -> dict[str, float]:
     """Calculate the parameters for the sigmoid function based on two points."""
     logit1 = np.log(y1 / (1 - y1))
     logit2 = np.log(y2 / (1 - y2))
@@ -20,14 +20,17 @@ def calculate_sigmoid_params(x1, y1, x2, y2):
     return {"k": k, "x0": x0}
 
 
-def custom_sigmoid(x, sigmoid_params):
+def custom_sigmoid(x: float, sigmoid_params: dict[str, float]) -> float:
     """Apply a custom sigmoid function with the calculated parameters."""
     k = sigmoid_params["k"]
     x0 = sigmoid_params["x0"]
     return 1 / (1 + np.exp(-k * (x - x0)))
 
 
-def load_lat_lon_arrays(lat_lon_path):
+def load_lat_lon_arrays(lat_lon_path: str) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Load latitude and longitude arrays.
+    """
     # Load using memory mapping for efficiency
     start = time.time()
     lat_lon_data = np.load(lat_lon_path, mmap_mode="r")
@@ -46,7 +49,10 @@ def load_lat_lon_arrays(lat_lon_path):
     return lat_array, lon_array
 
 
-def process_image_and_labels(img_path, lat_lon_path, salient_regions):
+def process_image_and_labels(
+    img_path: str, lat_lon_path: str, salient_regions: list[str]
+) -> tuple[Image.Image,]:
+    """ """
     # Load image
     transform = transforms.Compose(
         [
@@ -62,9 +68,9 @@ def process_image_and_labels(img_path, lat_lon_path, salient_regions):
         ]
     )
     print("Transformations applied")
-    image = Image.open(img_path).convert("RGB")
+    img = Image.open(img_path).convert("RGB")
     print("Loaded Image")
-    image = transform(image)
+    img = transform(img)
     print("Transformed Image")
     # Load lat/lon data
     lat_lon_data = np.load(lat_lon_path, mmap_mode="r")
@@ -104,7 +110,7 @@ def process_image_and_labels(img_path, lat_lon_path, salient_regions):
             region_counts[region] = pixel_count
     print(f"Region counts: {region_counts}")
     # Create multi-hot encoded vector with sigmoid transformation
-    label_vector = torch.zeros(len(salient_regions), dtype=torch.float32)
+    lbl_vector = torch.zeros(len(salient_regions), dtype=torch.float32)
     salient_region_indices = {region: i for i, region in enumerate(salient_regions)}
 
     for region, count in region_counts.items():
@@ -114,12 +120,12 @@ def process_image_and_labels(img_path, lat_lon_path, salient_regions):
             print(f"Fraction for {region}: {fraction}")
             # Apply sigmoid transformation
             idx = salient_region_indices[region]
-            label_vector[idx] = custom_sigmoid(fraction, sigmoid_params)
+            lbl_vector[idx] = custom_sigmoid(fraction, sigmoid_params)
 
     # Test
     print(custom_sigmoid(0.25, sigmoid_params))
 
-    return image, label_vector
+    return img, lbl_vector
 
 
 # Example usage

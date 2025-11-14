@@ -10,11 +10,13 @@ import numpy as np
 from brahe import Epoch
 from brahe.constants import R_EARTH
 
+from .math_utils import skew
+
 
 # TODO: use brahe constants instead of hardcoding
 def ecef_to_lat_lon(
     intersection_points: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
-) -> np.ndarray:
+) -> np.ndarray:  # pylint: disable=too-many-locals
     """
     Convert intersection points (ECEF) to latitude and longitude.
 
@@ -31,7 +33,7 @@ def ecef_to_lat_lon(
 
     valid_mask = ~np.isnan(intersection_points_flat).any(axis=1)
 
-    lat_lon_flat = np.full((np.prod(shape_prefix), 2), np.nan)
+    lat_lon_flat: np.ndarray = np.full((np.prod(shape_prefix), 2), np.nan)
 
     valid_points = intersection_points_flat[valid_mask]
 
@@ -124,7 +126,7 @@ def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
     ), 'nadir_axis must be one of "x+", "y+", "x-", "y-"'
 
     pos, vel = state[:3], state[3:]
-    angular_momentum_dir = np.cross(pos, vel)
+    angular_momentum_dir = skew(pos) @ vel
 
     nadir_dir = -pos / np.linalg.norm(pos)
     z_plus_dir = angular_momentum_dir / np.linalg.norm(angular_momentum_dir)
@@ -146,7 +148,7 @@ def intersect_ellipsoid(
     satellite_position: np.ndarray,
     a: float = 6378137.0,
     b: float = 6356752.314245,
-) -> np.ndarray:
+) -> np.ndarray:  # pylint: disable=too-many-locals
     """
     Vectorized computation of ray intersections with the WGS84 ellipsoid.
 
@@ -391,7 +393,7 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -
 
     perp_arb = arbitrary - np.sum(arbitrary * vec, axis=1, keepdims=True) * vec
     perp_arb = perp_arb / np.linalg.norm(perp_arb, axis=1, keepdims=True)
-    third_vec = np.cross(vec, perp_arb)
+    third_vec = skew(vec) @ perp_arb
 
     theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
 
@@ -404,6 +406,7 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -
     return new_vec
 
 
+# pylint: disable=too-many-locals
 def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     """
     Harris-Priester atmospheric density model.
@@ -417,12 +420,12 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     """
 
     # Harris-Priester Constants
-    HP_UPPER_LIMIT = 1000.0  # Upper height limit [km]
-    HP_LOWER_LIMIT = 100.0  # Lower height limit [km]
-    HP_RA_LAG = 0.523599  # Right ascension lag [rad]
-    HP_N_PRM = 3  # Harris-Priester parameter
+    hp_upper_limit = 1000.0  # Upper height limit [km]
+    hp_lower_limit = 100.0  # Lower height limit [km]
+    hp_ra_lag = 0.523599  # Right ascension lag [rad]
+    hp_n_prm = 3  # Harris-Priester parameter
     # 2(6) low(high) inclination
-    HP_N = 50  # Number of coefficients
+    hp_n = 50  # Number of coefficients
 
     # Height [km]
     hp_h = [
@@ -595,12 +598,11 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     height = geod[2] / 1.0e3  # height in [km]
 
     # Exit with zero density above height model limit
-    if height > HP_UPPER_LIMIT:
+    if height > hp_upper_limit:
         return 0.0
 
     # Set height to lower limit if below model limit
-    if height < HP_LOWER_LIMIT:
-        height = HP_LOWER_LIMIT
+    height = max(height, hp_lower_limit)
 
     # Sun right ascension, declination
     ra_sun = math.atan2(r_sun[1], r_sun[0])
@@ -615,8 +617,8 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     c_dec = math.cos(dec_sun)
     u = np.array(
         [
-            c_dec * math.cos(ra_sun + HP_RA_LAG),
-            c_dec * np.sin(ra_sun + HP_RA_LAG),
+            c_dec * math.cos(ra_sun + hp_ra_lag),
+            c_dec * np.sin(ra_sun + hp_ra_lag),
             math.sin(dec_sun),
         ]
     )
@@ -627,8 +629,8 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
 
     # Height index search and exponential density interpolation
     ih = 0  # section index reset
-    for i in range(HP_N):  # loop over N_Coef height regimes
-        if height >= hp_h[i] and height < hp_h[i + 1]:
+    for i in range(hp_n):  # loop over N_Coef height regimes
+        if hp_h[i + 1] > height >= hp_h[i]:
             ih = i  # ih identifies height section
             break
 
@@ -639,7 +641,7 @@ def density_harris_priester(x: np.ndarray, epoch: Epoch) -> float:
     d_max = hp_c_max[ih] * math.exp((hp_h[ih] - height) / h_max)
 
     # Density computation
-    density = d_min + (d_max - d_min) * c_psi2**HP_N_PRM
+    density = d_min + (d_max - d_min) * c_psi2**hp_n_prm
 
     # Convert from g/km^3 to kg/km^3
     density *= 1.0e-3

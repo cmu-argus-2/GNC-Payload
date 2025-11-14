@@ -50,7 +50,6 @@ class LandmarkBearingSensor(ABC):
         in the body frame and a numpy array of shape (N, 3) containing the landmark positions in
         ECI coordinates.
         """
-        pass
 
 
 class RandomLandmarkBearingSensor(LandmarkBearingSensor):
@@ -276,7 +275,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,R0913,R0917
     @typing.overload
     def take_measurement(
         self,
@@ -307,7 +306,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         frame, lat_lon = self.earth_image_simulator.simulate_image_for_training(
             position_ecef, ecef_R_body, camera_model
         )
-        camera_name = camera_model.get_camera_name()
+        camera_name = camera_model.get_camera_name
         suffix = f"{index}_{camera_name}"
 
         cv2.imwrite(
@@ -354,20 +353,24 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
 
 class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
     """
-    A sensor that uses already calculated landmark bearing measurements and landmark locations to provide correct measurements at each timestep.
+    A sensor that uses already calculated landmark bearing measurements and landmark locations
+    to provide correct measurements at each timestep.
     """
 
-    def __init__(self, output_basedir) -> None:
+    def __init__(self, output_basedir: str) -> None:
         # Set up paths to stored data
-        self.VIS_INF_DIR = "vis_inf"
+        self.vis_inf_dir = "vis_inf"
         self.base_bearing_dir = output_basedir
 
     def load_measurements(self, timestep, camera_name):
+        """
+        Load measurements.
+        """
         # Load the bearing vectors and landmark positions from the stored data
         base_name = f"{timestep}_{camera_name}"
         file_path = os.path.join(
             self.base_bearing_dir,
-            self.VIS_INF_DIR,
+            self.vis_inf_dir,
             str(timestep),
             "bearing_vectors",
             f"landmarks_{base_name}.npz",
@@ -380,11 +383,11 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             with np.load(file_path) as data:
                 bearing_vectors = data["bearing_vectors"]
                 landmark_positions = data["landmark_positions"]
-                Logger.log(
-                    "INFO",
-                    f"Loaded bearing vectors with shape: {bearing_vectors.shape} for camera {camera_name} at timestep {timestep}",
+                msg = (
+                    f"Loaded bearing vectors with shape: {bearing_vectors.shape} ",
+                    f"for camera {camera_name} at timestep {timestep}",
                 )
-
+                Logger.log("INFO", msg)
             if bearing_vectors.ndim == 1:
                 bearing_vectors = np.expand_dims(bearing_vectors, axis=0)
                 landmark_positions = np.expand_dims(landmark_positions, axis=0)
