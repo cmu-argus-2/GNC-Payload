@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from cv2.typing import MatLike
 
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_grid
 
 FOLDER = "bm1k_regions"
 OUTFOLDER = "bm1k_maps"
@@ -80,7 +80,7 @@ def one_month(month: str) -> None:
 
 
 if __name__ == "__main__":
-    grid = get_MGRS_grid()
+    grid = get_mgrs_grid()
     if not os.path.exists(OUTFOLDER):
         os.mkdir(OUTFOLDER)
     if SAVEMAP:

@@ -8,7 +8,12 @@ from sensors.bias import BiasParams
 from sensors.sensor import SensorNoiseParams, TriAxisSensor
 
 
+# pylint: disable=R0903
 class IMUNoiseParams:
+    """
+    IMU Noise parameters.
+    """
+
     def __init__(self, gyro_params: list, accel_params: list) -> None:
         """Gyroscope and Accelerometer parameters
 
@@ -21,8 +26,12 @@ class IMUNoiseParams:
 
 
 class IMU:
+    """
+    IMU class.
+    """
+
     def __init__(
-        self, dt: float, IMU_noise_params: IMUNoiseParams, misalignment_range: list
+        self, dt: float, imu_noise_params: IMUNoiseParams, misalignment_range: list
     ) -> None:
         """
         Initialize an IMU sensor with given noise parameters.
@@ -32,8 +41,8 @@ class IMU:
             IMU_noise_params (IMUNoiseParams): The noise parameters for the IMU sensor.
             misalignment_range (list): The misalignment range for the sensor.
         """
-        self.gyro = TriAxisSensor(dt, IMU_noise_params.gyro, misalignment_range)
-        self.accel = TriAxisSensor(dt, IMU_noise_params.accel, misalignment_range)
+        self.gyro = TriAxisSensor(dt, imu_noise_params.gyro, misalignment_range)
+        self.accel = TriAxisSensor(dt, imu_noise_params.accel, misalignment_range)
 
     def get_bias(self) -> tuple:
         """
@@ -107,7 +116,7 @@ class IMU:
         )
         imu = IMU(
             dt=dt,
-            IMU_noise_params=imu_noise_params,
+            imu_noise_params=imu_noise_params,
             misalignment_range=[-0.01, 0.01],
         )
 

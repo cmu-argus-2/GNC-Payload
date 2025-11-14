@@ -1,3 +1,7 @@
+"""
+Memory-aware processing pool.
+"""
+
 from contextlib import nullcontext
 from multiprocessing import Array, Process, Queue
 from multiprocessing.sharedctypes import SynchronizedArray
@@ -14,6 +18,7 @@ R = TypeVar("R")
 # mypy: ignore-errors
 
 
+# pylint: disable=R0902
 @deprecated(
     reason="After some bug fixes, the memory usage when generating images with the image simulator is now low enough "
     "that we are bottlenecked by the CPU. As a result, this class is no longer needed. Also, there is likely a "
@@ -98,7 +103,7 @@ class MemoryAwareProcessPool:
             success = True
             try:
                 result = func(*args)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=E1101,W0718
                 result = e
                 success = False
 
@@ -144,6 +149,7 @@ class MemoryAwareProcessPool:
             daemon=True,
         )
 
+    # pylint: disable=R0914
     def map(
         self,
         func: Callable[P, R],
@@ -203,6 +209,7 @@ class MemoryAwareProcessPool:
             if display_progress_bar
             else nullcontext()
         )
+        # pylint: disable=R1732
         output_log_file = (
             open(output_log_path, "w", encoding="utf-8")
             if output_log_path is not None

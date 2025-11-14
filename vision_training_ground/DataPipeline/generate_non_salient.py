@@ -27,7 +27,7 @@ from tqdm import tqdm
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModel, CameraModelManager
 from utils.config_utils import USER_CONFIG_PATH, load_config
-from utils.earth_utils import get_MGRS_grid, get_nadir_rotation, lat_lon_to_ecef
+from utils.earth_utils import get_mgrs_grid, get_nadir_rotation, lat_lon_to_ecef
 from utils.function_utils import unpack_and_call
 
 
@@ -366,7 +366,7 @@ def generate_training_image(
     # Without this the seed may be inherited from the calling process, leading to duplicate images
     rng = np.random.default_rng(np.random.SeedSequence(int(time() * 1e6) ^ os.getpid()))
 
-    min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region]
+    min_lon, min_lat, max_lon, max_lat = get_mgrs_grid()[region]
     min_lon -= lat_lon_buffer
     min_lat -= lat_lon_buffer
     max_lon += lat_lon_buffer

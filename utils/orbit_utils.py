@@ -1,3 +1,7 @@
+"""
+Orbit utils.
+"""
+
 import brahe
 import numpy as np
 from brahe import GM_EARTH, R_EARTH, Epoch

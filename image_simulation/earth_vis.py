@@ -15,7 +15,7 @@ import numpy as np
 import rasterio
 from affine import Affine
 from brahe import R_EARTH
-from rasterio.crs import CRS
+from rasterio.crs import CRS  # pylint: disable=E0611
 from scipy.ndimage import label
 
 from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
@@ -24,7 +24,7 @@ from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import (
     calculate_mgrs_zones,
     ecef_to_lat_lon,
-    get_MGRS_grid,
+    get_mgrs_grid,
     intersect_ellipsoid,
 )
 from vision_inference.frame import Frame
@@ -151,7 +151,7 @@ class GeoTIFFData:
         :param region_id: The MGRS region ID to remap this GeoTIFFData to.
         """
         height, width, _ = self.image_data.shape
-        min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+        min_lon, min_lat, max_lon, max_lat = get_mgrs_grid()[region_id]
         scale_u = width / (max_lon - min_lon)
         scale_v = height / (max_lat - min_lat)
 

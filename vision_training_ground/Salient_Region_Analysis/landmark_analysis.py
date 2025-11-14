@@ -11,7 +11,7 @@ import numpy as np
 from cv2 import cv2
 from cv2.typing import MatLike
 
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_grid
 
 scales = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 CONSOLIDATED_MAPS_PATH = "bm1k_consolidated_maps"
@@ -118,7 +118,7 @@ def get_absolute_landmarks(
     """
     Get absolute landmarks.
     """
-    bounds = get_MGRS_grid()[region_id]
+    bounds = get_mgrs_grid()[region_id]
     reg_im: MatLike = cv2.imread("bm1k_regions/world_jun/" + region_id + ".jpg")
     reg_im_height, reg_im_width = reg_im.shape[:2]  # pylint: disable=E1101
     minx, miny, maxx, maxy = bounds

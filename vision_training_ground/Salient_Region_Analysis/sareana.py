@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from cv2.typing import MatLike
 
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_grid
 
 MIN_LAT = -90
 MAX_LAT = 90
@@ -103,7 +103,7 @@ def sareana(
 
 
 if __name__ == "__main__":
-    mgrs_grid = get_MGRS_grid()
+    mgrs_grid = get_mgrs_grid()
     USE_SALIENCY_ONLY = True
 
     # Set use_saliency_only to True if you want to use only saliency map data

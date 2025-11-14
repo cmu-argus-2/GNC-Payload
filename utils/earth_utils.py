@@ -16,7 +16,7 @@ from .math_utils import skew
 
 
 # TODO: use brahe constants instead of hardcoding
-# pylint: disable=
+# pylint: disable=R0914
 def ecef_to_lat_lon(
     intersection_points: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
 ) -> np.ndarray:  # pylint: disable=too-many-locals
@@ -58,10 +58,11 @@ def ecef_to_lat_lon(
     lat = np.degrees(lat)
 
     # Store results in flat array
+    # pylint: disable=E1137
     lat_lon_flat[valid_mask, 0] = lat
     lat_lon_flat[valid_mask, 1] = lon
 
-    return lat_lon_flat.reshape(*shape_prefix, 2)
+    return lat_lon_flat.reshape(*shape_prefix, 2)  # pylint: disable=E1101
 
 
 def lat_lon_to_ecef(
@@ -100,7 +101,7 @@ def lat_lon_to_ecef(
     z = (N * (1 - e2)) * np.sin(lat_rad)
 
     ecef_flat = np.column_stack((x, y, z))
-    return ecef_flat.reshape(*shape_prefix, 3)
+    return ecef_flat.reshape(*shape_prefix, 3)  # pylint: disable=E1101
 
 
 def get_nadir_rotation(state: np.ndarray, nadir_axis: str = "x+") -> np.ndarray:
@@ -272,7 +273,7 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     for name, (min_lat, max_lat) in zip(latitude_band_names, latitude_band_edges):
         mask = (lat_flat >= min_lat) & (lat_flat < max_lat)
         lat_bands[mask] = name
-        assert ~np.any(seen_mask & mask)
+        assert np.logical_not(np.any(seen_mask & mask))
         seen_mask |= mask
     assert np.all(seen_mask)
 
@@ -289,12 +290,13 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     utm_zones = np.char.zfill(utm_zones.astype("S2"), 2)
 
     mgrs_regions = np.full(valid_indices.shape, b"", dtype="S3")
+    # pylint: disable=E1137
     mgrs_regions[valid_indices] = np.char.add(utm_zones, lat_bands)
     return mgrs_regions
 
 
 @cache
-def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
+def get_mgrs_grid() -> dict[str, tuple[float, float, float, float]]:
     """
     Generate a grid of MGRS (Military Grid Reference System) coordinates.
     Note that keys corresponding to single digit region identifiers have a leading zero (e.g. "01C").
@@ -302,10 +304,10 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     Returns:
         A dictionary mapping MGRS region identifiers to a tuple containing (min_lon, min_lat, max_lon, max_lat).
     """
-    LON_STEP = 6
-    LAT_STEP = 8
-    lons: np.ndarray = np.arange(-180, 180, LON_STEP)
-    lats: np.ndarray = np.arange(-80, 80, LAT_STEP)
+    lon_step = 6
+    lat_step = 8
+    lons: np.ndarray = np.arange(-180, 180, lon_step)
+    lats: np.ndarray = np.arange(-80, 80, lat_step)
     lon_labels = np.arange(1, 61)
     lat_labels = list("CDEFGHJKLMNPQRSTUVWX")
     mgrs_grid = {}
@@ -314,13 +316,13 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
             mgrs_grid[str(lon_label).zfill(2) + lat_label] = (
                 lons[j],
                 lats[i],
-                lons[j] + LON_STEP,
-                lats[i] + LAT_STEP,
+                lons[j] + lon_step,
+                lats[i] + lat_step,
             )
 
-    for i in lon_labels:
+    for i in lon_labels:  # pylint: disable=E1133
         idx = str(i).zfill(2) + "X"
-        mgrs_grid[idx] = (lons[i - 1], 72, lons[i - 1] + LON_STEP, 84)
+        mgrs_grid[idx] = (lons[i - 1], 72, lons[i - 1] + lon_step, 84)
     mgrs_grid["31V"] = (0, 56, 3, 64)
     mgrs_grid["32V"] = (3, 56, 12, 64)
     mgrs_grid["31X"] = (0, 72, 9, 84)
@@ -344,7 +346,7 @@ def get_mgrs_region_dimensions(region_id: str) -> tuple[float, float, float]:
     Returns:
         A tuple containing (region_height, region_top_width, region_bottom_width) for the specified region.
     """
-    min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+    min_lon, min_lat, max_lon, max_lat = get_mgrs_grid()[region_id]
 
     region_height = (np.abs(max_lat - min_lat) / 360) * 2 * np.pi * R_EARTH
     region_top_width = (
@@ -367,7 +369,7 @@ def get_mgrs_region_area(region_id: str) -> float:
     Returns:
         The area of the specified region in square meters.
     """
-    min_lon, min_lat, max_lon, max_lat = get_MGRS_grid()[region_id]
+    min_lon, min_lat, max_lon, max_lat = get_mgrs_grid()[region_id]
 
     # Taking the definite integral of R_EARTH**2 * cos(lat) dlat dlon over the region yields the following formula.
     return (

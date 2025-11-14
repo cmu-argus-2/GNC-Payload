@@ -1,3 +1,7 @@
+"""
+Test earth image simulation.
+"""
+
 from time import perf_counter
 
 import numpy as np
@@ -27,7 +31,7 @@ def sweep_lat_lon_test() -> None:
     latitudes = np.linspace(-90, 90, 90)
     longitudes = np.linspace(-180, 180, 90)
 
-    lat_lon = np.stack(np.meshgrid(latitudes, longitudes), axis=-1)
+    lat_lon: np.ndarray = np.stack(np.meshgrid(latitudes, longitudes), axis=-1)
     ecef_positions = lat_lon_to_ecef(lat_lon)
     ecef_positions *= (R_EARTH + 600e3) / R_EARTH
 
@@ -49,7 +53,8 @@ def sweep_lat_lon_test() -> None:
         if np.all(simulated_image == 0):
             empty_indices.append((i, j))
         else:
-            print(f"Nonempty image at index ({i}, {j}), lat/lon: {lat_lon[i, j, :]}")
+            lat_lon_val = lat_lon[i, j, :]  # pylint: disable=E1136
+            print(f"Nonempty image at index ({i}, {j}), lat/lon: {lat_lon_val}")
 
     print(f"{len(empty_indices)}/{total} images are empty")
     print(f"Empty images at indices: {empty_indices}")

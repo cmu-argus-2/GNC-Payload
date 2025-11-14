@@ -135,9 +135,8 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
     img_letters: np.ndarray[str] = np.full(lat_lon.shape[0], "", dtype=str)
     for letter in "ABCD":
         img_min_lon, img_max_lon = IMG_LON_BOUNDS[letter]
-        img_letters[(img_min_lon <= lat_lon[:, 1]) & (lat_lon[:, 1] < img_max_lon)] = (
-            letter  # pylint: disable=E1137
-        )
+        # pylint: disable=E1137
+        img_letters[(img_min_lon <= lat_lon[:, 1]) & (lat_lon[:, 1] < img_max_lon)] = letter
     assert np.all(img_letters != ""), "Longitude out of bounds."
 
     img_numbers = np.where(lat_lon[:, 0] >= 0, "1", "2")

@@ -9,11 +9,11 @@ import cv2
 import numpy as np
 from cv2.typing import MatLike
 
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_grid
 
 FOLDER = "bm1k"
 OUTFOLDER = "bm1k_regions"
-grid = get_MGRS_grid()
+grid = get_mgrs_grid()
 MIN_LAT = -90
 MAX_LAT = 90
 MIN_LON = -180

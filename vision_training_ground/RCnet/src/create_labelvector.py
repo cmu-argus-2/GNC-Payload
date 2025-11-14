@@ -11,7 +11,7 @@ import torch
 from tqdm import tqdm
 
 from utils.config_utils import MAIN_CONFIG_PATH, load_config
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_grid
 from vision_inference.logger import Logger
 
 
@@ -88,7 +88,7 @@ def main(root_dir: str, salient_regions: list[str]) -> None:
     """
     salient_regions = sorted(salient_regions)
     region_indices = {region: i for i, region in enumerate(salient_regions)}
-    mgrs_grid = get_MGRS_grid()
+    mgrs_grid = get_mgrs_grid()
     boundaries = precompute_region_boundaries(salient_regions, mgrs_grid)
     k, x0 = calculate_sigmoid_params(0.2, 0.05, 0.3, 0.95)
 

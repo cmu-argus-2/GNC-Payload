@@ -39,6 +39,7 @@ class EKFDynamics(Dynamics):
     This class contains the EKF dynamics functions. It inherits from the basic Dynamics class.
     """
 
+    # pylint: disable=R0917
     def __init__(
         self,
         config: dict,

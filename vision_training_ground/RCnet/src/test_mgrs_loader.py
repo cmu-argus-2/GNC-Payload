@@ -1,6 +1,7 @@
 """
 Test MGRS loader.
 """
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,7 +10,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
-from utils.earth_utils import get_MGRS_grid
+from utils.earth_utils import get_mgrs_grid
 
 
 def calculate_sigmoid_params(x1: float, y1: float, x2: float, y2: float) -> dict[str, float]:
@@ -36,11 +37,12 @@ def load_lat_lon_arrays(lat_lon_filepath: str) -> tuple[np.ndarray, np.ndarray]:
     """
     # Load using memory mapping for efficiency
     start = time.time()
-    lat_lon_data = np.load(lat_lon_filepath, mmap_mode="r")
+    lat_lon_data: dict[str, np.ndarray] = np.load(lat_lon_filepath, mmap_mode="r")
     print(f"Loaded lat/lon data in {time.time() - start:.2f} seconds")
 
     # Extract lat and lon arrays in parallel
     with ThreadPoolExecutor(max_workers=2) as executor:
+        # pylint: disable=W0108,E1136
         future_lat = executor.submit(lambda: lat_lon_data["lat_lon"][:, :, 0].copy())
         future_lon = executor.submit(lambda: lat_lon_data["lat_lon"][:, :, 1].copy())
 
@@ -50,6 +52,7 @@ def load_lat_lon_arrays(lat_lon_filepath: str) -> tuple[np.ndarray, np.ndarray]:
 
     print(f"Extracted lat/lon arrays in {time.time() - start:.2f} seconds total")
     return lat_array, lon_array
+
 
 # pylint: disable=R0914
 def process_image_and_labels(
@@ -90,7 +93,7 @@ def process_image_and_labels(
     sigmoid_params = calculate_sigmoid_params(0.2, 0.05, 0.3, 0.95)
     print(f"Sigmoid parameters: {sigmoid_params}")
     # Get MGRS grid and prepare salient boundaries
-    mgrs_grid = get_MGRS_grid()
+    mgrs_grid = get_mgrs_grid()
     salient_boundaries = {}
     for region in sal_regions:
         if region in mgrs_grid:
