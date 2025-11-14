@@ -25,7 +25,7 @@ from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_region_area
 from vision_inference.landmark_detector import LandmarkDetector
-from VisionTrainingGround.LD.run_saliency_analysis import SALIENCY_MAP_FILE_NAME
+from vision_training_ground.LD.run_saliency_analysis import SALIENCY_MAP_FILE_NAME
 
 BOUNDING_BOXES_VISUALIZATION_FILE_NAME = "bounding_boxes.png"
 

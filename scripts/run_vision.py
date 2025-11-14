@@ -35,7 +35,8 @@ What the script will generate:
                     - landmarks_<timestep>_<camera_name>.npz
 
 How to use:
-    python run_vision.py --name <experiment_name> --timestep <timestep> [--num_workers <n>] [--batch_ld <n>] [--batch_rc <n>]
+    python run_vision.py --name <experiment_name> --timestep <timestep> 
+    [--num_workers <n>] [--batch_ld <n>] [--batch_rc <n>]
 
 Required arguments:
     --name: Experiment name used to organize inputs and outputs
@@ -55,7 +56,8 @@ Output Files:
     - class_ids: (N,) array of landmark class IDs
     - region_ids: (N,) array of region IDs
     - confidences: (N,) array of detection confidences
-- landmarks_<timestep>_<camera_name>.npz: Binary files containing bearing vectors and landmark positions for each image with arrays for:
+- landmarks_<timestep>_<camera_name>.npz: Binary files containing bearing vectors 
+    and landmark positions for each image with arrays for:
     - bearing_vectors: (N,3) array of bearing unit vectors in body frame
     - landmark_positions: (N,3) array of landmark positions in ECI frame
 """
@@ -71,7 +73,7 @@ import numpy as np
 from brahe.epoch import Epoch
 
 from sensors.camera_model import CameraModel, CameraModelManager
-from utils.brahe_utils import increment_epoch, load_brahe_data_files
+from utils.brahe_utils import increment_epoch  # , load_brahe_data_files
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef
 from vision_inference.landmark_detector import LandmarkDetections, LandmarkDetector
@@ -112,7 +114,7 @@ def run_region_classification(args: argparse.Namespace, output_dir: str) -> Dict
 
 
 def run_landmark_detection(
-    args: argparse.Namespace, output_dir: str, RC_results: Dict[str, List[str]]
+    args: argparse.Namespace, output_dir: str, rc_results: Dict[str, List[str]]
 ) -> Dict[str, Dict]:
     """
     Run landmark detection on images based on their classified regions.
@@ -130,7 +132,7 @@ def run_landmark_detection(
     total_images = 0
 
     # Process each region's images
-    for region, image_paths in RC_results.items():
+    for region, image_paths in rc_results.items():
         if not image_paths:  # Skip regions with no images
             continue
 
@@ -142,7 +144,7 @@ def run_landmark_detection(
             detector = LandmarkDetector(region_id=region)
 
             # Run batch detection
-            LD_results = detector.png_detect_landmarks(
+            ld_results = detector.png_detect_landmarks(
                 png_paths=[
                     os.path.join(output_dir, args.name, INPUT_DIR, str(args.timestep), img_path)
                     for img_path in image_paths
@@ -151,14 +153,14 @@ def run_landmark_detection(
             )
 
             # Count landmarks detected in this region
-            region_landmark_count = sum(len(detections) for detections in LD_results.values())
+            region_landmark_count = sum(len(detections) for detections in ld_results.values())
             total_landmarks += region_landmark_count
             Logger.log("INFO", f"Detected {region_landmark_count} landmarks in region {region}")
 
-            for img_name, detections in LD_results.items():
+            for img_name, detections in ld_results.items():
                 detections_by_image[img_name].append(detections)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             Logger.log("ERROR", f"Failed to process region {region}: {e}")
 
     for img_name, detections in detections_by_image.items():
@@ -166,7 +168,8 @@ def run_landmark_detection(
 
     Logger.log(
         "INFO",
-        f"Landmark detection complete: {total_landmarks} landmarks detected across {total_images} images in {len(detections_by_image)} regions",
+        f"Landmark detection complete: {total_landmarks} landmarks detected"
+        + f" across {total_images} images in {len(detections_by_image)} regions",
     )
     return detections_by_image
 
@@ -203,8 +206,8 @@ def process_landmark_to_bearing(
 
 
 def save_region_classification_results(
-    RC_reg2img: Dict[str, List[str]],
-    RC_img2reg: Dict[str, List[str]],
+    rc_reg2img: Dict[str, List[str]],
+    rc_img2reg: Dict[str, List[str]],
     output_dir: str,
     args: argparse.Namespace,
 ) -> None:
@@ -223,17 +226,17 @@ def save_region_classification_results(
     os.makedirs(save_dir, exist_ok=True)
 
     # Save both dictionaries as JSON
-    with open(os.path.join(save_dir, "region_to_images.json"), "w") as f:
-        json.dump(RC_reg2img, f)
+    with open(os.path.join(save_dir, "region_to_images.json"), "w", encoding="utf-8") as f:
+        json.dump(rc_reg2img, f)
 
-    with open(os.path.join(save_dir, "image_to_regions.json"), "w") as f:
-        json.dump(RC_img2reg, f)
+    with open(os.path.join(save_dir, "image_to_regions.json"), "w", encoding="utf-8") as f:
+        json.dump(rc_img2reg, f)
 
     Logger.log("INFO", f"Region classification results saved to {save_dir}")
 
 
 def save_landmark_detections(
-    LD_results: Dict[str, LandmarkDetections], output_dir: str, args: argparse.Namespace
+    ld_results: Dict[str, LandmarkDetections], output_dir: str, args: argparse.Namespace
 ) -> None:
     """
     Save landmark detection results to binary files efficiently.
@@ -252,7 +255,7 @@ def save_landmark_detections(
     os.makedirs(save_dir, exist_ok=True)
 
     landmarks_detected = False
-    for img_name, detections in LD_results.items():
+    for img_name, detections in ld_results.items():
         if len(detections) == 0:
             continue
 
@@ -276,10 +279,11 @@ def save_landmark_detections(
     if landmarks_detected:
         Logger.log(
             "INFO",
-            f"Saved landmark detection results for {len(LD_results)} images to {save_dir}",
+            f"Saved landmark detection results for {len(ld_results)} images to {save_dir}",
         )
 
 
+# pylint: disable=R0913,R0917
 def save_bearing_vectors_and_positions(
     bearing_unit_vectors_body: np.ndarray,
     landmark_positions_eci: np.ndarray,
@@ -287,7 +291,7 @@ def save_bearing_vectors_and_positions(
     experiment_name: str,
     timestep: int,
     camera_name: str,
-):
+) -> None:
     """
     Save bearing unit vectors and landmark positions to a single NPZ file.
 
@@ -322,6 +326,7 @@ def save_bearing_vectors_and_positions(
     )
     Logger.log("INFO", f"  - Bearing vectors: {len(bearing_unit_vectors_body)}")
     Logger.log("INFO", f"  - Landmark positions: {len(landmark_positions_eci)}")
+    return file_path
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -355,6 +360,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# pylint: disable=R0914
 def main():
     """Main entry point."""
     args = parse_arguments()
@@ -367,11 +373,11 @@ def main():
             f"Output directory {output_basedir} does not exist. Please create it first."
         )
 
-    RC_reg2img, RC_img2reg = run_region_classification(args, config["output_dir"])
+    rc_reg2img, rc_img2reg = run_region_classification(args, config["output_dir"])
 
     # Print summary
     Logger.log(
-        "INFO", f"Region classification completed. Found {len(RC_reg2img)} images with regions."
+        "INFO", f"Region classification completed. Found {len(rc_reg2img)} images with regions."
     )
 
     # # Optionally display first few results
@@ -382,29 +388,29 @@ def main():
     #         if i >= 4:
     #             break
 
-    save_region_classification_results(RC_reg2img, RC_img2reg, config["output_dir"], args)
+    save_region_classification_results(rc_reg2img, rc_img2reg, config["output_dir"], args)
 
     rc_dir = os.path.join(output_basedir, OUTPUT_DIR, str(args.timestep), "region_classification")
 
     # Load region to images mapping
-    with open(os.path.join(rc_dir, "region_to_images.json"), "r") as f:
-        RC_reg2img = json.load(f)
-    LD_results = run_landmark_detection(args, config["output_dir"], RC_reg2img)
+    with open(os.path.join(rc_dir, "region_to_images.json"), "r", encoding="utf-8") as f:
+        rc_reg2img = json.load(f)
+    ld_results = run_landmark_detection(args, config["output_dir"], rc_reg2img)
 
     # Print landmark detection summary
-    if LD_results:
+    if ld_results:
         # Count images with landmarks
         images_with_landmarks = 0
         # Count only images that have at least one landmark detection
-        images_with_landmarks = sum(1 for detections in LD_results.values() if len(detections) > 0)
+        images_with_landmarks = sum(1 for detections in ld_results.values() if len(detections) > 0)
 
         Logger.log(
             "INFO",
-            f"Found landmarks in {images_with_landmarks} images across {len(LD_results)} regions",
+            f"Found landmarks in {images_with_landmarks} images across {len(ld_results)} regions",
         )
 
         # Print example of landmark detection results
-        for img_name, detections in list(LD_results.items())[:2]:
+        for img_name, detections in list(ld_results.items())[:2]:
             if len(detections) > 0:
                 Logger.log(
                     "INFO",
@@ -414,7 +420,7 @@ def main():
                 )
                 break
 
-    save_landmark_detections(LD_results, config["output_dir"], args)
+    save_landmark_detections(ld_results, config["output_dir"], args)
 
     # Initialize camera models
     camera_manager = CameraModelManager()
@@ -427,10 +433,10 @@ def main():
 
     # Load the experiment parameters once
     try:
-        with open(f"{output_basedir}/args.json", "r") as jsonfile:
+        with open(f"{output_basedir}/args.json", "r", encoding="utf-8") as jsonfile:
             arg_data = json.load(jsonfile)
     except Exception as e:
-        raise ValueError(f"Error loading args.json for experiment {output_basedir}: {e}")
+        raise ValueError(f"Error loading args.json for experiment {output_basedir}: {e}") from e
 
     # Get the starting epoch and time step from args
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(arg_data["start_date"]))
@@ -439,7 +445,7 @@ def main():
     # Process each image with detections to generate bearing vectors and positions
     bearing_paths = []
 
-    for image_name, detections in LD_results.items():
+    for image_name, detections in ld_results.items():
         # Skip images with no detections
         if len(detections) == 0:
             continue

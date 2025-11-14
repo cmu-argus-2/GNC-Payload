@@ -1,3 +1,7 @@
+"""
+Blue marble image downloader.
+"""
+
 import argparse
 import os
 from itertools import product
@@ -57,11 +61,12 @@ def download_image(url: str, output_path: str, max_retries=100) -> None:
     """
     # get file metadata
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        " (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
         "Accept-Encoding": "identity",
         "Connection": "keep-alive",
     }
-    response = requests.head(url, headers=headers)
+    response = requests.head(url, headers=headers, timeout=100)
     response.raise_for_status()
     total_length = response.headers.get("content-length")
     assert total_length is not None
@@ -110,7 +115,10 @@ def main():
         dataset_section_id = dataset_id[:2] + "000"
         for letter, number in product("ABCD", range(1, 3)):
             image_section_id = f"{letter}{number}"
-            url = f"{BASE_URL}/{dataset_section_id}/{dataset_id}/world.2004{(i + 1):02d}.{RESOLUTION}.{image_section_id}.png"
+            url = (
+                f"{BASE_URL}/{dataset_section_id}/{dataset_id}/world."
+                f"2004{(i + 1):02d}.{RESOLUTION}.{image_section_id}.png"
+            )
             output_path = os.path.join(month_dir, f"{letter}{number}.png")
 
             print(f"Downloading: {month_name} {image_section_id}")

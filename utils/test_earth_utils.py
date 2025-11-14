@@ -26,11 +26,11 @@ def test_geodetic_conversion() -> None:
 
     # Compute differences
     lat_diff: np.ndarray = (
-        lat_lon[:, :, 0] - lat_lon_reconstructed[:, :, 0]
-    )  # pylint: disable=E1136
+        lat_lon[:, :, 0] - lat_lon_reconstructed[:, :, 0]  # pylint: disable=E1136
+    )
     lon_diff: np.ndarray = (
-        lat_lon[:, :, 1] - lat_lon_reconstructed[:, :, 1]
-    )  # pylint: disable=E1136
+        lat_lon[:, :, 1] - lat_lon_reconstructed[:, :, 1]  # pylint: disable=E1136
+    )
 
     # Print maximum differences
     print("Maximum latitude difference (degrees):", np.max(np.abs(lat_diff)))

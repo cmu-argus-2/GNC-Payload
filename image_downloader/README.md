@@ -42,7 +42,7 @@ Available commands:
 * ```-o, --outpath```: Specify the directory to put imagery in. Default is 'images'.
 * ```-r, --region```: Custom region name for naming files. Required if using custom bounds. Defaults to ```--grid_key``` argument if not specified.
 * ```-sd, --seed```: Seed for replicating downloads and random mosaics. 
-* ```-c, --crs```: Specifies coordinate reference system if specific CRS desired. 
+* ```-c, --crs```: Specifies CRS (coordinate reference system) if specific CRS desired. 
 * ```-cc, --cloud_cover_max```: Float that specifies maximum percentage of cloud cover in each image. Defaults to 40.0.
 * ```-ccgt, --cloud_cover_min```: Float that specifices minimum percentage of cloud cover in each image. Defaults to 0.0.
 * ```-ba, --bands```: Specifies bands to include in image download. Defaults to RGB which is B4 B3 B2.

@@ -32,6 +32,7 @@ IMG_LON_BOUNDS = {
 }
 
 
+# pylint: disable=R0914
 def get_blue_marble_img(
     month: str, img_name: str, query_bounds: Tuple[float, float, float, float] | None = None
 ) -> Tuple[np.ndarray, Affine]:
@@ -111,6 +112,7 @@ def get_blue_marble_img(
     return roi, transform
 
 
+# pylint: disable=R0914
 def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None) -> np.ndarray:
     """
     Query the colors of the pixels at the given latitudes and longitudes.
@@ -130,10 +132,12 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
     shape_prefix = lat_lon.shape[:-1]
     lat_lon = lat_lon.reshape(-1, 2)
 
-    img_letters = np.full(lat_lon.shape[0], "", dtype=str)
+    img_letters: np.ndarray[str] = np.full(lat_lon.shape[0], "", dtype=str)
     for letter in "ABCD":
         img_min_lon, img_max_lon = IMG_LON_BOUNDS[letter]
-        img_letters[(img_min_lon <= lat_lon[:, 1]) & (lat_lon[:, 1] < img_max_lon)] = letter
+        img_letters[(img_min_lon <= lat_lon[:, 1]) & (lat_lon[:, 1] < img_max_lon)] = (
+            letter  # pylint: disable=E1137
+        )
     assert np.all(img_letters != ""), "Longitude out of bounds."
 
     img_numbers = np.where(lat_lon[:, 0] >= 0, "1", "2")
@@ -142,6 +146,7 @@ def query_blue_marble_pixel_colors(lat_lon: np.ndarray, month: str | None = None
     pixel_colors = np.zeros((lat_lon.shape[0], 3), dtype=np.uint8)
     for img_name in set(img_names):
         img_lat_lon = lat_lon[img_names == img_name, :]
+        # pylint: disable=E0633
         img_query_min_lat, img_query_min_lon = np.min(img_lat_lon, axis=0)
         img_query_max_lat, img_query_max_lon = np.max(img_lat_lon, axis=0)
 

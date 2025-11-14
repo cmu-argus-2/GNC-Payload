@@ -1,3 +1,7 @@
+"""
+Create label vectors.
+"""
+
 import argparse
 import os
 import time
@@ -43,8 +47,17 @@ def precompute_region_boundaries(
     return boundaries
 
 
-def compute_label(lat_lon_path: str, salient_boundaries, region_indices, k, x0):
-    """ """
+# pylint: disable=R0914
+def compute_label(
+    lat_lon_path: str,
+    salient_boundaries: dict[str, tuple[float, float, float, float]],
+    region_indices: dict[str, int],
+    k: float,
+    x0: float,
+) -> np.ndarray:
+    """
+    Function to compute labels.
+    """
     with np.load(lat_lon_path, mmap_mode="r") as lat_lon_data:
         start = time.time()
         lat_lon_array = lat_lon_data["lat_lon"]

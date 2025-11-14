@@ -251,7 +251,7 @@ def get_and_download_url(index: int) -> None:
     else:
         ext = ".png"
     out_name = args.sensor + "_" + region_name + "_" + str(index).zfill(5) + ext
-    r = requests.get(url, stream=True)
+    r = requests.get(url, stream=True, timeout=1000)
     if r.status_code != 200:
         r.raise_for_status()
     with open(os.path.join(out_path, out_name), "wb") as out_file:
@@ -335,7 +335,7 @@ collection = get_collection(
     cloud_cover_max=args.cloud_cover_max,
     date_sort=True,
 )
-
+im_list = []
 if not args.custom_mosaics:
     # Process region composite of specified region
     if args.region_composite:
@@ -349,17 +349,19 @@ if not args.custom_mosaics:
         )
         composite = ee.Algorithms.Landsat.simpleComposite(collection).select("B4", "B3", "B2")
         composite = composite.divide(0.3).toByte()
-        out_name = args.sensor + "_" + region_name + "_composite"
+        output_name = args.sensor + "_" + region_name + "_composite"
         if not args.crs:
-            crs = "EPSG:4326"
+            CRS = "EPSG:4326"
+        else:
+            CRS = args.crs
         task_config = {
             "scale": scale,
             "fileFormat": out_format,
             "region": region_rect,
             "driveFolder": out_path,  # TODO: allow specifying folder to put this in
-            "crs": crs,
+            "crs": CRS,
         }
-        task = ee.batch.Export.image(composite, out_name, task_config)
+        task = ee.batch.Export.image(composite, output_name, task_config)
         task_list.append(task)
     # Make region mosaic of specified region
     elif args.region_mosaic:
@@ -380,7 +382,7 @@ if not args.custom_mosaics:
             if args.sensor == "s2":
                 MULTIPLIER = MULTIPLIER * 0.0001
             im = collection_with_random_column.mosaic().multiply(MULTIPLIER).toByte()
-            out_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
+            output_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
             task_config = {
                 "scale": scale,
                 "fileFormat": out_format,
@@ -388,7 +390,7 @@ if not args.custom_mosaics:
                 "driveFolder": out_path,
                 "crs": "EPSG:4326",
             }
-            task = ee.batch.Export.image(im, out_name, task_config)
+            task = ee.batch.Export.image(im, output_name, task_config)
             task_list.append(task)
             im_list.append(im)
         im_list = ee.List(im_list)
@@ -397,27 +399,26 @@ if not args.custom_mosaics:
     elif args.sensor in ("l8", "l9"):
         collection = collection.filterBounds(region_rect)
         collection_size = collection.size().getInfo()
-        if collection_size < max_ims:
-            max_ims = collection_size
+        max_ims = max(max_ims, collection_size)
         im_list = collection.toList(max_ims)
         if args.gdrive:
             task_list = []
             for i in range(max_ims):
                 im = ee.Image(im_list.get(i))
                 if args.crs:
-                    crs = args.crs
+                    coord_ref_sys = args.crs
                 else:
-                    crs = im.select(0).projection().crs().getInfo()
+                    coord_ref_sys = im.select(0).projection().crs().getInfo()
                 im = im.multiply(255 / 0.3).toByte()
                 im = im.clip(im.geometry())
-                out_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
+                output_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
                 task_config = {
                     "scale": scale,
                     "fileFormat": out_format,
-                    "crs": crs,
+                    "crs": coord_ref_sys,
                     "driveFolder": out_path,
                 }
-                task = ee.batch.Export.image.toDrive(im, out_name, **task_config)
+                task = ee.batch.Export.image.toDrive(im, output_name, **task_config)
                 task_list.append(task)
 
     # Process sentinel sensor.
@@ -431,11 +432,11 @@ if not args.custom_mosaics:
                 seed = np.random.randint(100000)
             points = get_points_in_region(region_rect, max_ims, scale, np.random.randint(100000))
             if args.grid_key is None:
-                proj = "EPSG:4326"
+                PROJ = "EPSG:4326"
             elif args.grid_key[-1] <= "M":
-                proj = "EPSG:327" + args.grid_key[:-1]
+                PROJ = "EPSG:327" + args.grid_key[:-1]
             else:
-                proj = "EPSG:326" + args.grid_key[:-1]
+                PROJ = "EPSG:326" + args.grid_key[:-1]
             for i, point in enumerate(points):
                 # Create custom rectangle around point and filter collection
                 clip_rect = make_rectangle(point, 185000 / 2)
@@ -450,15 +451,15 @@ if not args.custom_mosaics:
                     MULTIPLIER = MULTIPLIER * 0.0001
                 im = collection_with_random_column.mosaic().multiply(MULTIPLIER).toByte()
                 rect_im = im.clip(clip_rect)
-                out_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
+                output_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
                 task_config = {
                     "scale": scale,
                     "fileFormat": out_format,
                     "region": clip_rect,
                     "driveFolder": out_path,
-                    "crs": proj,
+                    "crs": PROJ,
                 }
-                task = ee.batch.Export.image(rect_im, out_name, task_config)
+                task = ee.batch.Export.image(rect_im, output_name, task_config)
                 task_list.append(task)
         else:
             im_list = []
@@ -500,11 +501,11 @@ else:
     # Get random points in region
     points = get_points_in_region(region_rect, max_ims, scale, np.random.randint(100000))
     if args.grid_key is None:
-        proj = "EPSG:4326"
+        PROJ = "EPSG:4326"
     elif args.grid_key[-1] <= "M":
-        proj = "EPSG:327" + args.grid_key[:-1]
+        PROJ = "EPSG:327" + args.grid_key[:-1]
     else:
-        proj = "EPSG:326" + args.grid_key[:-1]
+        PROJ = "EPSG:326" + args.grid_key[:-1]
     for i, point in enumerate(points):
         # Create custom rectangle around point and filter collection
         clip_rect = make_rectangle(point, args.horizontal_buffer, args.vertical_buffer)
@@ -519,15 +520,15 @@ else:
             MULTIPLIER = MULTIPLIER * 0.0001
         im = collection_with_random_column.mosaic().multiply(MULTIPLIER).toByte()
         rect_im = im.clip(clip_rect)
-        out_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
+        output_name = args.sensor + "_" + region_name + "_" + str(i).zfill(5)
         task_config = {
             "scale": scale,
             "fileFormat": out_format,
             "region": clip_rect,
             "driveFolder": out_path,
-            "crs": proj,
+            "crs": PROJ,
         }
-        task = ee.batch.Export.image(rect_im, out_name, task_config)
+        task = ee.batch.Export.image(rect_im, output_name, task_config)
         task_list.append(task)
     im_list = ee.List(im_list)
 

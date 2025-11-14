@@ -1,3 +1,7 @@
+"""
+General function utils.
+"""
+
 from typing import Callable, ParamSpec, TypeVar
 
 P = ParamSpec("P")

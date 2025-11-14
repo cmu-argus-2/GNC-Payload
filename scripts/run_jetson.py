@@ -41,8 +41,7 @@ import quaternion
 
 from dynamics.ekf_dynamics import EKFDynamics
 from orbit_determination.ekf import EKF
-from orbit_determination.landmark_bearing_sensors import (
-    GroundTruthLandmarkBearingSensor,
+from orbit_determination.landmark_bearing_sensors import (  # GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
     SimulatedMLStoredLandmarkBearingSensor,
 )
@@ -51,7 +50,8 @@ from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import USER_CONFIG_PATH, load_config
-from utils.orbit_utils import is_over_daytime
+
+# from utils.orbit_utils import is_over_daytime
 from vision_inference.logger import Logger
 
 # from brahe import Epoch
@@ -76,29 +76,30 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_simulation(args: argparse.Namespace) -> None:
+# pylint: disable=R0915
+def run_simulation(args2: argparse.Namespace) -> None:
     """
     Run the simulation.
 
-    :param args: The command line arguments.
+    :param args2: The command line arguments.
 
     :return: None
     """
 
     user_config = load_config(USER_CONFIG_PATH)
-    output_basedir = os.path.join(user_config["output_directory"], args.name)
+    output_basedir = os.path.join(user_config["output_directory"], args2.name)
     # Load json
     try:
         with open(os.path.join(output_basedir, "args.json"), "r", encoding="utf-8") as jsonfile:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
-        raise ValueError(f"Error in args.json in {args.name}: {e}") from e
+        raise ValueError(f"Error in args.json in {args2.name}: {e}") from e
 
     # Check that if a name was provided it matches the one in the json file
     assert (
-        arg_data["name"] == args.name
-    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args.name}"
+        arg_data["name"] == args2.name
+    ), f"Name in args.json does not match the provided name: {arg_data['name']} != {args2.name}"
 
     f = arg_data["frequency"]
     mission_duration = arg_data["duration"]
@@ -125,14 +126,14 @@ def run_simulation(args: argparse.Namespace) -> None:
     data_dir = os.path.join(output_basedir, "ground_truth.npz")
     if not os.path.exists(data_dir):
         raise FileNotFoundError(f"Ground truth data file {data_dir} does not exist.")
-    data: dict = np.load(data_dir)
+    data: dict[str, np.ndarray] = np.load(data_dir)
+    # pylint: disable=E1136
     trajectory_gt = data["trajectory"]
     attitude_gt = data["attitude"]
     daytime_gt = data["daytime"]
 
     # Set the initial rotation matrix to identity
-
-    data_manager.push_next_state(trajectory_gt[0], attitude_gt[0])
+    data_manager.push_next_state(trajectory_gt[0], attitude_gt[0], angular_velocity)
 
     # Apply error to init_rot and ensure orthonormality
     noisy_rot = attitude_gt[0] + np.random.normal(0, 1e-2, (3, 3))
@@ -146,11 +147,13 @@ def run_simulation(args: argparse.Namespace) -> None:
     # Set the number of update iterations for the IEKF
     num_iter = 5
 
-    # Set up scaling parameter for the unmodelled acceleration
-    ua_scale = 10
-
-    # Set up scaling parameter for gyro bias
-    gyro_bias_scale = 2
+    # Set up scaling parameters
+    position_scale = 1e-3  # position [km]
+    velocity_scale = 1e2  # velocity [km/s]
+    ua_scale = 1e8  # unmodelled acceleration [km/s^2]
+    drag_scalar_scale = 1  # drag scalar
+    axisangle_scale = 1e1  # axis-angle scaling for quaternion
+    gyro_bias_scale = 1e2  # gyro bias scaling
 
     # Fix a constant rotation velocity for the test.
     rot = np.array(angular_velocity)
@@ -186,6 +189,14 @@ def run_simulation(args: argparse.Namespace) -> None:
         use_sun_grav=False,
     )
     # ua_scale=ua_scale,
+    variable_scaling = np.array(
+        [position_scale] * 3  # r
+        + [velocity_scale] * 3  # v
+        + [ua_scale] * 3  # ua
+        + [drag_scalar_scale]  # drag
+        + [axisangle_scale] * 3  # quaternion
+        + [gyro_bias_scale] * 3  # gyro bias
+    )
 
     # Initialize IMU and EKF
     imu = IMU.get_default_imu(dt)
@@ -194,7 +205,7 @@ def run_simulation(args: argparse.Namespace) -> None:
         # error ranges are in meters and m/s
         r=trajectory_gt[0][0:3] + np.random.normal(0, 5000, 3),
         v=trajectory_gt[0][3:6] + np.random.normal(0, 10, 3),
-        ua=np.random.normal(0, 1e-5, 3) * ua_scale,
+        ua=np.zeros(3),  # np.random.normal(0, init_ua_std, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
@@ -202,7 +213,7 @@ def run_simulation(args: argparse.Namespace) -> None:
         config=config,
         ekf_dynamics=ekf_dynamics,
         w_b=gyro_bias,
-        gyro_bias_scale=gyro_bias_scale,
+        state_scaling=variable_scaling,
     )
 
     pos_state = []
@@ -225,7 +236,7 @@ def run_simulation(args: argparse.Namespace) -> None:
         imu_gyro_bias = imu.get_bias()[0]
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
-        data_manager.push_next_state(trajectory_gt[t], attitude_gt[t])
+        data_manager.push_next_state(trajectory_gt[t], attitude_gt[t], w)
 
         # if t % meas_rate == 0 and is_over_daytime(
         #     data_manager.latest_epoch, data_manager.latest_state[:3]
@@ -237,10 +248,11 @@ def run_simulation(args: argparse.Namespace) -> None:
                     "python3",
                     "scripts/run_vision.py",
                     "--name",
-                    args.name,
+                    args2.name,
                     "--timestep",
                     str(t),
-                ]
+                ],
+                check=False,
             )
 
             # Take measurements with the landmark bearing sensor

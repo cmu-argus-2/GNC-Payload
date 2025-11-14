@@ -7,6 +7,7 @@ from multiprocessing import Pool
 
 import cv2
 import numpy as np
+from cv2.typing import MatLike
 
 from utils.earth_utils import get_MGRS_grid
 
@@ -29,7 +30,7 @@ def save_regions(file: str) -> None:
     """
     Save regions.
     """
-    im = cv2.imread(os.path.join(FOLDER, file))
+    im: MatLike = cv2.imread(os.path.join(FOLDER, file))
     for key, value in grid.items():
         left, bottom, right, top = value
         left = left - MIN_LON
@@ -41,6 +42,7 @@ def save_regions(file: str) -> None:
         top_px = bottom / LAT_PER_PIX
         bottom_px = top / LAT_PER_PIX
         print(bottom_px, top_px, left_px, right_px)
+        # pylint: disable=E1136
         reg_im = im[int(bottom_px) : int(top_px), int(left_px) : int(right_px)]
         cv2.imwrite(os.path.join(OUTFOLDER, file[:-4], key + ".jpg"), reg_im)
         print(file, key, "done")

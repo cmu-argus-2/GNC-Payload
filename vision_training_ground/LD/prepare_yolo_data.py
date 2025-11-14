@@ -49,9 +49,9 @@ from utils.earth_utils import lat_lon_to_ecef
 from utils.function_utils import unpack_and_call
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.logger import Logger
-from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
-from VisionTrainingGround.LD.run_saliency_analysis import get_common_file_name_prefixes
-from VisionTrainingGround.LD.select_bounding_boxes import BOUNDING_BOXES_VISUALIZATION_FILE_NAME
+from vision_training_ground.DataPipeline.generate_training_data import GeotaggedImage
+from vision_training_ground.LD.run_saliency_analysis import get_common_file_name_prefixes
+from vision_training_ground.LD.select_bounding_boxes import BOUNDING_BOXES_VISUALIZATION_FILE_NAME
 
 LD_TRAINING_DIR_NAME = "LD_training"
 YOLO_CONFIG_FILE_NAME = "dataset.yaml"

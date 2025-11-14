@@ -3,6 +3,7 @@ import numpy as np
 from brahe import GM_EARTH, R_EARTH, Epoch
 
 from utils.earth_utils import lat_lon_to_ecef
+from utils.math_utils import skew
 
 
 def is_over_daytime(epoch: Epoch, cubesat_position: np.ndarray) -> bool:
@@ -49,11 +50,13 @@ def get_max_sso_latitude(altitude: float) -> float:
     return 180 - inclination
 
 
+# pylint: disable=R0914
 def get_sso_orbit_state(
     epoch: Epoch, latitude: float, longitude: float, altitude: float, northwards: bool = True
 ) -> np.ndarray:
     """
-    Computes the state vector for a circular sun-synchronous orbit at the given epoch, latitude, longitude, and altitude.
+    Computes the state vector for a circular sun-synchronous orbit at the given epoch, latitude, longitude,
+    and altitude.
 
     :param epoch: The epoch at which the satellite is at the specified location and the state vector is computed.
     :param latitude: The latitude of the satellite in degrees.
@@ -79,16 +82,14 @@ def get_sso_orbit_state(
     z_hat = np.array([0, 0, 1])
     z_perp = z_hat - np.dot(z_hat, r_hat) * r_hat
     z_perp_hat = z_perp / np.linalg.norm(z_perp)
-    west_hat = np.cross(r_hat, z_perp_hat)
-
-    """
-    The orbital normal vector can be represented in this basis as follows:
-    n_hat = alpha * z_perp_hat + beta * west_hat + 0 * r_hat
-    To match the inclination condition, we need np.dot(n_hat, z_hat) = cos_inclination.
-    Note that z_perp_hat is a linear combination of r_hat and z_hat, and west_hat is perpendicular to both r_hat and z_perp_hat;
-    thus, west_hat is perpendicular to z_hat (i.e. np.dot(west_hat, z_hat) = 0).
-    Thus, cos_inclination = np.dot(n_hat, z_hat) = alpha * np.dot(z_perp_hat, z_hat).
-    """
+    west_hat = skew(r_hat) @ z_perp_hat
+    # The orbital normal vector can be represented in this basis as follows:
+    # n_hat = alpha * z_perp_hat + beta * west_hat + 0 * r_hat
+    # To match the inclination condition, we need np.dot(n_hat, z_hat) = cos_inclination.
+    # Note that z_perp_hat is a linear combination of r_hat and z_hat, and west_hat is perpendicular
+    # to both r_hat and z_perp_hat;
+    # thus, west_hat is perpendicular to z_hat (i.e. np.dot(west_hat, z_hat) = 0).
+    # Thus, cos_inclination = np.dot(n_hat, z_hat) = alpha * np.dot(z_perp_hat, z_hat).
     alpha = cos_inclination / np.dot(z_perp_hat, z_hat)
     if np.abs(alpha) > 1:
         inclination = np.rad2deg(np.arccos(cos_inclination))
@@ -103,8 +104,8 @@ def get_sso_orbit_state(
     normal_2_hat = alpha * z_perp_hat - beta * west_hat
 
     v_magnitude = np.sqrt(GM_EARTH / a)
-    v_1 = v_magnitude * np.cross(normal_1_hat, r_hat)
-    v_2 = v_magnitude * np.cross(normal_2_hat, r_hat)
+    v_1 = v_magnitude * skew(normal_1_hat) @ r_hat
+    v_2 = v_magnitude * skew(normal_2_hat) @ r_hat
     is_v1_northbound = v_1[2] > 0
     is_v2_northbound = v_2[2] > 0
 

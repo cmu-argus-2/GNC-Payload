@@ -29,6 +29,7 @@ class EKF:
     Extended Kalman Filter
     """
 
+    # pylint: disable=R0917
     def __init__(
         self,
         r: np.ndarray,
@@ -154,6 +155,7 @@ class EKF:
         self.v_m = self.v_p
         self.P_m = self.P_p
 
+    # pylint: disable=R0917
     def measurement(
         self,
         z: List[np.ndarray],
@@ -252,6 +254,7 @@ class EKF:
         # Convert final iterated rotation vector to quaternion
         self.q_m = quaternion.as_float_array(quaternion.from_rotation_vector(self.q_m))
 
+    # pylint: disable=R0917
     def h_jac(
         self,
         z: np.ndarray,
@@ -277,6 +280,7 @@ class EKF:
 
         return jac
 
+    # pylint: disable=R0917
     def h_est(
         self,
         z: np.ndarray,

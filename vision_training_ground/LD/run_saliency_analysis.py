@@ -28,7 +28,7 @@ from tqdm import tqdm
 from image_simulation.earth_vis import GeoTIFFData
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_region_dimensions
-from VisionTrainingGround.DataPipeline.generate_training_data import GeotaggedImage
+from vision_training_ground.DataPipeline.generate_training_data import GeotaggedImage
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"
 
