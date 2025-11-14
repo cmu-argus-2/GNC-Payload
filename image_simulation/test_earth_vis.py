@@ -9,13 +9,18 @@ from tqdm import trange
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
 from utils.earth_utils import get_nadir_rotation, lat_lon_to_ecef
+from utils.math_utils import skew
 from vision_inference.frame import Frame
 
 CONTIGUOUS_US_CENTER_LAT_LON = np.array([39.8283, -98.5795])
 FLORIDA_17R_CENTER_LAT_LON = np.array([32.0, -81.0])
 
 
-def sweep_lat_lon_test():
+# pylint: disable=R0914
+def sweep_lat_lon_test() -> None:
+    """
+    Sweep latitude and longitude test.
+    """
     simulator = EarthImageSimulator()
     camera_model_manager = CameraModelManager()
 
@@ -49,7 +54,7 @@ def sweep_lat_lon_test():
     print(f"{len(empty_indices)}/{total} images are empty")
     print(f"Empty images at indices: {empty_indices}")
 
-    with open("empty_images.txt", "w") as f:
+    with open("empty_images.txt", "w", encoding="utf-8") as f:
         f.write(str(empty_indices))
 
 
@@ -83,6 +88,9 @@ def simulate_image(
     altitude: float = 6000e3,
     display_image: bool = True,
 ) -> Frame:
+    """
+    Simulate images.
+    """
     simulator = EarthImageSimulator()
     camera_model_manager = CameraModelManager()
 
@@ -90,7 +98,7 @@ def simulate_image(
     ecef_position *= (R_EARTH + altitude) / np.linalg.norm(ecef_position)
 
     # choose a velocity vector that results in north pointing upwards in the image
-    ecef_velocity = np.cross(np.array([0, 0, 1]), ecef_position)
+    ecef_velocity = skew(np.array([0, 0, 1])) @ ecef_position
     ecef_R_body = get_nadir_rotation(np.concatenate((ecef_position, ecef_velocity)))
 
     start_time = perf_counter()

@@ -12,8 +12,11 @@ from brahe.constants import R_EARTH
 
 from .math_utils import skew
 
+# pylint: disable=E1136
+
 
 # TODO: use brahe constants instead of hardcoding
+# pylint: disable=
 def ecef_to_lat_lon(
     intersection_points: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
 ) -> np.ndarray:  # pylint: disable=too-many-locals
@@ -301,8 +304,8 @@ def get_MGRS_grid() -> dict[str, tuple[float, float, float, float]]:
     """
     LON_STEP = 6
     LAT_STEP = 8
-    lons = np.arange(-180, 180, LON_STEP)
-    lats = np.arange(-80, 80, LAT_STEP)
+    lons: np.ndarray = np.arange(-180, 180, LON_STEP)
+    lats: np.ndarray = np.arange(-80, 80, LAT_STEP)
     lon_labels = np.arange(1, 61)
     lat_labels = list("CDEFGHJKLMNPQRSTUVWX")
     mgrs_grid = {}

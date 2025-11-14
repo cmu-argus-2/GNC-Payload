@@ -58,6 +58,7 @@ def compute_label(
     """
     Function to compute labels.
     """
+    # pylint: disable=E1129
     with np.load(lat_lon_path, mmap_mode="r") as lat_lon_data:
         start = time.time()
         lat_lon_array = lat_lon_data["lat_lon"]

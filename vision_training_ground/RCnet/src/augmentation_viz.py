@@ -1,15 +1,24 @@
+"""
+Visualize augmentations.
+"""
+
 import os
 from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
+
+# import torch
 from PIL import Image, ImageFilter
 from torchvision import transforms
 
 
-# Define the DirectionalBlur transformation
+# pylint: disable=R0903
 class DirectionalBlur:
+    """
+    Directional Blur class. Defines the DirectionalBlur transformation
+    """
+
     def __init__(self, velocity: float, angular_velocity: float) -> None:
         self.velocity: float = velocity
         self.angular_velocity: float = angular_velocity
@@ -25,6 +34,7 @@ class DirectionalBlur:
             int(original_size[0] * 1.5),
             int(original_size[1] * 1.5),
         )  # Increase canvas size by 50%
+        # pylint: disable=E1101
         img = img.resize(expanded_size, Image.BICUBIC)
 
         # Rotate to align blur direction
@@ -47,8 +57,8 @@ class DirectionalBlur:
 
 
 # Define transformations with DirectionalBlur
-velocity = 3  # Example input velocity
-angular_velocity = 0  # Example input angular velocity
+VELOCITY = 3  # Example input velocity
+ANGULAR_VELOCITY = 0  # Example input angular velocity
 
 train_transform = transforms.Compose(
     [
@@ -56,7 +66,7 @@ train_transform = transforms.Compose(
         transforms.RandomRotation(10),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
         transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
-        DirectionalBlur(velocity, angular_velocity),
+        DirectionalBlur(VELOCITY, ANGULAR_VELOCITY),
         transforms.ToTensor(),
     ]
 )
@@ -66,6 +76,9 @@ train_transform = transforms.Compose(
 def get_files_in_range(
     folder_path: str, start_index: int, end_index: int, extension: str = ".tif"
 ) -> List[str]:
+    """
+    Get files in range.
+    """
     all_files = sorted(f for f in os.listdir(folder_path) if f.endswith(extension))
     selected_files = all_files[start_index : end_index + 1]
     return [os.path.join(folder_path, file) for file in selected_files]
@@ -73,6 +86,9 @@ def get_files_in_range(
 
 # Function to visualize original and augmented images
 def visualize_augmentations(image_paths: List[str]) -> None:
+    """
+    Visualize augmentations.
+    """
     for image_path in image_paths:
         # Load the image
         original_image = Image.open(image_path).convert("RGB")
@@ -84,7 +100,7 @@ def visualize_augmentations(image_paths: List[str]) -> None:
         augmented_image = transforms.ToPILImage()(augmented_image)
 
         # Plot side-by-side comparison
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        _, axes = plt.subplots(1, 2, figsize=(10, 5))
         axes[0].imshow(original_image)
         axes[0].set_title("Original Image")
         axes[0].axis("off")
@@ -98,12 +114,12 @@ def visualize_augmentations(image_paths: List[str]) -> None:
 
 
 # Specify the folder and range
-folder_path = "Landsat_Data/53L"
-start_index = 0  # Start index (inclusive)
-end_index = 1  # End index (inclusive)
+FOLDER_PATH = "Landsat_Data/53L"
+START_INDEX = 0  # Start index (inclusive)
+END_INDEX = 1  # End index (inclusive)
 
 # Get the list of files in the specified range
-image_files = get_files_in_range(folder_path, start_index, end_index)
+image_files = get_files_in_range(FOLDER_PATH, START_INDEX, END_INDEX)
 
 # Run the visualization
 visualize_augmentations(image_files)

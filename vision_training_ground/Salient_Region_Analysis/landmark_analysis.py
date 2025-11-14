@@ -7,17 +7,18 @@ import os
 from argparse import Namespace
 from multiprocessing import Pool, cpu_count
 
-import cv2
 import numpy as np
+from cv2 import cv2
+from cv2.typing import MatLike
 
 from utils.earth_utils import get_MGRS_grid
 
 scales = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
-consolidated_maps_path = "bm1k_consolidated_maps"
-prioritized_regions_path = "prioritized_regions.csv"
-landmarks_path = "landmarks"
-landmarks_visualization_path = "landmarks/visualizations"
-landmarks_pixel_path = "landmarks/pixels"
+CONSOLIDATED_MAPS_PATH = "bm1k_consolidated_maps"
+PRIORITIZED_REGIONS_PATH = "prioritized_regions.csv"
+LANDMARKS_PATH = "landmarks"
+LANDMARKS_VISUALIZATION_PATH = "landmarks/visualizations"
+LANDMARKS_PIXEL_PATH = "landmarks/pixels"
 CALCULATE_LANDMARKS = None
 VISUALIZE_LANDMARKS = None
 
@@ -51,22 +52,23 @@ def parse_args() -> Namespace:
     return parser.parse_args()
 
 
-def landmarks_at_scale(region: str, scale: int) -> list[list[float]]:
+def landmarks_at_scale(region_id: str, scale: int) -> list[list[float]]:
     """
     Docstring.
     """
-    im = cv2.imread("bm1k_consolidated_maps/" + region + ".jpg")
+    im: MatLike = cv2.imread("bm1k_consolidated_maps/" + region_id + ".jpg")
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     # kernel = np.ones((scale, scale), np.uint8) / (scale * scale)
     # old_sal = None
     overall_max = None
     landmark_list = []
-    height, width = im.shape
+    height, width = im.shape  # pylint: disable=E1101
     while 1:
         maxsum = 0.0
+        max_loc = (0, 0)
         for i in range(width - scale + 1):
             for j in range(height - scale + 1):
-                cursum = im[j : j + scale, i : i + scale].sum()
+                cursum = im[j : j + scale, i : i + scale].sum()  # pylint: disable=E1136
                 if cursum > maxsum:
                     maxsum = cursum
                     max_loc = (i, j)  # x, y
@@ -76,6 +78,7 @@ def landmarks_at_scale(region: str, scale: int) -> list[list[float]]:
         # max_loc = np.unravel_index(max_loc, filtered.shape)
         # print(max_loc)
         # max_val = filtered.max()
+        # pylint: disable=E1137
         im[max_loc[1] : max_loc[1] + scale, max_loc[0] : max_loc[0] + scale] = 0
         # im[max_loc[0]:max_loc[0]+scale, max_loc[1]:max_loc[1]+scale] = 0
         # if old_sal is None:
@@ -91,34 +94,39 @@ def landmarks_at_scale(region: str, scale: int) -> list[list[float]]:
     return landmark_list
 
 
-def visualize_landmarks(region: str, landmarks: list[tuple[float, float, float, float]]) -> None:
+def visualize_landmarks(
+    region_id: str, landmark_list: list[tuple[float, float, float, float]]
+) -> None:
     """
     Visualize landmarks.
     """
-    if not os.path.exists(landmarks_path):
-        os.makedirs(landmarks_path)
-    if not os.path.exists(landmarks_visualization_path):
-        os.makedirs(landmarks_visualization_path)
-    im = cv2.imread("bm1k_regions/world_jun/" + region + ".jpg")
-    for landmark in landmarks:
-        x, y, scale, saliency = landmark
+    if not os.path.exists(LANDMARKS_PATH):
+        os.makedirs(LANDMARKS_PATH)
+    if not os.path.exists(LANDMARKS_VISUALIZATION_PATH):
+        os.makedirs(LANDMARKS_VISUALIZATION_PATH)
+    im = cv2.imread("bm1k_regions/world_jun/" + region_id + ".jpg")
+    for landmark_i in landmark_list:
+        x, y, scale, _ = landmark_i
         cv2.rectangle(im, (x, y), (x + scale, y + scale), (0, 255, 0), 1)
-    cv2.imwrite(landmarks_visualization_path + "/" + region + "_" + args.suffix + ".jpg", im)
-    cv2.imshow(region, im)
+    cv2.imwrite(LANDMARKS_VISUALIZATION_PATH + "/" + region_id + "_" + args.suffix + ".jpg", im)
+    cv2.imshow(region_id, im)
 
 
 def get_absolute_landmarks(
-    region: str, landmarks: list[tuple[float, float, float, float]]
+    region_id: str, landmark_list: list[tuple[float, float, float, float]]
 ) -> list[list[float]]:
-    bounds = get_MGRS_grid()[region]
-    reg_im = cv2.imread("bm1k_regions/world_jun/" + region + ".jpg")
-    reg_im_height, reg_im_width = reg_im.shape[:2]
+    """
+    Get absolute landmarks.
+    """
+    bounds = get_MGRS_grid()[region_id]
+    reg_im: MatLike = cv2.imread("bm1k_regions/world_jun/" + region_id + ".jpg")
+    reg_im_height, reg_im_width = reg_im.shape[:2]  # pylint: disable=E1101
     minx, miny, maxx, maxy = bounds
     lon_per_pix = (maxx - minx) / reg_im_width
     lat_per_pix = (maxy - miny) / reg_im_height
-    absolute_landmarks = []
-    for landmark in landmarks:
-        x, y, scale, saliency = landmark
+    absolute_landmark_list = []
+    for landmark_i in landmark_list:
+        x, y, scale, saliency = landmark_i
         x2, y2 = x + scale, y + scale
         x_min_lon = minx + x * lon_per_pix
         x_max_lon = minx + x2 * lon_per_pix
@@ -126,7 +134,7 @@ def get_absolute_landmarks(
         y_max_lat = maxy - y * lat_per_pix
         x_center_lon = (x_min_lon + x_max_lon) / 2
         y_center_lat = (y_min_lat + y_max_lat) / 2
-        absolute_landmarks.append(
+        absolute_landmark_list.append(
             [
                 x_center_lon,
                 y_center_lat,
@@ -138,7 +146,7 @@ def get_absolute_landmarks(
                 saliency,
             ]
         )
-    return absolute_landmarks
+    return absolute_landmark_list
 
 
 args = parse_args()
@@ -158,21 +166,23 @@ if __name__ == "__main__":
             landmarks = pool.starmap(landmarks_at_scale, [(region, scale) for scale in scales])
             landmarks_array = np.concatenate(landmarks, axis=0)
             np.save(
-                landmarks_pixel_path + "/" + region + "_pixel_landmarks" + args.suffix + ".npy",
+                LANDMARKS_PIXEL_PATH + "/" + region + "_pixel_landmarks" + args.suffix + ".npy",
                 landmarks_array,
             )
             absolute_landmarks = get_absolute_landmarks(
                 region,
                 np.load(
-                    landmarks_pixel_path + "/" + region + "_pixel_landmarks" + args.suffix + ".npy"
+                    LANDMARKS_PIXEL_PATH + "/" + region + "_pixel_landmarks" + args.suffix + ".npy"
                 ),
             )
             np.save(
-                landmarks_path + "/" + region + "_landmarks" + args.suffix + ".npy",
+                LANDMARKS_PATH + "/" + region + "_landmarks" + args.suffix + ".npy",
                 absolute_landmarks,
             )
             with open(
-                landmarks_path + "/" + region + "_landmarks" + args.suffix + ".csv", "w"
+                LANDMARKS_PATH + "/" + region + "_landmarks" + args.suffix + ".csv",
+                "w",
+                encoding="utf-8",
             ) as f:
                 f.write(
                     "x_center_lon,y_center_lat,x_min_lon,y_min_lat,x_max_lon,y_max_lat,scale,saliency\n"
@@ -186,6 +196,6 @@ if __name__ == "__main__":
             visualize_landmarks(
                 region,
                 np.load(
-                    landmarks_pixel_path + "/" + region + "_pixel_landmarks" + args.suffix + ".npy"
+                    LANDMARKS_PIXEL_PATH + "/" + region + "_pixel_landmarks" + args.suffix + ".npy"
                 ),
             )

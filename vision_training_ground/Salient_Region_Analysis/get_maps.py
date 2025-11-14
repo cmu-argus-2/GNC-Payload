@@ -1,8 +1,13 @@
+"""
+Get region and clpud maps.
+"""
+
 import os
 from multiprocessing import Pool
 
 import cv2
 import numpy as np
+from cv2.typing import MatLike
 
 from utils.earth_utils import get_MGRS_grid
 
@@ -10,6 +15,7 @@ FOLDER = "bm1k_regions"
 OUTFOLDER = "bm1k_maps"
 CONSFOLDER = "bm1k_consolidated_maps"
 CLOUDFOLDER = "cloud_maps"
+# pylint: disable=I1101
 saliency = cv2.saliency.StaticSaliencyFineGrained_create()
 SAVEMAP = False
 CONSOLIDATE = True
@@ -35,8 +41,8 @@ def consolidate_region_maps(region: str) -> None:
     reg_im = None
     for month in MONTHS:
         if reg_im is None:
-            im = cv2.imread(os.path.join(OUTFOLDER, "world_" + month, region + ".jpg"))
-            reg_im = np.zeros(im.shape, dtype=np.float32)
+            im: MatLike = cv2.imread(os.path.join(OUTFOLDER, "world_" + month, region + ".jpg"))
+            reg_im = np.zeros(im.shape, dtype=np.float32)  # pylint: disable=E1101
         else:
             reg_im += cv2.imread(os.path.join(OUTFOLDER, "world_" + month, region + ".jpg"))
     reg_im = reg_im / len(MONTHS)
@@ -54,7 +60,7 @@ def consolidate_clouds() -> None:
     for cloudmap in cloudmaps:
         if conscloud is None:
             im = cv2.imread(os.path.join(CLOUDFOLDER, cloudmap))
-            conscloud = np.zeros(im.shape, dtype=np.float32)
+            conscloud = np.zeros(im.shape, dtype=np.float32)  # pylint: disable=E1101
         else:
             conscloud += cv2.imread(os.path.join(CLOUDFOLDER, cloudmap))
     conscloud = conscloud / len(cloudmaps)
@@ -63,6 +69,9 @@ def consolidate_clouds() -> None:
 
 
 def one_month(month: str) -> None:
+    """
+    Creates folder for and calls the function to save the map for the input month.
+    """
     if not os.path.exists(os.path.join(OUTFOLDER, "world_" + month)):
         os.mkdir(os.path.join(OUTFOLDER, "world_" + month))
     for file in os.listdir(os.path.join(FOLDER, "world_" + month)):

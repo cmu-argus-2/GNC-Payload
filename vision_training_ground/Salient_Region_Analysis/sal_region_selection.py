@@ -1,3 +1,7 @@
+"""
+Salient Region Selection.
+"""
+
 from typing import List
 
 import pandas as pd
@@ -5,6 +9,9 @@ import pandas as pd
 
 # Helper function to check if two MGRS labels share an edge or corner
 def is_adjacent(label1: str, label2: str) -> bool:
+    """
+    Check if salient regions are adjacent.
+    """
     # Extract number and letter from the MGRS labels
     num1, letter1 = int(label1[:-1]), label1[-1]
     num2, letter2 = int(label2[:-1]), label2[-1]
@@ -26,6 +33,9 @@ def is_adjacent(label1: str, label2: str) -> bool:
 
 # Function to select labels based on value and adjacency conditions
 def select_mgrs_labels(csv_file: str, n: int = 0) -> List[str]:
+    """
+    Select mgrs (military grid reference system) labels.
+    """
     # Read the CSV file
     df = pd.read_csv(csv_file)
 
@@ -46,7 +56,7 @@ def select_mgrs_labels(csv_file: str, n: int = 0) -> List[str]:
     # Loop through the rest of the rows and pick the second highest, respecting the conditions
     for _, row in df.iloc[1:].iterrows():
         label = row["Label"]
-        value = row["Value"]
+        # value = row["Value"]
         number_part = label[:-1]  # Extract the number part
 
         # Check if the number part has already been picked

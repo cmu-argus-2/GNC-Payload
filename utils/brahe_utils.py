@@ -29,7 +29,7 @@ def load_brahe_data_files() -> None:
         print("Updating Brahe data files. Might take a minute ...")
         brahe.utils.download_all_data(brahe_directory + "/data")
     # pylint: disable=bare-except
-    except Exception as e:
+    except Exception as e:  # pylint: disable=W0718
         print(f"One or the other files always errors out. Not a problem though. Exception: {e}")
 
 
@@ -40,5 +40,5 @@ def load_brahe_data_files_if_needed() -> None:
     config = load_config()
     try:
         _ = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
-    except Exception:
+    except Exception:  # pylint: disable=W0718
         load_brahe_data_files()

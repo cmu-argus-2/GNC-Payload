@@ -1,3 +1,6 @@
+"""
+Test MGRS loader.
+"""
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -27,13 +30,13 @@ def custom_sigmoid(x: float, sigmoid_params: dict[str, float]) -> float:
     return 1 / (1 + np.exp(-k * (x - x0)))
 
 
-def load_lat_lon_arrays(lat_lon_path: str) -> tuple[np.ndarray, np.ndarray]:
+def load_lat_lon_arrays(lat_lon_filepath: str) -> tuple[np.ndarray, np.ndarray]:
     """
     Load latitude and longitude arrays.
     """
     # Load using memory mapping for efficiency
     start = time.time()
-    lat_lon_data = np.load(lat_lon_path, mmap_mode="r")
+    lat_lon_data = np.load(lat_lon_filepath, mmap_mode="r")
     print(f"Loaded lat/lon data in {time.time() - start:.2f} seconds")
 
     # Extract lat and lon arrays in parallel
@@ -48,11 +51,13 @@ def load_lat_lon_arrays(lat_lon_path: str) -> tuple[np.ndarray, np.ndarray]:
     print(f"Extracted lat/lon arrays in {time.time() - start:.2f} seconds total")
     return lat_array, lon_array
 
-
+# pylint: disable=R0914
 def process_image_and_labels(
-    img_path: str, lat_lon_path: str, salient_regions: list[str]
+    img_filepath: str, lat_lon_filepath: str, sal_regions: list[str]
 ) -> tuple[Image.Image,]:
-    """ """
+    """
+    Process image and labels.
+    """
     # Load image
     transform = transforms.Compose(
         [
@@ -68,16 +73,16 @@ def process_image_and_labels(
         ]
     )
     print("Transformations applied")
-    img = Image.open(img_path).convert("RGB")
+    img = Image.open(img_filepath).convert("RGB")
     print("Loaded Image")
     img = transform(img)
     print("Transformed Image")
     # Load lat/lon data
-    lat_lon_data = np.load(lat_lon_path, mmap_mode="r")
+    # lat_lon_data = np.load(lat_lon_path, mmap_mode="r")
     print("Loaded lat/lon data")
     # lat_array = lat_lon_data['lat_lon'][:, :, 0]
     # lon_array = lat_lon_data['lat_lon'][:, :, 1]
-    lat_array, lon_array = load_lat_lon_arrays(lat_lon_path)
+    lat_array, lon_array = load_lat_lon_arrays(lat_lon_filepath)
     print("Extracted lat/lon arrays")
     total_pixels = lat_array.size
     print(f"Total pixels: {total_pixels}")
@@ -87,7 +92,7 @@ def process_image_and_labels(
     # Get MGRS grid and prepare salient boundaries
     mgrs_grid = get_MGRS_grid()
     salient_boundaries = {}
-    for region in salient_regions:
+    for region in sal_regions:
         if region in mgrs_grid:
             min_lon, min_lat, max_lon, max_lat = mgrs_grid[region]
             salient_boundaries[region] = (min_lon, min_lat, max_lon, max_lat)
@@ -110,8 +115,8 @@ def process_image_and_labels(
             region_counts[region] = pixel_count
     print(f"Region counts: {region_counts}")
     # Create multi-hot encoded vector with sigmoid transformation
-    lbl_vector = torch.zeros(len(salient_regions), dtype=torch.float32)
-    salient_region_indices = {region: i for i, region in enumerate(salient_regions)}
+    lbl_vector = torch.zeros(len(sal_regions), dtype=torch.float32)
+    salient_region_indices = {region: i for i, region in enumerate(sal_regions)}
 
     for region, count in region_counts.items():
         if region in salient_region_indices:
@@ -131,9 +136,9 @@ def process_image_and_labels(
 # Example usage
 if __name__ == "__main__":
     # Define paths
-    base_path = "/mnt/sdb2/training2/10S/"
-    img_path = base_path + "00028.png"
-    lat_lon_path = base_path + "00028_lat_lon.npz"  # "/home/argus/Arvind/00000_lat_lon.npz"
+    BASE_PATH = "/mnt/sdb2/training2/10S/"
+    IMG_PATH = BASE_PATH + "00028.png"
+    LAT_LON_PATH = BASE_PATH + "00028_lat_lon.npz"  # "/home/argus/Arvind/00000_lat_lon.npz"
 
     # Define salient regions
     salient_regions = [
@@ -181,7 +186,7 @@ if __name__ == "__main__":
     salient_regions = sorted(salient_regions)
 
     # Process the image and get labels
-    image, label_vector = process_image_and_labels(img_path, lat_lon_path, salient_regions)
+    image, label_vector = process_image_and_labels(IMG_PATH, LAT_LON_PATH, salient_regions)
 
     # Print results
     print(f"Image size: {image.size}")

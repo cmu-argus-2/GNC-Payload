@@ -66,10 +66,11 @@ def get_gpu_power_usage() -> float:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            check=False,
         )
         power = float(result.stdout.strip())
         return power
-    except Exception as e:
+    except Exception as e:  # pylint: disable=W0718
         print(f"Error fetching GPU power usage: {e}")
         return 0.0
 

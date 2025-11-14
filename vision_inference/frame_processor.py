@@ -17,6 +17,7 @@ from typing import List, Sequence
 
 import cv2
 import numpy as np
+from cv2.typing import MatLike
 
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
@@ -42,8 +43,10 @@ def process_for_ml_pipeline(
     suitable_frames = []
     for frame_obj in frames:
         try:
-            gray_frame = cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2GRAY)
-            dark_percentage = np.sum(gray_frame < brightness_threshold) / np.prod(gray_frame.shape)
+            gray_frame: MatLike = cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2GRAY)
+            dark_percentage = np.sum(gray_frame < brightness_threshold) / np.prod(
+                gray_frame.shape  # pylint: disable=E1101
+            )
             if dark_percentage <= dark_threshold:
                 suitable_frames.append(frame_obj)
         except Exception as e:
@@ -76,8 +79,10 @@ def process_for_star_tracker(
     suitable_frames = []
     for frame_obj in frames:
         try:
-            gray_frame = cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2GRAY)
-            dark_percentage = np.sum(gray_frame < brightness_threshold) / np.prod(gray_frame.shape)
+            gray_frame: MatLike = cv2.cvtColor(frame_obj.image, cv2.COLOR_BGR2GRAY)
+            dark_percentage = np.sum(gray_frame < brightness_threshold) / np.prod(
+                gray_frame.shape  # pylint: disable=E1101
+            )
             if dark_percentage > dark_threshold:
                 suitable_frames.append(frame_obj)
         except Exception as e:

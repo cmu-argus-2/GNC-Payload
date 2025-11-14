@@ -37,7 +37,7 @@ else:
     ee.Initialize()
 
 
-def get_region_filter_from_bounds(bounds, get_rect=True):
+def get_region_filter_from_bounds(bounds: list[float], get_rect: bool = True):
     """
     Creates a filter for a given geographical rectangle defined by longitude and latitude bounds.
 
@@ -65,7 +65,7 @@ def get_region_filter_from_bounds(bounds, get_rect=True):
     return region_filter_from_bounds
 
 
-def get_date_filter(i_date, f_date):
+def get_date_filter(i_date: str, f_date: str) -> ee.filter:
     """
     Creates a date filter for selecting images within a specified date range.
 

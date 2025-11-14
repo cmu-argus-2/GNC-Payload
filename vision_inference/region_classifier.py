@@ -25,6 +25,9 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
+# Import tqdm for progress tracking
+from tqdm import tqdm
+
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
@@ -84,6 +87,9 @@ class RegionClassifier:
         )
 
         self.region_ids = RegionClassifier.load_region_ids()
+        self.images_dir: str = None
+        self.dataset: ImageSimInference = None
+        self.dataloader: DataLoader = None
 
     @staticmethod
     def get_model_weights_path() -> str:
@@ -170,6 +176,7 @@ class RegionClassifier:
             self.dataset, batch_size=16, shuffle=False, num_workers=num_workers
         )
 
+    # pylint: disable=R0914
     def classify_region_batch(
         self, images_dir: str, num_workers: int = 0
     ) -> tuple[dict[str, List[str]], dict[str, List[str]]]:
@@ -198,14 +205,11 @@ class RegionClassifier:
             reg2img = defaultdict(list)
             batch_start_time = perf_counter()
 
-            # Import tqdm for progress tracking
-            from tqdm import tqdm
-
             total_batches = len(self.dataloader)
 
             # Process each batch with tqdm progress bar
             with torch.no_grad():
-                for batch_idx, (images, paths) in tqdm(
+                for _, (images, paths) in tqdm(
                     enumerate(self.dataloader),
                     total=total_batches,
                     desc="Classifying regions",
@@ -231,7 +235,8 @@ class RegionClassifier:
             total_time = perf_counter() - batch_start_time
             Logger.log(
                 "INFO",
-                f"Batch classification completed. Processed {len(self.dataset)} images, and classified {len(img2reg)} of them in {total_time:.2f} seconds",
+                f"Batch classification completed. Processed {len(self.dataset)} images,"
+                + f" and classified {len(img2reg)} of them in {total_time:.2f} seconds",
             )
             return reg2img, img2reg
 

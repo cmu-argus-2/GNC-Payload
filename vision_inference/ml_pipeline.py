@@ -19,6 +19,7 @@ from typing import List, Tuple
 
 import cv2
 import numpy as np
+from cv2.typing import MatLike
 
 from vision_inference.frame import Frame
 from vision_inference.landmark_detector import LandmarkDetections, LandmarkDetector
@@ -247,7 +248,7 @@ class MLPipeline:
             (50, 50, 50),
             -1,
         )
-        image = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
+        image: MatLike = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
 
         # Place metadata text
         cv2.putText(
@@ -286,7 +287,7 @@ class MLPipeline:
             text_entries.append((text, top_legend_y + total_height))
 
         # Draw semi-transparent rectangle for top landmarks
-        overlay = image.copy()
+        overlay = image.copy()  # pylint: disable=E1101
         cv2.rectangle(
             overlay,
             (top_legend_x, top_legend_y),
@@ -317,10 +318,11 @@ class MLPipeline:
                 region, "Unknown Location"
             )  # Get the location name or default to 'Unknown Location'
             text = f"Region {region}: {location}"
+            # pylint: disable=E0633
             (text_width, text_height), _ = cv2.getTextSize(
                 text, font, font_scale_legend, text_thickness_legend
             )
-            overlay = image.copy()
+            overlay = image.copy()  # pylint: disable=E1101
             # Draw a semi-transparent rectangle
             cv2.rectangle(
                 overlay,

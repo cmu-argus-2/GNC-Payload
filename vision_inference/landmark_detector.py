@@ -27,6 +27,7 @@ from typing import Dict, List, Sequence, Tuple
 import cv2
 import numpy as np
 import torch
+from cv2.typing import MatLike
 from more_itertools import batched
 from PIL import Image
 from ultralytics import YOLO
@@ -319,7 +320,7 @@ class LandmarkDetector:
 
         try:
             landmark_detections = []
-            for batch in batched(frames, batch_size):
+            for batch in batched(frames, batch_size):  # pylint: disable=E1133
                 start_time = perf_counter()
                 results_sequence: Sequence[Results] = self.model.predict(
                     # TODO: can we directly pass numpy arrays instead
@@ -404,10 +405,11 @@ class LandmarkDetector:
         for png_path in png_paths:
             try:
                 # Use cv2 to read PNG files
-                image = cv2.imread(png_path)
+                image: MatLike = cv2.imread(png_path)
 
                 if image is None:
                     raise ValueError(f"Failed to load image: {png_path}")
+                # pylint: disable=E1101
                 assert image.ndim == 3 and image.shape[2] == 3, "Image must be RGB"
                 # Convert from BGR to RGB for consistency with the rest of the pipeline
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -422,7 +424,7 @@ class LandmarkDetector:
                 camera_name = parts[-1]
                 frames.append(Frame(image=image, camera_name=camera_name, timestamp=datetime.now()))
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=W0718
                 Logger.log("ERROR", f"Error loading PNG file {png_path}: {e}")
                 results[os.path.basename(png_path)] = LandmarkDetections.empty()
 

@@ -7,7 +7,12 @@ from math import sqrt
 import numpy as np
 
 
+# pylint: disable=R0903
 class BiasParams:
+    """
+    Bias Parameter class.
+    """
+
     def __init__(self, initial_bias: float, sigma_w: float) -> None:
         """
         Parameters for a time-varying bias modeled as a random walk
@@ -36,6 +41,10 @@ class BiasParams:
 
 
 class Bias:
+    """
+    Bias class.
+    """
+
     def __init__(self, dt: float, bias_params: BiasParams) -> None:
         """Initialize a time-varying bias modeled as a random walk
 

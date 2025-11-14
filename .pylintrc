@@ -25,7 +25,8 @@ clear-cache-post-run=no
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
 # run arbitrary code.
-extension-pkg-allow-list=cv2
+extension-pkg-allow-list=cv2,
+                         cv2.saliency
 
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may

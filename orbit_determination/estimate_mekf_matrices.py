@@ -1,5 +1,6 @@
 """
 This script estimates the Q and R matrices for the MEKF.
+State noise compensation.
 """
 
 # pylint: disable=import-error
@@ -92,7 +93,6 @@ if not os.path.exists(TRAJ_DATA_FILE):
         use_moon_grav=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
-        ua_scale=UA_SCALE,
     )
 
     # 1.2. True model for orbit determination
@@ -108,6 +108,16 @@ if not os.path.exists(TRAJ_DATA_FILE):
     # 1.3. define a true state trajectory
     IMU_SENSOR = IMU.get_default_imu(DT)
     IMU_GYRO_BIAS = IMU_SENSOR.get_bias()[0] * GYRO_BIAS_SCALE
+
+    # Set up scaling parameter
+    variable_scaling = np.array(
+        [1e-3] * 3  # r
+        + [1e2] * 3  # v
+        + [1e8] * 3  # ua
+        + [1]  # drag
+        + [1e1] * 3  # quaternion
+        + [1e2] * 3  # gyro bias
+    )
     EKF_FILTER = EKF(
         # error ranges are in meters and m/s
         r=INITIAL_STATE[0:3],
@@ -120,7 +130,7 @@ if not os.path.exists(TRAJ_DATA_FILE):
         config=CONFIG,
         ekf_dynamics=EKF_DYNAMICS,
         w_b=IMU_GYRO_BIAS,
-        gyro_bias_scale=GYRO_BIAS_SCALE,
+        state_scaling=variable_scaling,
     )
     EKF_FILTER.drag_est = GROUND_TRUTH_DYNAMICS.drag_constant(
         x=INITIAL_STATE[0:6], epoch=STARTING_EPOCH

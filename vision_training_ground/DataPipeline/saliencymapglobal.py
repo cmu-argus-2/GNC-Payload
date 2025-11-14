@@ -1,24 +1,33 @@
-import cv2
+"""
+Highlight top n salient regions.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
+from cv2 import cv2
 
 
 def highlight_top_n_salient_regions(image_path: str, top_n: int = 16) -> None:
+    """
+    Function to highlight top n salient regions.
+    """
     # Load the image (Earth image in this case)
     image = cv2.imread(image_path)
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB for visualization
 
     # Initialize the Saliency detection model from OpenCV
+    # pylint: disable=I1101
     saliency = cv2.saliency.StaticSaliencyFineGrained_create()
 
     # Compute the saliency map (returns a saliency map in the range [0, 255])
-    success, saliency_map = saliency.computeSaliency(image)
+    _, saliency_map = saliency.computeSaliency(image)
 
     # Normalize the saliency map to range [0, 1] for better visualization
     saliency_map = saliency_map.astype(np.float32)
     saliency_map = cv2.normalize(saliency_map, None, 0, 1, cv2.NORM_MINMAX)
 
     # Convert the saliency map to a binary mask
+    # pylint: disable=E0633
     _, binary_mask = cv2.threshold(saliency_map, 0.5, 1, cv2.THRESH_BINARY)
 
     # Find contours in the saliency map

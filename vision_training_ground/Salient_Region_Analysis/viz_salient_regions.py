@@ -1,6 +1,11 @@
+"""
+Visualize salient regions.
+"""
+
 import cv2
-import numpy as np
-import pandas as pd
+
+# import numpy as np
+# import pandas as pd
 from sal_region_selection import select_mgrs_labels
 
 from utils.earth_utils import get_MGRS_grid
@@ -22,6 +27,7 @@ def lat_lon_to_pixel(lat: float, lon: float, img_width: int, img_height: int) ->
     return x, y
 
 
+# pylint: disable=R0914
 def highlight_regions(
     image_path: str, output_path: str, regions: dict[str, tuple[float, float, float, float]]
 ) -> None:
@@ -30,7 +36,7 @@ def highlight_regions(
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError("Image not found or invalid format.")
-    img_height, img_width = img.shape[:2]
+    img_height, img_width = img.shape[:2]  # pylint: disable=E1101
 
     # Get MGRS grid information
     grid = get_MGRS_grid()
