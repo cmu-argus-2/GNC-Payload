@@ -1,19 +1,19 @@
 
 # Datasets
-vision_training_ground/RCnet/datasets/train/
-vision_training_ground/RCnet/datasets/val/
-vision_training_ground/RCnet/datasets/test/
+vision_training_ground/rcnet/datasets/train/
+vision_training_ground/rcnet/datasets/val/
+vision_training_ground/rcnet/datasets/test/
 vision_training_ground/Landsat_Data/
 !vision_training_ground/Landsat_Data/.gitkeep
-vision_training_ground/RCnet/results/
-!vision_training_ground/RCnet/results/.gitkeep
+vision_training_ground/rcnet/results/
+!vision_training_ground/rcnet/results/.gitkeep
 vision_training_ground/runs/detect
 
 
 # Salient Region Outputs
-vision_training_ground/Salient_Region_Analysis/highlighted_map_old.jpg
-vision_training_ground/Salient_Region_Analysis/highlighted_map_edited.jpg
-vision_training_ground/Salient_Region_Analysis/highlighted_map.jpg
+vision_training_ground/salient_region_analysis/highlighted_map_old.jpg
+vision_training_ground/salient_region_analysis/highlighted_map_edited.jpg
+vision_training_ground/salient_region_analysis/highlighted_map.jpg
 # User-specific config file
 user_config.yaml
 
