@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 from vision_inference.logger import Logger
 
@@ -143,6 +144,7 @@ class ImageSimInference(Dataset):
 
             # Convert to PIL Image for transforms
             # OpenCV uses BGR format, convert to RGB for PIL
+            # pylint: disable=E1101
             if image.shape[2] == 3:  # Check if it has color channels
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -156,12 +158,10 @@ class ImageSimInference(Dataset):
                 image_tensor = self.transform(pil_image)
             else:
                 # Basic conversion to tensor if no transform is provided
-                from torchvision import transforms
-
                 image_tensor = transforms.ToTensor()(pil_image)
             return image_tensor, image_path
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             Logger.log("ERROR", f"Error loading image {image_path}: {e}")
             # Return a placeholder tensor and the path
             placeholder = torch.zeros((3, 224, 224))
@@ -170,7 +170,7 @@ class ImageSimInference(Dataset):
                 try:
                     dummy_img = Image.new("RGB", (224, 224), color=(0, 0, 0))
                     placeholder = self.transform(dummy_img)
-                except:
+                except:  # pylint: disable=W0702
                     pass
 
             return placeholder, image_path

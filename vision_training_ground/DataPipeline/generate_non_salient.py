@@ -67,7 +67,8 @@ class GeotaggedImage:
         :param region: The MGRS region.
         :param file_prefix: The prefix for the output files.
         :param save_lat_lon: Whether to save the lat/lon coordinates. If False, only the image will be saved.
-        :param custom_dir: Optional custom directory to save the files. If None, the default training directory will be used.
+        :param custom_dir: Optional custom directory to save the files. If None, the default training
+        directory will be used.
         """
         self.assert_invariants()
 
@@ -109,6 +110,7 @@ class GeotaggedImage:
 
         try:
             image = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+            # pylint: disable=E1129
             with np.load(lat_lon_path) as data:
                 lat_lon = data["lat_lon"]
 
@@ -251,6 +253,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+# pylint: disable=R0911
 def setup_region_directory(
     region_dir: str, overwrite: bool, resume: bool, check_corrupted: bool = False
 ) -> bool:
@@ -303,18 +306,14 @@ def setup_region_directory(
         return True
 
     if resume:
-        existing_image_file_names = set(
-            [
-                file_name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
-                for file_name in existing_image_file_names
-            ]
-        )
-        existing_lat_lon_file_names = set(
-            [
-                file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
-                for file_name in existing_lat_lon_file_names
-            ]
-        )
+        existing_image_file_names = {
+            file_name[: -len(GeotaggedImage.IMAGE_SUFFIX)]
+            for file_name in existing_image_file_names
+        }
+        existing_lat_lon_file_names = {
+            file_name[: -len(GeotaggedImage.LAT_LON_SUFFIX)]
+            for file_name in existing_lat_lon_file_names
+        }
 
         # delete files without a counterpart
         for file_name in existing_image_file_names - existing_lat_lon_file_names:
@@ -335,6 +334,7 @@ def setup_region_directory(
     return False
 
 
+# pylint: disable=R0913,R0914,R0917
 def generate_training_image(
     region: str,
     file_prefix: str,
@@ -361,7 +361,8 @@ def generate_training_image(
                                [nominal_altitude - altitude_variation, nominal_altitude + altitude_variation].
     :param off_nadir_variation: The maximum variation in off-nadir angle, in degrees.
     :param save_lat_lon: Whether to save the lat/lon coordinates for each pixel. If False, only the image will be saved.
-    :param custom_dir: Optional custom directory to save the files. If None, the default training directory will be used.
+    :param custom_dir: Optional custom directory to save the files. If None, the default
+    training directory will be used.
     """
     # Without this the seed may be inherited from the calling process, leading to duplicate images
     rng = np.random.default_rng(np.random.SeedSequence(int(time() * 1e6) ^ os.getpid()))
@@ -494,7 +495,7 @@ def main() -> None:
                 desc="Generating images",
             )
             start_time = perf_counter()
-            with open(log_file_path, "w") as log_file:
+            with open(log_file_path, "w", encoding="utf-8") as log_file:
                 log_file.write("Elapsed Time (s), Number of Images Generated\n")
                 for i, _ in enumerate(results_iterator):
                     log_file.write(f"{perf_counter() - start_time}, {i + 1}\n")

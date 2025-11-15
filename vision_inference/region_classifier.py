@@ -158,6 +158,7 @@ class RegionClassifier:
         Logger().log("INFO", f"Inference completed in {inference_time:.2f} seconds.")
         return predicted_region_ids
 
+    # pylint: disable=W0613
     def _prepare_batch_data(self, images_dir: str, num_workers: int = 0) -> None:
         """
         Prepares the data loader for batch image classification.

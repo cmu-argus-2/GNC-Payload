@@ -47,8 +47,7 @@ import quaternion
 
 from dynamics.ekf_dynamics import EKFDynamics
 from orbit_determination.ekf import EKF
-from orbit_determination.landmark_bearing_sensors import (
-    GroundTruthLandmarkBearingSensor,
+from orbit_determination.landmark_bearing_sensors import (  # GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
     SimulatedMLStoredLandmarkBearingSensor,
 )
@@ -79,6 +78,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# pylint: disable=R0915
 def run_simulation(sim_args: argparse.Namespace) -> None:
     """
     Run the simulation.
@@ -89,10 +89,11 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
     """
 
     user_config = load_config(USER_CONFIG_PATH)
+    # pylint: disable=E0606
     output_basedir = os.path.join(user_config["output_dir"], args.name)
     # Load json
     try:
-        with open(os.path.join(output_basedir, "args.json"), "r") as jsonfile:
+        with open(os.path.join(output_basedir, "args.json"), "r", encoding="utf-8") as jsonfile:
             arg_data = json.load(jsonfile)
 
     except Exception as e:
@@ -176,6 +177,22 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
         + [1e-4] * 3  # gyro bias
     )
 
+    # Set up scaling parameters
+    position_scale = 1e-3  # position [km]
+    velocity_scale = 1e2  # velocity [km/s]
+    ua_scale = 1e8  # unmodelled acceleration [km/s^2]
+    drag_scalar_scale = 1  # drag scalar
+    axisangle_scale = 1e1  # axis-angle scaling for quaternion
+    gyro_bias_scale = 1e2  # gyro bias scaling
+    variable_scaling = np.array(
+        [position_scale] * 3  # r
+        + [velocity_scale] * 3  # v
+        + [ua_scale] * 3  # ua
+        + [drag_scalar_scale]  # drag
+        + [axisangle_scale] * 3  # quaternion
+        + [gyro_bias_scale] * 3  # gyro bias
+    )
+
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=True,
@@ -185,7 +202,6 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
         use_drag_scalar=True,
         use_moon_grav=False,
         use_sun_grav=False,
-        ua_scale=ua_scale,
     )
 
     # Initialize IMU and EKF
@@ -203,7 +219,7 @@ def run_simulation(sim_args: argparse.Namespace) -> None:
         config=config,
         ekf_dynamics=ekf_dynamics,
         w_b=gyro_bias,
-        gyro_bias_scale=gyro_bias_scale,
+        state_scaling=variable_scaling,
     )
 
     pos_state = []

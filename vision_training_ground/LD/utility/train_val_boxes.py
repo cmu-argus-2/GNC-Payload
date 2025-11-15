@@ -1,10 +1,18 @@
+"""
+Draw landmark boxes.
+"""
+
 import os
 
-import cv2
+# import cv2
 from PIL import Image, ImageDraw
 
 
+# pylint: disable=R0914
 def draw_landmark_boxes(base_path: str, image_name: str) -> None:
+    """
+    Draw landmark boxes.
+    """
     # Define the paths
     image_path = os.path.join(base_path, "val/images", image_name)
     label_path = os.path.join(base_path, "va/labels", os.path.splitext(image_name)[0] + ".txt")
@@ -17,10 +25,10 @@ def draw_landmark_boxes(base_path: str, image_name: str) -> None:
     draw = ImageDraw.Draw(image)
 
     # Read the label file
-    with open(label_path, "r") as file:
+    with open(label_path, "r", encoding="utf-8") as file:
         lines = file.readlines()
         for line in lines:
-            cls, center_x, center_y, width, height = map(float, line.split())
+            _, center_x, center_y, width, height = map(float, line.split())
 
             # Convert normalized values to actual pixel values
             actual_center_x = center_x * image_width
@@ -49,6 +57,6 @@ def draw_landmark_boxes(base_path: str, image_name: str) -> None:
 
 
 # Example usage
-base_path = "/home/argus-vision/vision/VisionTrainingGround/LD/datasets/17R_dataset"
-image_name = "l8_17R_00040.jpg"  # Replace with your actual image name
-draw_landmark_boxes(base_path, image_name)
+BASE_PATH = "/home/argus-vision/vision/VisionTrainingGround/LD/datasets/17R_dataset"
+IMAGE_NAME = "l8_17R_00040.jpg"  # Replace with your actual image name
+draw_landmark_boxes(BASE_PATH, IMAGE_NAME)

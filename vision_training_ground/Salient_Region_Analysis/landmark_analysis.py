@@ -112,6 +112,7 @@ def visualize_landmarks(
     cv2.imshow(region_id, im)
 
 
+# pylint: disable=R0914
 def get_absolute_landmarks(
     region_id: str, landmark_list: list[tuple[float, float, float, float]]
 ) -> list[list[float]]:
@@ -161,36 +162,41 @@ if __name__ == "__main__":
     #     regions = f.read().split(',')
     # regions = [region for region in regions if region != '']
     if CALCULATE_LANDMARKS:
-        pool = Pool(cpu_count())
-        for region in regions:
-            landmarks = pool.starmap(landmarks_at_scale, [(region, scale) for scale in scales])
-            landmarks_array = np.concatenate(landmarks, axis=0)
-            np.save(
-                LANDMARKS_PIXEL_PATH + "/" + region + "_pixel_landmarks" + args.suffix + ".npy",
-                landmarks_array,
-            )
-            absolute_landmarks = get_absolute_landmarks(
-                region,
-                np.load(
-                    LANDMARKS_PIXEL_PATH + "/" + region + "_pixel_landmarks" + args.suffix + ".npy"
-                ),
-            )
-            np.save(
-                LANDMARKS_PATH + "/" + region + "_landmarks" + args.suffix + ".npy",
-                absolute_landmarks,
-            )
-            with open(
-                LANDMARKS_PATH + "/" + region + "_landmarks" + args.suffix + ".csv",
-                "w",
-                encoding="utf-8",
-            ) as f:
-                f.write(
-                    "x_center_lon,y_center_lat,x_min_lon,y_min_lat,x_max_lon,y_max_lat,scale,saliency\n"
+        with Pool(cpu_count()) as pool:
+            for region in regions:
+                landmarks = pool.starmap(landmarks_at_scale, [(region, scale) for scale in scales])
+                landmarks_array = np.concatenate(landmarks, axis=0)
+                np.save(
+                    LANDMARKS_PIXEL_PATH + "/" + region + "_pixel_landmarks" + args.suffix + ".npy",
+                    landmarks_array,
                 )
-                for landmark in absolute_landmarks:
-                    f.write(str(landmark)[1:-1] + "\n")
-        pool.close()
-        pool.join()
+                absolute_landmarks = get_absolute_landmarks(
+                    region,
+                    np.load(
+                        LANDMARKS_PIXEL_PATH
+                        + "/"
+                        + region
+                        + "_pixel_landmarks"
+                        + args.suffix
+                        + ".npy"
+                    ),
+                )
+                np.save(
+                    LANDMARKS_PATH + "/" + region + "_landmarks" + args.suffix + ".npy",
+                    absolute_landmarks,
+                )
+                with open(
+                    LANDMARKS_PATH + "/" + region + "_landmarks" + args.suffix + ".csv",
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(
+                        "x_center_lon,y_center_lat,x_min_lon,y_min_lat,x_max_lon,y_max_lat,scale,saliency\n"
+                    )
+                    for landmark in absolute_landmarks:
+                        f.write(str(landmark)[1:-1] + "\n")
+            pool.close()
+            pool.join()
     if VISUALIZE_LANDMARKS:
         for region in regions:
             visualize_landmarks(

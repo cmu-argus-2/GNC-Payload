@@ -9,6 +9,7 @@ import numpy as np
 from sensors.bias import Bias, BiasParams
 
 
+# pylint: disable=R0903
 class SensorNoiseParams:
     """
     Sensor noise parameters.

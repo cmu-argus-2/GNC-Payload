@@ -434,12 +434,7 @@ class LandmarkDetector:
 
         landmark_detections = self.detect_landmarks(frames, batch_size=batch_size)
 
-        results.update(
-            {
-                valid_path: landmark_detection
-                for valid_path, landmark_detection in zip(valid_paths, landmark_detections)
-            }
-        )
+        results.update(dict(zip(valid_paths, landmark_detections)))
 
         # Log summary
         success_count = sum(1 for detections in results.values() if len(detections) > 0)

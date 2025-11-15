@@ -33,6 +33,7 @@ from vision_training_ground.DataPipeline.generate_training_data import Geotagged
 MGRS_COUNTS_SUFFIX = "_mgrs_counts.json"
 
 
+# pylint: disable=R0801
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments for counting MGRS regions.
@@ -114,6 +115,7 @@ def count_mgrs_regions(region_id: str, file_prefix: str) -> None:
     lat_lon_path = os.path.join(
         training_dir, region_id, f"{file_prefix}{GeotaggedImage.LAT_LON_SUFFIX}"
     )
+    # pylint: disable=E1129
     with np.load(lat_lon_path) as data:
         lat_lon = data["lat_lon"]
 
@@ -121,11 +123,11 @@ def count_mgrs_regions(region_id: str, file_prefix: str) -> None:
     present_regions = np.unique(mgrs_regions)
     counts = {
         str(region, encoding="ascii"): int(np.sum(mgrs_regions == region))
-        for region in present_regions
+        for region in present_regions  # pylint: disable=E1133
     }
 
     output_path = os.path.join(training_dir, region_id, f"{file_prefix}{MGRS_COUNTS_SUFFIX}")
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(counts, f, indent=4)
 
 

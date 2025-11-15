@@ -30,6 +30,7 @@ from vision_training_ground.LD.run_saliency_analysis import SALIENCY_MAP_FILE_NA
 BOUNDING_BOXES_VISUALIZATION_FILE_NAME = "bounding_boxes.png"
 
 
+# pylint: disable=R0801
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments.
@@ -81,6 +82,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# pylint: disable=R0914
 def find_best_bounding_boxes(
     saliency_map: GeoTIFFData, window_size: int, num_boxes: int
 ) -> np.ndarray:
@@ -125,6 +127,7 @@ def find_best_bounding_boxes(
     centroid_us = np.empty(num_boxes, dtype=int)
     centroid_vs = np.empty(num_boxes, dtype=int)
     for i in range(num_boxes):
+        # pylint: disable=W0632
         max_v, max_u = np.unravel_index(
             np.argmax(bounding_box_mean_saliencies), bounding_box_mean_saliencies.shape
         )

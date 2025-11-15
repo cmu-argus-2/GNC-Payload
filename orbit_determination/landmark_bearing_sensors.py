@@ -275,7 +275,7 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         self.ml_pipeline = MLPipeline()
         self.earth_image_simulator = EarthImageSimulator()
 
-    # pylint: disable=too-many-locals,R0913,R0917
+    # pylint: disable=too-many-locals,R0913,R0917,W0221
     @typing.overload
     def take_measurement(
         self,
@@ -380,6 +380,7 @@ class SimulatedMLStoredLandmarkBearingSensor(LandmarkBearingSensor):
             f"Looking for bearing vectors from {file_path} for camera {camera_name} at timestep {timestep}",
         )
         try:
+            # pylint: disable=E1129
             with np.load(file_path) as data:
                 bearing_vectors = data["bearing_vectors"]
                 landmark_positions = data["landmark_positions"]

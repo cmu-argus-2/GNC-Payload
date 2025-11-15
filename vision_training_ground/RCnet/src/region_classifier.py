@@ -16,8 +16,6 @@ import numpy as np
 import psutil
 import torch
 import wandb
-from data_loader import MGRSImageDataset as ImageDataset
-from plotter import Plotter
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -26,7 +24,11 @@ from tqdm.auto import tqdm
 from vision_inference.logger import Logger
 from vision_inference.region_classifier import RegionClassifier as BaseRegionClassifier
 
+from .data_loader import MGRSImageDataset as ImageDataset
+from .plotter import Plotter
 
+
+# pylint: disable=R0902
 class TrainRegionClassifier(BaseRegionClassifier):
     """
     A deep learning-based multi-label image classifier using EfficientNet.
@@ -68,6 +70,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             Loads a saved model's weights and sets it to evaluation mode.
     """
 
+    # pylint: disable=R0913,R0917
     def __init__(
         self,
         data_path: str,
@@ -97,6 +100,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         self.save_plot_flag = save_plot_flag
         self.save_plot_path = save_plot_path
 
+    # pylint: disable=W0221
     def _prepare_batch_data(
         self,
         data_path: str,
@@ -115,7 +119,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             try:
                 selected_classes = BaseRegionClassifier.load_region_ids()
                 Logger.log("INFO", f"Using {len(selected_classes)} regions from configuration")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=W0718
                 # Fallback to directory scanning if config loading fails
                 selected_classes = sorted(os.listdir(data_path + "/train"))
                 Logger.log(
@@ -210,6 +214,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
         Logger.log("INFO", f"Validation dataset size: {len(val_dataset)}")
         Logger.log("INFO", f"Test dataset size: {len(test_dataset)}")
 
+    # pylint: disable=R0914
     def train(self, epochs: int = 10, learning_rate: float = 1e-3) -> None:
         """
         Trains the image classifier using EfficientNet-B0 and logs progress using wandb.
@@ -307,7 +312,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
             self.save_model(path="RCnet/chkpts/model" + str(epoch + 1) + ".pth")
             self.validate()
             if epoch == epochs - 1:
-                test_accuracy = self.evaluate()
+                test_accuracy = self.evaluate()  # pylint: disable=E1111
                 wandb.log({"test_accuracy": test_accuracy})
 
         if self.save_plot_flag:
@@ -447,7 +452,7 @@ class TrainRegionClassifier(BaseRegionClassifier):
                 exact_matches = (
                     ((predicted == labels.bool()).sum(dim=1) == labels.size(1)).sum().item()
                 )
-                sample_accuracy = 100 * exact_matches / labels.size(0)
+                # sample_accuracy = 100 * exact_matches / labels.size(0)
 
                 # For label-wise metrics
                 true_positives = (predicted & labels.bool()).sum().item()
@@ -548,8 +553,8 @@ class TrainRegionClassifier(BaseRegionClassifier):
             # Generate binary predictions
             # all_preds = (all_features > 0.5).astype(int)
 
-            # save labels and preds
-            # data = np.load(os.path.join(os.path.dirname(output_file), "predictions.npz"))  # update this path if needed
+            # save labels and preds. update this path if needed
+            # data = np.load(os.path.join(os.path.dirname(output_file), "predictions.npz"))
             # all_preds = data["predictions"]
             # all_labels = data["labels"]
 

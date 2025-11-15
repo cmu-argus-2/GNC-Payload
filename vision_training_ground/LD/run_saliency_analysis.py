@@ -142,12 +142,13 @@ def generate_saliency_map(
     )
     region_saliency_map.remap_to_mgrs_region(region_id)
     region_saliency_map_counts = np.zeros((height, width), dtype=int)
+    # pylint: disable=I1101
     saliency_computer: cv2.saliency = cv2.saliency.StaticSaliencyFineGrained_create()
 
     for file_prefix in tqdm(file_prefixes, desc=f"Processing images for region {region_id}"):
         try:
             geotagged_image = GeotaggedImage.load(region_id, file_prefix)
-        except Exception:
+        except Exception:  # pylint: disable=W0718
             print(
                 f"Warning: Failed to load image for: {region_id=}, {file_prefix=}. Skipping this for saliency analysis."
             )

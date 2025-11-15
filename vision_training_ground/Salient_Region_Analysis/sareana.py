@@ -31,13 +31,14 @@ def sareana(
     if not use_sal_only:
         cloud_im: MatLike = cv2.imread(cloud_im_path)
         gray_im: MatLike = cv2.cvtColor(cloud_im, cv2.COLOR_BGR2GRAY)
-        cloud_im = ~gray_im
+        cloud_im = cv2.bitwise_not(gray_im)
         cv2.imwrite("inverse_cloud_map.jpg", cloud_im)
-        cloud_im = cloud_im.astype("float32")
+        cloud_im = cloud_im.astype("float32")  # pylint: disable=E1101
         cloud_im = cloud_im / cloud_im.max()
 
     saliency_im: MatLike = cv2.imread(saliency_im_path)
     # if image is rgb, convert to grayscale
+    # pylint: disable=E1101
     if len(saliency_im.shape) > 2 and saliency_im.shape[2] == 3:
         saliency_im = cv2.cvtColor(saliency_im, cv2.COLOR_BGR2GRAY)
     saliency_im = saliency_im.astype("float32")

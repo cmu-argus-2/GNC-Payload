@@ -105,7 +105,7 @@ IDX_DICT = {
     },
 }
 
-NT = EKF_STATE.shape[0]
+NT = EKF_STATE.shape[0]  # pylint: disable=E1101
 NUM_ENTRIES = len(IDX_DICT)
 ERROR = np.zeros((NT, 19))
 ERROR = TRUE_STATE - EKF_STATE

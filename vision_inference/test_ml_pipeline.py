@@ -1,3 +1,7 @@
+"""
+ML pipeline tesing script.
+"""
+
 import os
 
 from image_simulation.test_earth_vis import simulate_image
@@ -5,6 +9,9 @@ from vision_inference.ml_pipeline import MLPipeline
 
 
 def main():
+    """
+    Main ML pipeline testing function.
+    """
     frame = simulate_image(altitude=510e3, display_image=False)
     pipeline = MLPipeline()
     landmark_detections, region_slices = pipeline.run_ml_pipeline_on_single(frame)

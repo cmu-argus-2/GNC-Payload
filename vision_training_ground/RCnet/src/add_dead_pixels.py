@@ -1,10 +1,19 @@
-import random
+"""
+Script for adding dead pixels.
+"""
+
+# import random
 
 import torch
-import torchvision.transforms as transforms
+
+# import torchvision.transforms as transforms
 
 
 class AddDeadPixels(torch.nn.Module):
+    """
+    Class for adding dead pixels.
+    """
+
     def __init__(self, dead_pixel_percentage: float = 0.05):
         super().__init__()
         self.dead_pixel_percentage = dead_pixel_percentage  # Fraction of pixels to be set to zero
@@ -17,7 +26,7 @@ class AddDeadPixels(torch.nn.Module):
         Returns:
             Tensor: Image with randomly placed dead pixels.
         """
-        c, h, w = img.shape
+        _, h, w = img.shape
         total_pixels = h * w
         num_dead_pixels = int(total_pixels * self.dead_pixel_percentage)
 

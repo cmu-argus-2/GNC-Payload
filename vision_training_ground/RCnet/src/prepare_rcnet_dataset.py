@@ -1,3 +1,7 @@
+"""
+Prepare RCNet dataset.
+"""
+
 import argparse
 import os
 import random
@@ -23,6 +27,7 @@ def convert_tif_to_png(input_path: str, output_path: str) -> None:
         img.save(output_path, "PNG")
 
 
+# pylint: disable=R0914
 def split_and_convert_images(
     root_dir: str, output_dir: str, test_ratio: float = 0.2, val_ratio: float = 0.2
 ) -> None:
@@ -110,7 +115,8 @@ def split_and_convert_images(
         process_files(test_files, test_class_dir)
 
         print(
-            f"Processed {len(train_files)} train images, {len(val_files)} val images, and {len(test_files)} test images for class '{class_name}'."
+            f"Processed {len(train_files)} train images, {len(val_files)} val"
+            + f" images, and {len(test_files)} test images for class '{class_name}'."
         )
 
     print(f"Finished processing. Saved to {output_dir}")
