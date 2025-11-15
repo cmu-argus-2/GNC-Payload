@@ -8,7 +8,7 @@ import argparse
 
 import torch
 
-from vision_training_ground.RCnet.src.region_classifier import TrainRegionClassifier
+from vision_training_ground.rcnet.src.region_classifier import TrainRegionClassifier
 
 
 def parse_args():

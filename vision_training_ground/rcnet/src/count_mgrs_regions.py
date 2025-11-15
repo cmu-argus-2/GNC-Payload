@@ -28,7 +28,7 @@ from tqdm import tqdm
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import calculate_mgrs_zones
 from utils.function_utils import unpack_and_call
-from vision_training_ground.DataPipeline.generate_training_data import GeotaggedImage
+from vision_training_ground.data_pipeline.generate_training_data import GeotaggedImage
 
 MGRS_COUNTS_SUFFIX = "_mgrs_counts.json"
 

@@ -38,7 +38,7 @@ from ultralytics import YOLO
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.landmark_detector import LandmarkDetector
-from vision_training_ground.LD.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
+from vision_training_ground.ld.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 
 TRAINING_LOG_DIR_PREFIX = "yolo_training_results"
 
