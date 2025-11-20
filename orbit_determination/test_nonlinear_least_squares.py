@@ -62,14 +62,15 @@ def test_od() -> None:
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
     # landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
-    # landmark_bearing_sensor = RandomLandmarkBearingSensor()
-    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
+    landmark_bearing_sensor = RandomLandmarkBearingSensor()
+    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
+    # initial_state /= 1e3  # convert to km
     data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state), np.zeros(3))
 
     for t in range(0, N - 1):

@@ -398,7 +398,8 @@ def noisy_bearing_measurement(vec: np.ndarray, sigma: float = np.sqrt(0.0005)) -
 
     perp_arb = arbitrary - np.sum(arbitrary * vec, axis=1, keepdims=True) * vec
     perp_arb = perp_arb / np.linalg.norm(perp_arb, axis=1, keepdims=True)
-    third_vec = skew(vec) @ perp_arb
+    # pylint: disable=W0101
+    third_vec = np.cross(vec, perp_arb) 
 
     theta = np.random.uniform(0, 2 * np.pi, size=(n, 1))
 

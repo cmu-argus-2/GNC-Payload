@@ -143,7 +143,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
         The number of measurements, N, will be some number less than or equal to self.max_measurements.
 
         :param _: The epoch as an instance of brahe's Epoch class. Not used.
-        :param cubesat_position: The position of the satellite in ECI as a numpy array of shape (3,).
+        :param cubesat_position: The position of the satellite in ECI [m] as a numpy array of shape (3,).
         :param eci_R_body: The rotation matrix from the body frame to the ECI frame as a numpy array of shape (3, 3).
         :param camera_model: The camera model to use for the measurement.
         :return: A tuple containing a numpy array of shape (N, 3) containing the bearing unit vectors in the body frame
@@ -163,7 +163,7 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
             bearing_unit_vectors_body, landmark_positions_eci
         ):
             # Convert from m to km
-            landmark_position_eci /= 1e3
+            # landmark_position_eci /= 1e3
             true_bearing_unit_vector_eci = landmark_position_eci - cubesat_position
             true_bearing_unit_vector_eci /= np.linalg.norm(true_bearing_unit_vector_eci)
 
@@ -276,7 +276,6 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         self.earth_image_simulator = EarthImageSimulator()
 
     # pylint: disable=too-many-locals,R0913,R0917,W0221
-    @typing.overload
     def take_measurement(
         self,
         epoch: Epoch,
