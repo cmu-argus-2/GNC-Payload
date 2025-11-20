@@ -1,0 +1,4 @@
+[submodule "simulation"]
+	path = simulation/orbit_sim
+	url = https://github.com/cmu-argus-2/GNC-Simulation.git
+	branch = FSW-interface
