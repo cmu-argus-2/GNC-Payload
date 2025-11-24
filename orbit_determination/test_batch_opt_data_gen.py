@@ -100,10 +100,14 @@ def run_simulation(trial) -> None:
     all_landmark_group_start = np.array([])
 
     init_gyro_meas, _ = imu.update(rot, np.zeros((3)))
-    gyro_measurement = np.concatenate([np.array([0]), init_gyro_meas])
+    gyro_measurement = np.concatenate([np.array([starting_epoch.to_datetime().timestamp()]), init_gyro_meas])
     all_gyro_measurements = np.vstack([all_gyro_measurements, gyro_measurement])
+    
+    # measurements need to be properly timestamped
+    epochs_list = starting_epoch.to_datetime().timestamp() + np.arange(N) * data_manager.dt
 
-    for t in range(0, N - 1):
+    for i in range(0, N - 1):
+        t = epochs_list[i]
         # take a set of measurements every minute
         x = data_manager.latest_state
         q = data_manager.latest_attitude
@@ -124,7 +128,7 @@ def run_simulation(trial) -> None:
 
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
-        if t % 20 == 0:
+        if i % 20 == 0:
         # and is_over_daytime(
         #     data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
         # ):
@@ -132,7 +136,7 @@ def run_simulation(trial) -> None:
                 data_manager.take_measurement(
                     landmark_bearing_sensor, camera_model_manager[camera_name]
                 )
-            print(f"Completion: {100 * t / N:.2f}%")
+            print(f"Completion: {100 * i / N:.2f}%")
 
             _, *z = data_manager.latest_measurements
 
@@ -164,10 +168,21 @@ def run_simulation(trial) -> None:
     all_landmark_group_start = np.expand_dims(all_landmark_group_start, axis=1)  # Ensure it's a 2D array for saving
 
     with h5py.File(f"{dir_name}/orbit_measurements.h5", 'w') as f:
-    # top-level datasets
+        # top-level datasets
         f.create_dataset('landmark_measurements', data=all_landmark_measurements)
         f.create_dataset('gyro_measurements',     data=all_gyro_measurements)
         f.create_dataset('group_starts',          data=all_landmark_group_start)
+    
+    # Save ground truth states for reference
+    states_hist = data_manager.states
+    eci_Rs_body_hist = data_manager.eci_Rs_body
+    # convert to quaternions for easier storage
+    attitudes_hist = np.array([quaternion.from_rotation_matrix(eci_Rs_body_hist[i]).components for i in range(eci_Rs_body_hist.shape[0])])
+    omega_hist = np.tile(w, (states_hist.shape[0], 1))  # repeat w for each timestep
+    full_state_hist = np.hstack((states_hist, attitudes_hist, omega_hist))
+    with h5py.File(f"{dir_name}/ground_truth_states.h5", 'w') as f:
+        f.create_dataset('states', data=full_state_hist)
+        f.create_dataset('unixtime', data=epochs_list)
 
     # np.save(os.path.join(dir_name, "pos_error.npy"), error)
 
