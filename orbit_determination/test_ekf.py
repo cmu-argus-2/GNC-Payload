@@ -141,7 +141,7 @@ def run_simulation(trial: int) -> None:
     ), "Rotation matrix is not a proper rotation matrix"
 
     ekf = EKF(
-        # error ranges are in meters and m/s
+        # error ranges are in km and km/s
         r=initial_state[0:3] + np.random.normal(0, init_pos_std, 3),
         v=initial_state[3:6] + np.random.normal(0, init_vel_std, 3),
         ua=np.zeros(3),  # np.random.normal(0, init_ua_std, 3),
