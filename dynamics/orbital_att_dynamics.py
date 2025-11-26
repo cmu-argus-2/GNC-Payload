@@ -40,6 +40,40 @@ NOMINAL_DENSITY = 1e-5  # kg/m^3
 R_EARTH = R_EARTH / 1e3  # km
 
 
+class DynamicsIDX:
+    NX    = 13
+    POS   = slice(0, 3)
+    RX    = 0
+    RY    = 1
+    RZ    = 2
+    VEL   = slice(3, 6)
+    VX    = 3
+    VY    = 4
+    VZ    = 5
+    ORB   = slice(0, 6)
+    QUAT  = slice(6, 10)
+    QW    = 6
+    QX    = 7
+    QY    = 8
+    QZ    = 9
+    OMEGA = slice(10, 13)
+    OMEGA_X = 10
+    OMEGA_Y = 11
+    OMEGA_Z = 12
+    ROT   = slice(6, 13)
+    GYR_BIAS = None
+    GYR_BIAS_X = None
+    GYR_BIAS_Y = None
+    GYR_BIAS_Z = None
+    
+    def __init__(self, has_gyro_bias: bool = False) -> None:
+        if has_gyro_bias:
+            self.GYR_BIAS = slice(13, 16)
+            self.GYR_BIAS_X = 13
+            self.GYR_BIAS_Y = 14
+            self.GYR_BIAS_Z = 15
+            self.NX = 16
+
 class Dynamics:
     """
     This class contains the orbital dynamics functions and second order perturbations. Basic orbital dynamics are
@@ -54,6 +88,9 @@ class Dynamics:
         use_j34: bool,
         use_sun_grav: bool,
         use_moon_grav: bool,
+        include_gyro_bias: bool = False,
+        gyro_bias_tau: float = np.inf,
+        gyro_bias_std: float = 0.0,
     ) -> None:
         """
         Initialize the Dynamics class.
@@ -79,6 +116,9 @@ class Dynamics:
         )
         self.I_sat = np.array(config["satellite"]["inertia"])
         self.I_sat_inv = np.linalg.inv(self.I_sat)
+        self.has_gyro_bias = include_gyro_bias
+        self.gyro_bias_tau = config["satellite"].get("gyro_bias_tau", 0.0)
+        self.gyro_bias_std = config["satellite"].get("gyro_bias_std", 0.0)
         # self.CoPM = np.array(config["satellite"].get("CoPM", [0, 0, 0]))
         # self.num_MTBs = config["satellite"].get("num_MTBs", 0)
         # Add other satellite parameters as needed
@@ -118,6 +158,10 @@ class Dynamics:
         omegadot = self.I_sat_inv @ (tau - np.cross(w, h_sc))
 
         x_dot = np.concatenate([v, a, qdot, omegadot])  # pylint: disable=W0101
+        
+        if self.has_gyro_bias:
+            gyro_bias_dot = (-x[13:16] + np.random.normal(0, self.gyro_bias_std, (3,))) / self.gyro_bias_tau
+            x_dot = np.concatenate([x_dot, gyro_bias_dot])
         return x_dot
 
     def state_derivative_jac(self, x: np.ndarray) -> np.ndarray:
@@ -140,7 +184,8 @@ class Dynamics:
         dqdot_dw = 0.5 * right_q(np.concatenate([[0], w]))
         dwdot_dq = np.zeros((3, 4))
         dwdot_dw = self.I_sat_inv @ (skew(self.I_sat @ w) - skew(w) @ self.I_sat)
-        return np.block(
+        
+        jac = np.block(
             [
                 [dv_dr, dv_dv, np.zeros((3, 7))],
                 [da_dr, da_dv, np.zeros((3, 7))],
@@ -148,6 +193,16 @@ class Dynamics:
                 [np.zeros((3, 6)), dwdot_dq, dwdot_dw],
             ]
         )
+        if self.has_gyro_bias:
+            gyro_bias_jac = np.zeros((3, 3))
+            # TODO: Implement gyro bias dynamics jacobian if needed
+            jac = np.block(
+                [
+                    [jac, np.zeros((jac.shape[0], 3))],
+                    [np.zeros((3, jac.shape[1])), gyro_bias_jac],
+                ]
+            )
+        return jac
 
     @staticmethod
     def RK4(x: np.ndarray, func: Callable[[np.ndarray], np.ndarray], dt: float) -> np.ndarray:
@@ -227,10 +282,10 @@ class Dynamics:
         The continuous-time state derivative function, dot{x} = f_c(x), for orbital position dynamics under gravity
         and the configured perturbations.
 
-        :param x: A numpy array of shape (6,) containing the current state (position, velocity).
+        :param x: A numpy array of shape (13,) containing the current state (position, velocity).
         :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
 
-        :return: A numpy array of shape (6,) containing the full state derivative.
+        :return: A numpy array of shape (13,) containing the full state derivative.
         """
         base_derivative = self.state_derivative(x)
         r = x[0:3]
@@ -284,6 +339,10 @@ class Dynamics:
             a_moon_gt = moon_gravity(r_sat=x[0:3], epoch=epoch)
 
             updated_a += a_moon_gt
+    
+        if self.has_gyro_bias:
+            gyro_bias_dot = np.zeros(3)
+            updated_w_dot = np.concatenate([updated_w_dot, gyro_bias_dot])
 
         return np.concatenate(
             [base_derivative[0:3], updated_a, base_derivative[6:10], updated_w_dot]
@@ -343,8 +402,8 @@ class Dynamics:
             da_moon_gt_dr = moon_gravity_jac(r_sat=x[0:3], epoch=epoch)
 
             da_dr += da_moon_gt_dr
-
-        return np.block(
+        
+        jac = np.block(
             [
                 [base_jacobian[0:3, 0:]],  # pylint: disable=E1136  # pylint/issues/9590
                 [
@@ -355,6 +414,17 @@ class Dynamics:
                 [base_jacobian[6:, :]],  # pylint: disable=E1136  # pylint/issues/9590
             ]
         )
+        
+        if self.has_gyro_bias:
+            gyro_bias_jac = np.zeros((3, 3))
+            jac = np.block(
+                [
+                    [jac, np.zeros((jac.shape[0], 3))],
+                    [np.zeros((3, jac.shape[1])), gyro_bias_jac],
+                ]
+            )
+    
+        return jac
 
     def perturbed_state_derivative_wrapper(
         self, epoch: Epoch = None
@@ -389,11 +459,11 @@ class Dynamics:
         The discrete-time state transition function, x_{t+1} = f_d(x_t), for orbital position dynamics under gravity
         and the configured perturbations.
 
-        :param x: A numpy array of shape (6,) containing the current state (position, velocity).
+        :param x: A numpy array of shape (13,) containing the current state (position, velocity).
         :param dt: The amount of time between each time step.
         :param epoch: The current time epoch. Can be None if the configured perturbations do not require it.
 
-        :return: A numpy array of shape (6,) containing the next state (position, velocity).
+        :return: A numpy array of shape (13,) containing the next state (position, velocity).
         """
         func: Callable[[np.ndarray], np.ndarray] = self.perturbed_state_derivative_wrapper(
             epoch=epoch

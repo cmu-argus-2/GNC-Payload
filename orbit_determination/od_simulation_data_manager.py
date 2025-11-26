@@ -9,11 +9,12 @@ from typing import Tuple
 
 import numpy as np
 from brahe.epoch import Epoch
+import quaternion
 
 from orbit_determination.landmark_bearing_sensors import LandmarkBearingSensor
 from sensors.camera_model import CameraModel
 from utils.brahe_utils import increment_epoch
-
+from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
 
 @dataclass
 class ODSimulationDataManager:
@@ -37,22 +38,45 @@ class ODSimulationDataManager:
 
     starting_epoch: Epoch
     dt: float
-
-    trans_states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 6)))
-    eci_Rs_body: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
-    omega: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+    idx: dynidx = field(default_factory=dynidx)
+    states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, dynidx.NX)))
 
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     measurement_camera_names: np.ndarray = field(default_factory=lambda: np.array([], dtype=str))
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+    
+    def __init__(
+        self,
+        starting_epoch: Epoch,
+        dt: float,
+        idx: dynidx = dynidx(),
+    ) -> None:
+        """
+        Initialize the ODSimulationDataManager class.
 
+        :param starting_epoch: The epoch at which the simulation starts.
+        :param dt: The time step for the simulation.
+        """
+        self.starting_epoch = starting_epoch
+        self.dt = dt
+        self.idx = idx
+
+        self.states = np.zeros((0, self.idx.NX))
+
+        self.measurement_indices = np.array([], dtype=int)
+        self.measurement_camera_names = np.array([], dtype=str)
+        self.bearing_unit_vectors = np.zeros((0, 3))
+        self.landmarks = np.zeros((0, 3))
+
+        self.assert_invariants()
+    
     @property
     def state_count(self) -> int:
         """
         :return: The number of states in the simulation data.
         """
-        return self.trans_states.shape[0]
+        return self.states.shape[0]
 
     @property
     def measurement_count(self) -> int:
@@ -73,21 +97,21 @@ class ODSimulationDataManager:
         """
         :return: The latest state in the simulation data.
         """
-        return self.trans_states[-1, :]
+        return self.states[-1, :]
 
     @property
     def latest_attitude(self) -> np.ndarray:
         """
         :return: The latest attitude in the simulation data, as a rotation matrix from the body frame to ECI.
         """
-        return self.eci_Rs_body[-1, ...]
+        return self.states[-1, dynidx.QUAT]
 
     @property
     def latest_angular_velocity(self) -> np.ndarray:
         """
         :return: The latest angular velocity in the simulation data.
         """
-        return self.omega[-1, :]
+        return self.states[-1, dynidx.OMEGA]
 
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -110,18 +134,8 @@ class ODSimulationDataManager:
 
         :raises AssertionError: If any of the invariants are violated.
         """
-        assert len(self.trans_states.shape) == 2, "States must be a 2D array"
-        assert self.trans_states.shape[1] == 6, "States must have shape (N, 6)"
-        assert len(self.eci_Rs_body.shape) == 3, "eci_Rs_body must be a 3D array"
-        assert self.eci_Rs_body.shape[1:] == (3, 3), "eci_Rs_body must have shape (N, 3, 3)"
-        assert (
-            self.trans_states.shape[0] == self.eci_Rs_body.shape[0]
-        ), "states and eci_Rs_body must have the same number of entries"
-        assert len(self.omega.shape) == 2, "omega must be a 2D array"
-        assert self.omega.shape[1] == 3, "omega must have shape (N, 3)"
-        assert (
-            self.omega.shape[0] == self.trans_states.shape[0]
-        ), "omega must have the same number of entries as states"
+        assert len(self.states.shape) == 2, "States must be a 2D array"
+        assert self.states.shape[1] == self.idx.NX, f"States must have shape (N, {dynidx.NX})"
         assert len(self.measurement_indices.shape) == 1, "measurement_indices must be a 1D array"
         assert (
             len(self.measurement_camera_names.shape) == 1
@@ -147,17 +161,14 @@ class ODSimulationDataManager:
             np.diff(self.measurement_indices) >= 0
         ), "measurement_indices must be non-strictly increasing"
 
-    def push_next_state(self, state: np.ndarray, eci_R_body: np.ndarray, omega: np.ndarray) -> None:
+    def push_next_state(self, state: np.ndarray) -> None:
         """
         Append a new state to the simulation data.
 
         Args:
-            state: A numpy array of shape (6,) containing the position and velocity of the satellite.
-            eci_R_body: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
+            state: A numpy array of shape (13,) containing the full state of the satellite.
         """
-        self.trans_states = np.row_stack((self.trans_states, state))
-        self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body[np.newaxis, ...]), axis=0)
-        self.omega = np.row_stack((self.omega, omega))
+        self.states = np.vstack((self.states, state))
         self.assert_invariants()
 
     def take_measurement(
@@ -171,8 +182,8 @@ class ODSimulationDataManager:
         """
         t_idx = self.state_count - 1
 
-        position_eci = self.trans_states[t_idx, :3]
-        eci_R_body = self.eci_Rs_body[t_idx, ...]
+        position_eci = self.states[t_idx, :3]
+        eci_R_body = quaternion.as_rotation_matrix(quaternion.from_float_array(self.states[t_idx, dynidx.QUAT]))
 
         bearing_unit_vectors, landmarks = landmark_bearing_sensor.take_measurement(
             self.latest_epoch, position_eci, eci_R_body, camera_model

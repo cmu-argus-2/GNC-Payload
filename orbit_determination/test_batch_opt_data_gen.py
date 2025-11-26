@@ -14,7 +14,8 @@ import quaternion
 from brahe.epoch import Epoch
 
 
-from dynamics.orbital_dynamics import Dynamics
+# from dynamics.orbital_dynamics import Dynamics
+from dynamics.orbital_att_dynamics import Dynamics, DynamicsIDX as dynidx
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
@@ -25,7 +26,7 @@ from sensors.imu import IMU
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
-
+from orbit_determination.testing.plot_batch_opt_test_data import plot_syn_data
 # pylint: disable=too-many-locals
 
 def run_simulation(trial) -> None:
@@ -34,7 +35,7 @@ def run_simulation(trial) -> None:
 
     :return: None
     """
-
+    idx = dynidx(has_gyro_bias=True)
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
@@ -46,14 +47,14 @@ def run_simulation(trial) -> None:
 
     landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
     camera_model_manager = CameraModelManager()
-    data_manager = ODSimulationDataManager(starting_epoch, dt)
+    data_manager = ODSimulationDataManager(starting_epoch, dt, idx)
 
-    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    initial_state = initial_state / 1e3  # Convert from m to km and m/s to km/s
+    initial_state = np.zeros((idx.NX,))
+    initial_state[idx.ORB] = get_sso_orbit_state(starting_epoch, 0, -73, 580e3, northwards=True)
+    initial_state[idx.ORB] = initial_state[idx.ORB] / 1e3  # Convert from m to km and m/s to km/s
+    
     # Set the initial rotation matrix to identity
     init_rot = np.eye(3)
-
-    data_manager.push_next_state(initial_state, init_rot)
 
     # Apply error to init_rot and ensure orthonormality
     noisy_rot = init_rot + np.random.normal(0, 1e-3, (3, 3))
@@ -66,21 +67,14 @@ def run_simulation(trial) -> None:
 
     # Fix a constant rotation velocity for the test.
     rot = np.array([0, 0, np.pi / 18])
+    
+    initial_att = quaternion.from_rotation_matrix(noisy_rot)
+    initial_state[idx.QUAT] = quaternion.as_float_array(initial_att)
+    initial_state[idx.OMEGA] = rot
 
-    # Prep Q matrix for the EKF.
-    Q = np.eye(16) * 1e-16
-    # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-12
-    # # Bias uncertainty also larger
-    Q[13:16, 13:16] = np.eye(3) * 1e-12
+    initial_state[idx.GYR_BIAS] = np.random.normal(0, config["satellite"]["gyro"]["bias_std"], (3,))
 
-    P = np.eye(16)
-    P[0:3, 0:3] *= 5e-4
-    P[3:6, 3:6] *= 5e-4
-    P[6:9, 6:9] *= 1e-5
-    P[9:10, 9:10] *= 1e-5
-    P[10:13, 10:13] *= 1e-5
-    P[13:16, 13:16] *= 1e-5
+    data_manager.push_next_state(initial_state)
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
@@ -90,16 +84,27 @@ def run_simulation(trial) -> None:
         use_j34=False,
         use_sun_grav=True,
         use_moon_grav=True,
+        include_gyro_bias=True,
+        gyro_bias_tau=config["satellite"]["gyro"]["bias_tau"],
+        gyro_bias_std=config["satellite"]["gyro"]["bias_std"],
     )
 
     # Initialize IMU and EKF
-    imu = IMU.get_default_imu(dt)
+    imu_dt = 1.0 / config["satellite"]["gyro"]["sampling_rate"]
+    last_imu = -np.inf
+    imu = IMU.get_default_imu(imu_dt)
 
     all_landmark_measurements = np.zeros((0,7))
     all_gyro_measurements = np.zeros((0,4))
     all_landmark_group_start = np.array([])
-
-    init_gyro_meas, _ = imu.update(rot, np.zeros((3)))
+    last_vis = -np.inf
+    vis_dt = 10.0
+    
+    # init_gyro_meas, _ = imu.update(initial_state[dynidx.OMEGA], np.zeros((3)))
+    
+    init_gyro_meas = initial_state[idx.OMEGA] + initial_state[idx.GYR_BIAS]
+    init_gyro_meas += np.random.normal(0, config["satellite"]["gyro"]["noise_density"], (3,))
+    
     gyro_measurement = np.concatenate([np.array([starting_epoch.to_datetime().timestamp()]), init_gyro_meas])
     all_gyro_measurements = np.vstack([all_gyro_measurements, gyro_measurement])
     
@@ -110,25 +115,23 @@ def run_simulation(trial) -> None:
         t = epochs_list[i]
         # take a set of measurements every minute
         x = data_manager.latest_state
-        q = data_manager.latest_attitude
+        
+        next_state = ground_truth_dynamics.perturbed_f(
+            x=x, dt=dt, epoch=data_manager.latest_epoch
+        )
 
-        # Apply noise to x, y to generate angular wobble around the primary rotation axis z
-        # One rotation every 10 seconds to model a relatively slow wobble
-        w = rot #+ 0.05 * np.array(
-        #     [np.cos(2 * np.pi * t / (10 / dt)), np.sin(2 * np.pi * t / (10 / dt)), 0]
-        # )
+        data_manager.push_next_state(next_state)
 
         # Get a gyro measurement to use in the EKF and the current gyro bias for the ground truth
-        gyro_meas, _ = imu.update(w, np.zeros((3)))
+        if last_imu + imu_dt <= t:
+            # gyro_meas, _ = imu.update(x[dynidx.OMEGA], np.zeros((3)))
+            gyro_meas = x[idx.OMEGA] + x[idx.GYR_BIAS]
+            gyro_meas += np.random.normal(0, config["satellite"]["gyro"]["noise_density"], (3,))
+            gyro_measurement = np.concatenate([np.array([t]), gyro_meas])
+            all_gyro_measurements = np.vstack([all_gyro_measurements, gyro_measurement])
+            last_imu = t
 
-        next_state = ground_truth_dynamics.perturbed_f(
-            x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
-        )
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
-
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
-
-        if i % 20 == 0:
+        if last_vis + vis_dt <= t:
         # and is_over_daytime(
         #     data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
         # ):
@@ -141,7 +144,6 @@ def run_simulation(trial) -> None:
             _, *z = data_manager.latest_measurements
 
             if z[0].shape[0] > 0:
-
                 z1 = np.concatenate([z[0], z[1]], axis=1)  # Concatenate bearing unit vectors and landmarks
                 tmp = np.expand_dims(np.array([t] * z[0].shape[0]),axis=1)
                 landmark_measurement = np.concatenate([tmp, z1], axis=1)
@@ -152,10 +154,8 @@ def run_simulation(trial) -> None:
                 all_landmark_measurements = np.vstack([all_landmark_measurements, landmark_measurement])
                 all_landmark_group_start = np.concatenate([all_landmark_group_start, landmark_group_start])
                 print(f"Measurement at epoch {data_manager.latest_epoch} with {z[0].shape[0]} landmarks")
-
-        # Do the gyro measurement update in any case
-        gyro_measurement = np.concatenate([np.array([t+1]), gyro_meas])
-        all_gyro_measurements = np.vstack([all_gyro_measurements, gyro_measurement])
+            last_vis = t
+        
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -164,27 +164,28 @@ def run_simulation(trial) -> None:
 
     dir_name = f"batch_opt_gen"
     os.makedirs(dir_name, exist_ok=True)
-
-    all_landmark_group_start = np.expand_dims(all_landmark_group_start, axis=1)  # Ensure it's a 2D array for saving
+    
+    # Ensure it's a 2D array for saving
+    all_landmark_group_start = np.expand_dims(all_landmark_group_start, axis=1)  
 
     with h5py.File(f"{dir_name}/orbit_measurements.h5", 'w') as f:
         # top-level datasets
         f.create_dataset('landmark_measurements', data=all_landmark_measurements)
         f.create_dataset('gyro_measurements',     data=all_gyro_measurements)
+        # TODO: store measurement covariances
+        
         f.create_dataset('group_starts',          data=all_landmark_group_start)
     
     # Save ground truth states for reference
-    states_hist = data_manager.states
-    eci_Rs_body_hist = data_manager.eci_Rs_body
-    # convert to quaternions for easier storage
-    attitudes_hist = np.array([quaternion.from_rotation_matrix(eci_Rs_body_hist[i]).components for i in range(eci_Rs_body_hist.shape[0])])
-    omega_hist = np.tile(w, (states_hist.shape[0], 1))  # repeat w for each timestep
-    full_state_hist = np.hstack((states_hist, attitudes_hist, omega_hist))
     with h5py.File(f"{dir_name}/ground_truth_states.h5", 'w') as f:
-        f.create_dataset('states', data=full_state_hist)
+        f.create_dataset('states', data=data_manager.states)
         f.create_dataset('unixtime', data=epochs_list)
 
-    # np.save(os.path.join(dir_name, "pos_error.npy"), error)
+    plot_syn_data(epochs_list, 
+                  data_manager.states, 
+                  all_landmark_measurements, 
+                  all_gyro_measurements, 
+                  dir_name)
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
