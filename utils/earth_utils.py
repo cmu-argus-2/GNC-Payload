@@ -9,8 +9,43 @@ import brahe
 import numpy as np
 from brahe import Epoch
 from brahe.constants import R_EARTH
+import spiceypy
+import os
+import requests
+
+def download_file(url, filename):
+    """Downloads a file from a given URL and saves it locally."""
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+
+        with open(filename, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"File '{filename}' downloaded successfully.")
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading file: {e}")
 
 
+def load_spice():
+    if spiceypy.ktotal("ALL") <3:
+        
+        de440_path = os.path.join(os.path.dirname(__file__),"spice_data", "de440s.bsp")
+        if not os.path.exists(de440_path):
+            url_file = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp"
+            download_file(url_file, de440_path)
+        spiceypy.furnsh(de440_path)
+        
+        pck_path = os.path.join(os.path.dirname(__file__), "spice_data", "pck00010.tpc")
+        if not os.path.exists(pck_path):
+            url_file = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00010.tpc"
+            download_file(url_file, pck_path)
+        spiceypy.furnsh(pck_path)
+        tls_path = os.path.join(os.path.dirname(__file__), "spice_data", "naif0012.tls")
+        if not os.path.exists(tls_path):
+            url_file = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/naif0012.tls"
+            download_file(url_file, tls_path)
+        spiceypy.furnsh(tls_path)
 # TODO: use brahe constants instead of hardcoding
 def ecef_to_lat_lon(
     intersection_points: np.ndarray, a: float = 6378137.0, b: float = 6356752.314245
@@ -25,38 +60,22 @@ def ecef_to_lat_lon(
         A numpy array of shape (..., 2) consisting of latitudes and longitudes, or NaN for invalid points.
     """
     assert intersection_points.shape[-1] == 3, "Input must have shape (..., 3)"
-
-    shape_prefix = intersection_points.shape[:-1]
-    intersection_points_flat = intersection_points.reshape(-1, 3)
-
-    valid_mask = ~np.isnan(intersection_points_flat).any(axis=1)
-
-    lat_lon_flat = np.full((np.prod(shape_prefix), 2), np.nan)
-
-    valid_points = intersection_points_flat[valid_mask]
-
-    x, y, z = valid_points[:, 0], valid_points[:, 1], valid_points[:, 2]
-
-    # Longitude calculation (same for geodetic and geocentric)
-    lon = np.degrees(np.arctan2(y, x))
-
-    # Geodetic latitude calculation (iterative approach)
-    e2 = (a**2 - b**2) / a**2  # First eccentricity squared
-    ep2 = (a**2 - b**2) / b**2  # Second eccentricity squared
-    p = np.sqrt(x**2 + y**2)
-
-    # Initial approximation of latitude
-    theta = np.arctan2(z * a, p * b)
-    lat = np.arctan2(z + ep2 * b * np.sin(theta) ** 3, p - e2 * a * np.cos(theta) ** 3)
-
-    # Convert to degrees
-    lat = np.degrees(lat)
-
-    # Store results in flat array
-    lat_lon_flat[valid_mask, 0] = lat
-    lat_lon_flat[valid_mask, 1] = lon
-
-    return lat_lon_flat.reshape(*shape_prefix, 2)
+    load_spice()
+    npoints = intersection_points.shape[0]
+    rad = spiceypy.bodvrd( 'EARTH', 'RADII', 3 )
+    flat = (rad[1][0] - rad[1][2])/rad[1][0]
+    lat_lon_vec = np.zeros((npoints,2))
+    for i in range(npoints):
+        [ lon, lat, rang ] = spiceypy.recgeo(intersection_points[i,:], 
+                                              rad[1][0], flat )
+        if rang < 0:
+            lat_lon_vec[i,0] = np.nan
+            lat_lon_vec[i,1] = np.nan
+        else:
+            lat_lon_vec[i,0] = np.rad2deg(lat)
+            lat_lon_vec[i,1] = np.rad2deg(lon)
+    
+    return lat_lon_vec
 
 
 def lat_lon_to_ecef(
