@@ -131,15 +131,17 @@ def train_yolo(
         project=f"{TRAINING_LOG_DIR_PREFIX}_{region}",
         name=f"{TRAINING_LOG_DIR_PREFIX}_{region}_{time()}",
         # Image augmentation parameters
-        degrees=0,
-        scale=0,
-        fliplr=0,
-        mosaic=0,
-        perspective=0,
+        degrees=15,        # Rotate +/- 15 degrees
+        scale=0.2,         # Scale +/- 20%
+        fliplr=0.5,        # Flip left-right 50% of the time
+        mosaic=0.5,        # Mosaic augmentation 50% of the time
+        perspective=0.0001,# Slight perspective transform
         # Training parameters
         # Ultralytics YOLO only supports training on square images, so it will pad the image to (4608, 4608) with gray
-        imgsz=np.max(LandmarkDetector.IMAGE_SIZE),
-        batch=2,
+        # Reduced to 2304 to fit in GPU memory
+        imgsz=2304,
+        batch=1,
+        workers=4,
         plots=True,
         save=True,
         resume=False,

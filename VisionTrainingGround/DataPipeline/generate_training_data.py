@@ -53,9 +53,14 @@ class GeotaggedImage:
         :raises AssertionError: If the image or lat/lon coordinates are invalid.
         """
         assert self.image is not None and self.lat_lon is not None
-        assert self.image.shape == CameraModel.OUTPUT_SHAPE
+        # Allow flexible image dimensions (not just CameraModel.OUTPUT_SHAPE)
+        assert len(self.image.shape) == 3 and self.image.shape[2] == 3, \
+            f"Image must have shape (height, width, 3), got {self.image.shape}"
         assert self.image.dtype == CameraModel.DTYPE
-        assert self.lat_lon.shape == CameraModel.RESOLUTION + (2,)
+        # Verify lat_lon matches image dimensions
+        expected_lat_lon_shape = self.image.shape[:2] + (2,)
+        assert self.lat_lon.shape == expected_lat_lon_shape, \
+            f"lat_lon shape {self.lat_lon.shape} must match image shape {expected_lat_lon_shape}"
         assert np.issubdtype(self.lat_lon.dtype, np.floating)
 
     def save(self, region: str, file_prefix: str) -> None:

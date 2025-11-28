@@ -2,10 +2,10 @@ import os
 
 from vision_inference.ml_pipeline import MLPipeline
 from image_simulation.test_earth_vis import simulate_image
-
+import numpy as np
 
 def main():
-    frame = simulate_image(altitude=510e3, display_image=False)
+    frame = simulate_image(altitude=510e3,lat_lon = np.array([32.0, -81.0]), display_image=True)
     pipeline = MLPipeline()
     landmark_detections, region_slices = pipeline.run_ml_pipeline_on_single(frame)
     save_dir = os.path.join(__file__, "../output")
