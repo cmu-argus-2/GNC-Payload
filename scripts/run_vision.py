@@ -71,11 +71,11 @@ from typing import Dict, List, Tuple
 import brahe
 import numpy as np
 from brahe.epoch import Epoch
-
 from sensors.camera_model import CameraModel, CameraModelManager
 from utils.brahe_utils import increment_epoch  # , load_brahe_data_files
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef
+
 from vision_inference.landmark_detector import LandmarkDetections, LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.region_classifier import RegionClassifier

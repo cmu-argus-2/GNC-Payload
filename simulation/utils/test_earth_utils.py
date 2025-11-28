@@ -3,7 +3,6 @@ Unit tests for the earth_utils.py module.
 """
 
 import numpy as np
-
 from utils.earth_utils import ecef_to_lat_lon, lat_lon_to_ecef
 
 

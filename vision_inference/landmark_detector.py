@@ -30,11 +30,11 @@ import torch
 from cv2.typing import MatLike
 from more_itertools import batched
 from PIL import Image
+from sensors.camera_model import CameraModel
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
-
-from sensors.camera_model import CameraModel
 from utils.config_utils import USER_CONFIG_PATH, load_config
+
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 

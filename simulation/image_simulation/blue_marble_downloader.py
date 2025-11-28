@@ -8,10 +8,9 @@ from itertools import product
 from time import sleep
 
 import requests
+from image_simulation.blue_marble_simulator import MONTH_NAMES
 from requests.exceptions import ChunkedEncodingError
 from tqdm import tqdm
-
-from image_simulation.blue_marble_simulator import MONTH_NAMES
 
 BASE_URL = "https://eoimages.gsfc.nasa.gov/images/imagerecords"
 DATASET_IDS_BY_MONTH = [

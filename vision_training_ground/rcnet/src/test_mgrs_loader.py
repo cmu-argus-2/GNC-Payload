@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from PIL import Image
 from torchvision import transforms
-
 from utils.earth_utils import get_mgrs_grid
 
 

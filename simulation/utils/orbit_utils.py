@@ -5,7 +5,6 @@ Orbit utils.
 import brahe
 import numpy as np
 from brahe import GM_EARTH, R_EARTH, Epoch
-
 from utils.earth_utils import lat_lon_to_ecef
 from utils.math_utils import skew
 

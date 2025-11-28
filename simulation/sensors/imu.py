@@ -3,7 +3,6 @@ Inertial Measurement Unit (IMU) Sensor Module
 """
 
 import numpy as np
-
 from sensors.bias import BiasParams
 from sensors.sensor import SensorNoiseParams, TriAxisSensor
 

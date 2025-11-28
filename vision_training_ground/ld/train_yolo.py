@@ -35,8 +35,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from ultralytics import YOLO
-
 from utils.config_utils import USER_CONFIG_PATH, load_config
+
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_training_ground.ld.prepare_yolo_data import LD_TRAINING_DIR_NAME, YOLO_CONFIG_FILE_NAME
 

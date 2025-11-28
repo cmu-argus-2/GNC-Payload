@@ -13,9 +13,14 @@ from time import perf_counter, time
 import brahe
 import numpy as np
 from brahe.epoch import Epoch
-from scipy.spatial.transform import Rotation
-
 from dynamics.orbital_dynamics import Dynamics
+from scipy.spatial.transform import Rotation
+from sensors.camera_model import CameraModelManager
+from utils.brahe_utils import load_brahe_data_files_if_needed
+from utils.config_utils import load_config
+from utils.earth_utils import get_nadir_rotation
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
+
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     RandomLandmarkBearingSensor,
@@ -23,11 +28,6 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from sensors.camera_model import CameraModelManager
-from utils.brahe_utils import load_brahe_data_files_if_needed
-from utils.config_utils import load_config
-from utils.earth_utils import get_nadir_rotation
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 
 def get_SO3_noise_matrices(N: int, magnitude_std: float) -> np.ndarray:

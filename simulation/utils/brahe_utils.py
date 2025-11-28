@@ -6,7 +6,6 @@ import os
 
 import brahe
 from brahe.epoch import Epoch
-
 from utils.config_utils import load_config
 
 

@@ -10,14 +10,14 @@ from matplotlib import pyplot as plt
 
 
 @cache
-def load_equirectangular_map() -> np.ndarray:
+def load_equirectangular_map(file_location="equirectangular_map.png") -> np.ndarray:
     """
     Load an equirectangular map of the Earth.
 
     :return: A numpy array of shape (H, W, 3) containing the image data.
     """
     # https://en.wikipedia.org/wiki/Equirectangular_projection#/media/File:Blue_Marble_2002.png
-    return plt.imread("equirectangular_map.png")
+    return plt.imread(file_location)
 
 
 def plot_ground_track(lat_lons: np.ndarray) -> None:

@@ -19,11 +19,11 @@ from multiprocessing import Pool, cpu_count
 
 import cv2
 import numpy as np
-from scipy.ndimage import uniform_filter
-
 from image_simulation.earth_vis import GeoTIFFData
+from scipy.ndimage import uniform_filter
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_region_area
+
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_training_ground.ld.run_saliency_analysis import SALIENCY_MAP_FILE_NAME
 

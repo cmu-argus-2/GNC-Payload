@@ -23,11 +23,11 @@ from typing import Iterable, List
 import cv2
 import numpy as np
 from affine import Affine
-from tqdm import tqdm
-
 from image_simulation.earth_vis import GeoTIFFData
+from tqdm import tqdm
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_region_dimensions
+
 from vision_training_ground.data_pipeline.generate_training_data import GeotaggedImage
 
 SALIENCY_MAP_FILE_NAME = "saliency_map.tif"

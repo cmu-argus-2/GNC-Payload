@@ -5,9 +5,10 @@ Module that defines drag dynamics and its jacobian.
 # pylint: disable=import-error
 import numpy as np
 from brahe import R_EARTH, Epoch
-
 from utils.earth_utils import density_harris_priester
 
+REF_HEIGHT = 600  # km
+NOMINAL_DENSITY = 1e-4  # kg/m^3
 R_EARTH = R_EARTH / 1e3  # km
 
 # Exponential model parameters from U.S. Standard Atmosphere 1976

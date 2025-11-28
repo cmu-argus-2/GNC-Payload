@@ -9,9 +9,9 @@ import time
 import numpy as np
 import torch
 from tqdm import tqdm
-
 from utils.config_utils import MAIN_CONFIG_PATH, load_config
 from utils.earth_utils import get_mgrs_grid
+
 from vision_inference.logger import Logger
 
 

@@ -12,15 +12,8 @@ import numpy as np
 import quaternion
 import scipy as sp
 from brahe.epoch import Epoch
-
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
-from orbit_determination.ekf import EKF
-from orbit_determination.landmark_bearing_sensors import (
-    GroundTruthLandmarkBearingSensor,
-    SimulatedMLLandmarkBearingSensor,
-)
-from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU
 
@@ -28,6 +21,13 @@ from sensors.imu import IMU
 from utils.config_utils import load_config
 from utils.math_utils import skew
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
+
+from orbit_determination.ekf import EKF
+from orbit_determination.landmark_bearing_sensors import (
+    GroundTruthLandmarkBearingSensor,
+    SimulatedMLLandmarkBearingSensor,
+)
+from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
 # pylint: disable=too-many-locals
 # pylint: disable=too-many-statements, duplicate-code
@@ -141,7 +141,7 @@ def run_simulation(trial: int) -> None:
     ), "Rotation matrix is not a proper rotation matrix"
 
     ekf = EKF(
-        # error ranges are in meters and m/s
+        # error ranges are in km and km/s
         r=initial_state[0:3] + np.random.normal(0, init_pos_std, 3),
         v=initial_state[3:6] + np.random.normal(0, init_vel_std, 3),
         ua=np.zeros(3),  # np.random.normal(0, init_ua_std, 3),

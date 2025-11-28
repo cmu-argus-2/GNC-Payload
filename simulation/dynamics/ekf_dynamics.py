@@ -6,7 +6,6 @@ Functions for implementing EKF dynamics extending the orbital dynamics.
 import numpy as np
 from brahe import R_EARTH, Epoch
 from brahe.constants import GM_EARTH
-
 from dynamics.drag_dynamics import (
     da_dest_drag_derivative,
     dadrag_dr_partial,

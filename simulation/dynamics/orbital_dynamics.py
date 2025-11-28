@@ -9,7 +9,6 @@ from typing import Callable
 import numpy as np
 from brahe import Epoch
 from brahe.constants import GM_EARTH
-
 from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
 from dynamics.grav_potential_dynamics import (
     j2_dynamics,

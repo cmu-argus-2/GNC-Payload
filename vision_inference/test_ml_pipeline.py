@@ -5,6 +5,7 @@ ML pipeline tesing script.
 import os
 
 from image_simulation.test_earth_vis import simulate_image
+
 from vision_inference.ml_pipeline import MLPipeline
 
 

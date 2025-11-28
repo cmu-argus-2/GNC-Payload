@@ -8,7 +8,6 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-
 from utils.earth_utils import get_mgrs_grid
 
 FOLDER = "bm1k_regions"

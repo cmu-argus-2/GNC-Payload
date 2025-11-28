@@ -6,14 +6,14 @@ from time import perf_counter
 
 import numpy as np
 from brahe.constants import R_EARTH
+from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
-from tqdm import trange
-
-from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
+from tqdm import trange
 from utils.earth_utils import get_nadir_rotation, lat_lon_to_ecef
 from utils.math_utils import skew
+
 from vision_inference.frame import Frame
 
 CONTIGUOUS_US_CENTER_LAT_LON = np.array([39.8283, -98.5795])

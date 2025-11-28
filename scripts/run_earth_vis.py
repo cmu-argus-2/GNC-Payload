@@ -37,10 +37,9 @@ import brahe
 import cv2
 import numpy as np
 from brahe.epoch import Epoch
-from tqdm import tqdm
-
 from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from sensors.camera_model import CameraModelManager
+from tqdm import tqdm
 from utils.brahe_utils import increment_epoch
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.function_utils import unpack_and_call
