@@ -139,7 +139,7 @@ def train_yolo(
         # Training parameters
         # Ultralytics YOLO only supports training on square images, so it will pad the image to (4608, 4608) with gray
         # Reduced to 2304 to fit in GPU memory
-        imgsz=2304,
+        imgsz=4608,
         batch=1,
         workers=4,
         plots=True,

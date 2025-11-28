@@ -152,8 +152,12 @@ def generate_saliency_map(
             )
             continue
 
+        # Apply strong Gaussian blur to suppress stitching artifacts
+        # Use larger kernel and sigma to really smooth out the stitching line
+        blurred_image = cv2.GaussianBlur(geotagged_image.image, (21, 21), 10.0)
+        
         success, img_saliency_map = saliency_computer.computeSaliency(
-            cv2.cvtColor(geotagged_image.image, cv2.COLOR_RGB2BGR)
+            cv2.cvtColor(blurred_image, cv2.COLOR_RGB2BGR)
         )
 
         if not success:
