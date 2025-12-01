@@ -10,6 +10,7 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 from cv2 import cv2
 from cv2.typing import MatLike
+
 from utils.earth_utils import get_mgrs_grid
 
 scales = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]

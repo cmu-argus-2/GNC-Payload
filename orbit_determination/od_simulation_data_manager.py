@@ -12,12 +12,12 @@ import quaternion
 from brahe.epoch import Epoch
 from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
 from sensors.camera_model import CameraModel
-from utils.brahe_utils import increment_epoch
 
 from orbit_determination.landmark_bearing_sensors import (
     LandmarkBearingSensor,
     SimulatedMLStoredLandmarkBearingSensor,
 )
+from utils.brahe_utils import increment_epoch
 
 
 @dataclass

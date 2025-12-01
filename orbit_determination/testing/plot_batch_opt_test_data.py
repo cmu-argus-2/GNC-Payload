@@ -7,6 +7,7 @@ import numpy as np
 import PIL
 from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
 from mpl_toolkits.mplot3d import Axes3D
+
 from utils.earth_utils import ecef_to_lat_lon
 from utils.plotting_utils import load_equirectangular_map
 
@@ -97,7 +98,9 @@ def plot_trajectory_on_map(time, states: np.ndarray, dir_name: str):
     lat_lon = ecef_to_lat_lon(x_ecef_list)
     lat = lat_lon[:, 0]
     lon = lat_lon[:, 1]
-    file_location = os.path.join(os.path.dirname(__file__), "../../simulation/utils/equirectangular_map.png")
+    file_location = os.path.join(
+        os.path.dirname(__file__), "../../simulation/utils/equirectangular_map.png"
+    )
     ax.imshow(load_equirectangular_map(file_location), extent=(-180, 180, -90, 90))
     ax.plot(lon, lat, color="red", linewidth=1)
     ax.set_title("Ground Track")
@@ -132,7 +135,9 @@ def plot_trajectory_in_ecef(time, states: np.ndarray, ld_meas, dir_name: str):
 
     # earth 3d - from https://stackoverflow.com/questions/30269099/how-to-plot-a-rotating-3d-earth
     # load bluemarble with PIL
-    file_location = os.path.join(os.path.dirname(__file__), "../../simulation/utils/equirectangular_map.png")
+    file_location = os.path.join(
+        os.path.dirname(__file__), "../../simulation/utils/equirectangular_map.png"
+    )
     bm = PIL.Image.open(file_location)
     n = 1
     bm = np.array(bm.resize([d // 1 for d in bm.size])) / 256

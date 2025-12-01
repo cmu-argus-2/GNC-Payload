@@ -25,6 +25,7 @@ from typing import List, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from utils.math_utils import left_q, q_2_rot, quat_conjugate
 
 #

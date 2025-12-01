@@ -13,6 +13,7 @@ from typing import Tuple
 import numpy as np
 from affine import Affine
 from PIL import Image
+
 from utils.config_utils import USER_CONFIG_PATH, load_config
 
 # disable the PIL image size limit

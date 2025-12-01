@@ -17,17 +17,17 @@ from dynamics.orbital_dynamics import Dynamics
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU
 
-# from utils.brahe_utils import load_brahe_data_files, load_brahe_data_files_if_needed
-from utils.config_utils import load_config
-from utils.math_utils import skew
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
-
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+
+# from utils.brahe_utils import load_brahe_data_files, load_brahe_data_files_if_needed
+from utils.config_utils import load_config
+from utils.math_utils import skew
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
 # pylint: disable=too-many-statements, duplicate-code

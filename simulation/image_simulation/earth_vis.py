@@ -19,6 +19,7 @@ from image_simulation.blue_marble_simulator import query_blue_marble_pixel_color
 from rasterio.crs import CRS  # pylint: disable=E0611
 from scipy.ndimage import label
 from sensors.camera_model import CameraModel
+
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import (
     calculate_mgrs_zones,
@@ -26,7 +27,6 @@ from utils.earth_utils import (
     get_mgrs_grid,
     intersect_ellipsoid,
 )
-
 from vision_inference.frame import Frame
 
 

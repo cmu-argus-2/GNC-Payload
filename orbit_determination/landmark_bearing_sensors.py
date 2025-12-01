@@ -16,9 +16,9 @@ from brahe import R_EARTH, Epoch
 from image_simulation.earth_vis import EarthImageSimulator
 from scipy.spatial.transform import Rotation
 from sensors.camera_model import CameraModel
+
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
-
 from vision_inference.landmark_detector import LandmarkDetector
 from vision_inference.logger import Logger
 from vision_inference.ml_pipeline import MLPipeline

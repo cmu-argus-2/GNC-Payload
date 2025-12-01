@@ -18,9 +18,6 @@ from dynamics.orbital_att_dynamics import Dynamics
 from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
 from sensors.camera_model import CameraModelManager
 from sensors.imu import IMU
-from utils.brahe_utils import load_brahe_data_files_if_needed
-from utils.config_utils import load_config
-from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
@@ -28,6 +25,9 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 from orbit_determination.testing.plot_batch_opt_test_data import plot_syn_data
+from utils.brahe_utils import load_brahe_data_files_if_needed
+from utils.config_utils import load_config
+from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
 

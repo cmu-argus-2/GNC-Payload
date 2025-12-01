@@ -27,8 +27,8 @@ from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
 # Import tqdm for progress tracking
 from tqdm import tqdm
-from utils.config_utils import USER_CONFIG_PATH, load_config
 
+from utils.config_utils import USER_CONFIG_PATH, load_config
 from vision_inference.frame import Frame
 from vision_inference.logger import Logger
 from vision_inference.numpy_dataloader import ImageSimInference

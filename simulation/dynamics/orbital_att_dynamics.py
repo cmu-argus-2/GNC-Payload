@@ -24,6 +24,7 @@ from dynamics.third_body_dynamics import (
     sun_gravity,
     sun_gravity_jac,
 )
+
 from utils.earth_utils import density_harris_priester
 from utils.math_utils import left_q_3, right_q, skew
 
