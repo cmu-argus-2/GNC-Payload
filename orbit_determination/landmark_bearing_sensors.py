@@ -13,9 +13,9 @@ import numpy as np
 from brahe import R_EARTH, Epoch
 
 # pylint: disable=import-error
-from image_simulation.earth_vis import EarthImageSimulator
+from simulation.image_simulation.earth_vis import EarthImageSimulator
 from scipy.spatial.transform import Rotation
-from sensors.camera_model import CameraModel
+from simulation.sensors.camera_model import CameraModel
 
 from utils.config_utils import USER_CONFIG_PATH, load_config
 from utils.earth_utils import lat_lon_to_ecef, noisy_bearing_measurement
@@ -168,7 +168,14 @@ class RandomLandmarkBearingSensor(LandmarkBearingSensor):
             true_bearing_unit_vector_eci = landmark_position_eci - cubesat_position
             true_bearing_unit_vector_eci /= np.linalg.norm(true_bearing_unit_vector_eci)
 
-            assert np.allclose(true_bearing_unit_vector_eci, eci_R_body @ bearing_unit_vector_body)
+            # Check that the angle between the two unit vectors is small
+            vec_expected = true_bearing_unit_vector_eci
+            vec_actual = eci_R_body @ bearing_unit_vector_body
+            dot_prod = np.clip(np.dot(vec_expected, vec_actual), -1.0, 1.0)
+            angle = np.rad2deg(np.arccos(dot_prod))
+            # allow small angular error (degrees)
+            assert angle < 1e-5, f"Angle between bearings too large: {angle} deg"
+
 
         bearing_unit_vectors_body_noisy = noisy_bearing_measurement(
             bearing_unit_vectors_body, self.scale

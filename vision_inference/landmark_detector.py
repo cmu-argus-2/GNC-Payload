@@ -30,7 +30,7 @@ import torch
 from cv2.typing import MatLike
 from more_itertools import batched
 from PIL import Image
-from sensors.camera_model import CameraModel
+from simulation.sensors.camera_model import CameraModel
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 

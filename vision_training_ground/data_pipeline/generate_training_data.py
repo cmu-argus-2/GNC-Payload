@@ -25,9 +25,9 @@ from typing import ClassVar, Generator, Tuple
 import cv2
 import numpy as np
 from brahe.constants import R_EARTH
-from image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
+from simulation.image_simulation.earth_vis import EarthImageSimulator, GeoTIFFCache
 from scipy.spatial.transform import Rotation
-from sensors.camera_model import CameraModel, CameraModelManager
+from simulation.sensors.camera_model import CameraModel, CameraModelManager
 from tqdm import tqdm
 
 from utils.config_utils import USER_CONFIG_PATH, load_config

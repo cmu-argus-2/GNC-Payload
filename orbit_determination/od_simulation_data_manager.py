@@ -10,8 +10,8 @@ from typing import Tuple
 import numpy as np
 import quaternion
 from brahe.epoch import Epoch
-from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
-from sensors.camera_model import CameraModel
+from simulation.dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
+from simulation.sensors.camera_model import CameraModel
 
 from orbit_determination.landmark_bearing_sensors import (
     LandmarkBearingSensor,

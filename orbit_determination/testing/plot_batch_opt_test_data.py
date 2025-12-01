@@ -5,7 +5,7 @@ import brahe
 import matplotlib.pyplot as plt
 import numpy as np
 import PIL
-from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
+from simulation.dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
 from mpl_toolkits.mplot3d import Axes3D
 
 from utils.earth_utils import ecef_to_lat_lon

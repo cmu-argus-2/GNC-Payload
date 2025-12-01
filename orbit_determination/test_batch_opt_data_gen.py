@@ -14,10 +14,10 @@ import quaternion
 from brahe.epoch import Epoch
 
 # from dynamics.orbital_dynamics import Dynamics
-from dynamics.orbital_att_dynamics import Dynamics
-from dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
-from sensors.camera_model import CameraModelManager
-from sensors.imu import IMU
+from simulation.dynamics.orbital_att_dynamics import Dynamics
+from simulation.dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
+from simulation.sensors.camera_model import CameraModelManager
+from simulation.sensors.imu import IMU
 
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,

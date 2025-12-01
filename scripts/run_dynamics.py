@@ -38,10 +38,10 @@ import quaternion
 from brahe.epoch import Epoch
 from dynamics.orbital_dynamics import Dynamics
 from tqdm import tqdm
-from utils.config_utils import USER_CONFIG_PATH, load_config
-from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state, is_over_daytime
 
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
+from utils.config_utils import USER_CONFIG_PATH, load_config
+from utils.orbit_utils import get_max_sso_latitude, get_sso_orbit_state, is_over_daytime
 from vision_inference.logger import Logger
 
 
@@ -180,7 +180,7 @@ def generate_trajectory(args: argparse.Namespace) -> None:
     daytime = np.array(daytime)
 
     output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_dir"], args.name)
-    output_dir  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", output_dir)
+    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", output_dir)
     if not os.path.exists(f"{output_dir}"):
         Logger.log("INFO", f"Creating output directory: {output_dir}")
         os.makedirs(f"{output_dir}")
