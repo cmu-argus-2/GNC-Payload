@@ -180,6 +180,7 @@ def generate_trajectory(args: argparse.Namespace) -> None:
     daytime = np.array(daytime)
 
     output_dir = os.path.join(load_config(USER_CONFIG_PATH)["output_dir"], args.name)
+    output_dir  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", output_dir)
     if not os.path.exists(f"{output_dir}"):
         Logger.log("INFO", f"Creating output directory: {output_dir}")
         os.makedirs(f"{output_dir}")
@@ -188,6 +189,7 @@ def generate_trajectory(args: argparse.Namespace) -> None:
     )
 
     # Store args as json
+    args.northwards = bool(args.northwards)
     with open(f"{output_dir}/args.json", "w", encoding="utf-8") as jsonfile:
         json.dump(args.__dict__, jsonfile, indent=4)
 

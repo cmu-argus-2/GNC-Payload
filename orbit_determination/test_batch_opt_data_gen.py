@@ -178,6 +178,16 @@ def run_simulation(trial) -> None:
     # Ensure it's a 2D array for saving
     all_landmark_group_start = np.expand_dims(all_landmark_group_start, axis=1)
 
+    gyro_std = config["satellite"]["gyro"]["noise_density"]
+    gyro_bias_std = config["satellite"]["gyro"]["bias_std"]
+    gyro_bias_tau = config["satellite"]["gyro"]["bias_tau"]
+
+    # Save gyro parameters to a text file for reference
+    with open(os.path.join(dir_name, "gyro_params.txt"), "w", encoding="utf-8") as tf:
+        tf.write(f"gyro_noise_density={gyro_std}\n")
+        tf.write(f"gyro_bias_std={gyro_bias_std}\n")
+        tf.write(f"gyro_bias_tau={gyro_bias_tau}\n")
+
     with h5py.File(f"{dir_name}/orbit_measurements.h5", "w") as f:
         # top-level datasets
         f.create_dataset("landmark_measurements", data=all_landmark_measurements)
