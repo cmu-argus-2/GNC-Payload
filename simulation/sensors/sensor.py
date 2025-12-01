@@ -5,7 +5,7 @@ Module that implements a sensor class that adds noise to a clean signal.
 from math import sqrt
 
 import numpy as np
-from sensors.bias import Bias, BiasParams
+from .bias import Bias, BiasParams
 
 
 # pylint: disable=R0903

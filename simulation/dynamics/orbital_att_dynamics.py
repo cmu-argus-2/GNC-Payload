@@ -9,8 +9,8 @@ from typing import Callable
 import numpy as np
 from brahe import R_EARTH, Epoch
 from brahe.constants import GM_EARTH
-from dynamics.drag_dynamics import drag_dynamics, drag_jacobian
-from dynamics.grav_potential_dynamics import (
+from simulation.dynamics.drag_dynamics import drag_dynamics, drag_jacobian
+from simulation.dynamics.grav_potential_dynamics import (
     j2_dynamics,
     j2_jacobian_manual,
     j3_dynamics,
@@ -18,7 +18,7 @@ from dynamics.grav_potential_dynamics import (
     j4_dynamics,
     j4_jacobian_auto,
 )
-from dynamics.third_body_dynamics import (
+from simulation.dynamics.third_body_dynamics import (
     moon_gravity,
     moon_gravity_jac,
     sun_gravity,
@@ -118,8 +118,8 @@ class Dynamics:
         self.I_sat = np.array(config["satellite"]["inertia"])
         self.I_sat_inv = np.linalg.inv(self.I_sat)
         self.has_gyro_bias = include_gyro_bias
-        self.gyro_bias_tau = config["satellite"].get("gyro_bias_tau", 0.0)
-        self.gyro_bias_std = config["satellite"].get("gyro_bias_std", 0.0)
+        self.gyro_bias_tau = config["satellite"]["gyro"].get("gyro_bias_tau", 0.0)
+        self.gyro_bias_std = config["satellite"]["gyro"].get("gyro_bias_std", 0.0)
         # self.CoPM = np.array(config["satellite"].get("CoPM", [0, 0, 0]))
         # self.num_MTBs = config["satellite"].get("num_MTBs", 0)
         # Add other satellite parameters as needed

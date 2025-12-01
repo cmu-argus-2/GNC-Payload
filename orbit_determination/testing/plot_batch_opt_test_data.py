@@ -99,7 +99,7 @@ def plot_trajectory_on_map(time, states: np.ndarray, dir_name: str):
     lat = lat_lon[:, 0]
     lon = lat_lon[:, 1]
     file_location = os.path.join(
-        os.path.dirname(__file__), "../../simulation/utils/equirectangular_map.png"
+        os.path.dirname(__file__), "../../utils/equirectangular_map.png"
     )
     ax.imshow(load_equirectangular_map(file_location), extent=(-180, 180, -90, 90))
     ax.plot(lon, lat, color="red", linewidth=1)
@@ -136,7 +136,7 @@ def plot_trajectory_in_ecef(time, states: np.ndarray, ld_meas, dir_name: str):
     # earth 3d - from https://stackoverflow.com/questions/30269099/how-to-plot-a-rotating-3d-earth
     # load bluemarble with PIL
     file_location = os.path.join(
-        os.path.dirname(__file__), "../../simulation/utils/equirectangular_map.png"
+        os.path.dirname(__file__), "../../utils/equirectangular_map.png"
     )
     bm = PIL.Image.open(file_location)
     n = 1

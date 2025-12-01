@@ -3,8 +3,8 @@ Inertial Measurement Unit (IMU) Sensor Module
 """
 
 import numpy as np
-from sensors.bias import BiasParams
-from sensors.sensor import SensorNoiseParams, TriAxisSensor
+from .bias import BiasParams
+from .sensor import SensorNoiseParams, TriAxisSensor
 
 
 # pylint: disable=R0903
