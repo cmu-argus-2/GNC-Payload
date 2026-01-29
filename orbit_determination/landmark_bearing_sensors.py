@@ -248,7 +248,10 @@ class GroundTruthLandmarkBearingSensor(LandmarkBearingSensor):
             bearing_vectors_ecef, axis=1, keepdims=True
         )
 
-        is_visible = bearing_unit_vectors_ecef @ camera_axis_ecef > self.cos_fov_on_2
+        is_visible = (
+            (bearing_unit_vectors_ecef @ camera_axis_ecef > self.cos_fov_on_2)
+            & (np.linalg.norm(camera_position_ecef) < np.linalg.norm(position_ecef))
+        )
         visible_landmarks_ecef = hemisphere_landmarks_ecef[is_visible, :]
         visible_landmarks_eci = (ecef_R_eci.T @ visible_landmarks_ecef.T).T
 
