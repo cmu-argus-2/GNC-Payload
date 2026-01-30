@@ -28,6 +28,15 @@ from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
 
+def enforce_quat_continuity(next_quat, prev_quat, i):
+    # components is [w, x, y, z]
+    a = prev_quat.components
+    b = next_quat.components
+    if np.dot(a, b) < 0.0:
+        next_quat = -next_quat
+        print(f"Sign flipped at timestep {i}!")
+    return next_quat
+
 def run_simulation(trial) -> None:
     """
     Run the simulation.
@@ -65,7 +74,7 @@ def run_simulation(trial) -> None:
     ), "Rotation matrix is not a proper rotation matrix"
 
     # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 18])
+    rot = np.array([np.pi / 12, np.pi / 6, np.pi / 18])
 
     # Prep Q matrix for the EKF.
     Q = np.eye(16) * 1e-16
@@ -105,7 +114,7 @@ def run_simulation(trial) -> None:
     
     # measurements need to be properly timestamped
     epochs_list = starting_epoch.to_datetime().timestamp() + np.arange(N) * data_manager.dt
-
+    quaternions = np.array([[1,0,0,0]])
     for i in range(0, N - 1):
         t = epochs_list[i]
         # take a set of measurements every minute
@@ -124,11 +133,14 @@ def run_simulation(trial) -> None:
         next_state = ground_truth_dynamics.perturbed_f(
             x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
         )
-        next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
-
+        q = quaternion.as_quat_array(quaternions[-1,:])
+        # next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
+        next_quat = q * quaternion.from_rotation_vector(w * dt)
+        next_quat = enforce_quat_continuity(next_quat=next_quat, prev_quat=q,i=i)
+        quaternions = np.append(quaternions, np.array([quaternion.as_float_array(next_quat)]),axis=0)
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
-        if i % 20 == 0:
+        if i % 40 == 0:
         # and is_over_daytime(
         #     data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
         # ):
@@ -177,7 +189,7 @@ def run_simulation(trial) -> None:
     states_hist = data_manager.states
     eci_Rs_body_hist = data_manager.eci_Rs_body
     # convert to quaternions for easier storage
-    attitudes_hist = np.array([quaternion.from_rotation_matrix(eci_Rs_body_hist[i]).components for i in range(eci_Rs_body_hist.shape[0])])
+    attitudes_hist = quaternions
     omega_hist = np.tile(w, (states_hist.shape[0], 1))  # repeat w for each timestep
     full_state_hist = np.hstack((states_hist, attitudes_hist, omega_hist))
     with h5py.File(f"{dir_name}/ground_truth_states.h5", 'w') as f:
