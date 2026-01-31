@@ -137,7 +137,10 @@ def run_simulation(trial) -> None:
         # next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
         next_quat = q * quaternion.from_rotation_vector(w * dt)
         next_quat = enforce_quat_continuity(next_quat=next_quat, prev_quat=q,i=i)
-        quaternions = np.append(quaternions, np.array([quaternion.as_float_array(next_quat)]),axis=0)
+
+        next_quat_store = np.array([quaternion.as_float_array(next_quat)])
+        next_quat_store /= np.linalg.norm(next_quat_store)
+        quaternions = np.append(quaternions, next_quat_store,axis=0)
         data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
 
         if i % 40 == 0:
