@@ -290,6 +290,8 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         mgrs_gzd: str = "17R",
         save_lat_lon: bool = False,
         write_labels: bool = True,
+        use_gpu: bool = False,
+        preload_regions: list[str] | None = None,
     ) -> None:
         """
         Initialize this SimulatedMLLandmarkBearingSensor.
@@ -305,11 +307,15 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         :param mgrs_gzd: MGRS Grid Zone Designator (e.g. "17R") for this simulation run.
         :param save_lat_lon: If True, save per-pixel lat/lon arrays as .npz alongside each image.
         :param write_labels: If True, write YOLO labels for each frame. Disable to speed up image generation.
+        :param use_gpu: If True, force the Earth image simulator to use the CuPy/GPU path.
+        :param preload_regions: Optional list of MGRS region IDs to preload into RAM/VRAM at startup.
         """
         self.run_inference = run_inference
         self.ml_pipeline = MLPipeline() if run_inference else None
         self.earth_image_simulator = (
-            CesiumEarthImageSimulator() if use_cesium else EarthImageSimulator()
+            CesiumEarthImageSimulator()
+            if use_cesium
+            else EarthImageSimulator(use_gpu=use_gpu, preload_regions=preload_regions)
         )
         self.ld_version = ld_version
         self.mgrs_gzd = mgrs_gzd
@@ -424,10 +430,11 @@ class SimulatedMLLandmarkBearingSensor(LandmarkBearingSensor):
         ecef_R_eci = brahe.frames.rECItoECEF(epoch)
         position_ecef = ecef_R_eci @ cubesat_position
         ecef_R_body = ecef_R_eci @ eci_R_body
+        need_lat_lon = self.save_lat_lon or self.write_labels or self.run_inference
 
         # simulate image
         frame, lat_lon = self.earth_image_simulator.simulate_image_for_training(
-            position_ecef, ecef_R_body, camera_model
+            position_ecef, ecef_R_body, camera_model, return_lat_lon=need_lat_lon
         )
         camera_name = camera_model.get_camera_name
         cam_id = {'x+': 'xp', 'x-': 'xm', 'y+': 'yp', 'y-': 'ym'}[camera_name]

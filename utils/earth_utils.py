@@ -259,6 +259,11 @@ def calculate_mgrs_zones(lat_lon: np.ndarray) -> np.ndarray:
     valid_indices = (
         np.all(~np.isnan(lat_lon), axis=-1) & (lat_lon[..., 0] >= -80) & (lat_lon[..., 0] < 84)
     )
+
+    # If no pixels map to valid Earth lat/lon, return the default empty-region map.
+    if not np.any(valid_indices):
+        return np.full(valid_indices.shape, b"", dtype="S3")
+
     lat_flat, lon_flat = lat_lon[valid_indices, :].T
 
     # Determine latitude bands

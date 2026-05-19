@@ -3,7 +3,7 @@ Module to simulate and visualize Earth images from satellite data.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from typing import ClassVar, Tuple
@@ -15,6 +15,16 @@ from brahe import R_EARTH
 from rasterio.crs import CRS
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 from scipy.ndimage import label
+
+try:
+    import cupy as cp
+except ImportError:  # pragma: no cover - optional GPU dependency
+    cp = None
+
+try:
+    from cupyx.scipy.ndimage import label as cp_label
+except Exception:  # pragma: no cover - optional cupyx dependency
+    cp_label = None
 
 from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
 from sensors.camera_model import CameraModel
@@ -49,6 +59,7 @@ class GeoTIFFData:
     image_path: str
     image_data: np.ndarray
     transform: Affine
+    _gpu_image_data: object = field(default=None, init=False, repr=False)
 
     @staticmethod
     def load(file_path: str) -> "GeoTIFFData":
@@ -220,7 +231,12 @@ class GeoTIFFData:
         valid_mask = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
         return us, vs, valid_mask
 
-    def query_pixel_colors(self, lat_lon: np.ndarray) -> np.ndarray:
+    def query_pixel_colors(
+        self,
+        lat_lon: np.ndarray,
+        use_gpu: bool = False,
+        return_gpu: bool = False,
+    ):
         """
         Query pixel colors from this GeoTIFFData for a set of latitudes and longitudes.
 
@@ -228,13 +244,57 @@ class GeoTIFFData:
         (red, green, blue).
 
         :param lat_lon: A numpy array of shape (..., 2) containing the latitudes and longitudes to query.
-        :return: A numpy array of shape lat_lon.shape[:-1] + (self.num_channels,) containing the pixel values.
+        :param use_gpu: If True and CuPy is available, perform pixel lookup on GPU.
+        :param return_gpu: If True while using GPU, return a CuPy array instead of NumPy.
+        :return: Pixel values with shape lat_lon.shape[:-1] + (self.num_channels,).
         """
+        if use_gpu and cp is not None:
+            return self._query_pixel_colors_gpu(lat_lon, return_gpu=return_gpu)
+
         us, vs, valid_mask = self.get_pixel_coordinates(lat_lon)
 
         image = np.zeros(lat_lon.shape[:-1] + (self.num_channels,), dtype=self.image_data.dtype)
         image[valid_mask, :] = self.image_data[vs[valid_mask], us[valid_mask], :]
         return image
+
+    def _query_pixel_colors_gpu(self, lat_lon, return_gpu: bool = False):
+        """GPU-accelerated pixel lookup for a batch of lat/lon coordinates."""
+        assert cp is not None, "CuPy is required for GPU pixel lookup"
+        assert lat_lon.shape[-1] == 2, "lat_lon must have shape (..., 2)."
+
+        shape_prefix = lat_lon.shape[:-1]
+        lat_lon_flat = lat_lon.reshape(-1, 2)
+
+        # Affine maps (lat, lon) -> (u, v):
+        # u = a*lat + b*lon + c ; v = d*lat + e*lon + f
+        a, b, c, d, e, f = self.transform.a, self.transform.b, self.transform.c, self.transform.d, self.transform.e, self.transform.f
+
+        lat_lon_gpu = (
+            lat_lon_flat.astype(cp.float32, copy=False)
+            if isinstance(lat_lon_flat, cp.ndarray)
+            else cp.asarray(lat_lon_flat, dtype=cp.float32)
+        )
+        lats = lat_lon_gpu[:, 0]
+        lons = lat_lon_gpu[:, 1]
+
+        us = cp.rint(a * lats + b * lons + c).astype(cp.int32)
+        vs = cp.rint(d * lats + e * lons + f).astype(cp.int32)
+
+        height, width, _ = self.image_data.shape
+        us = cp.where(us == width, width - 1, us)
+        vs = cp.where(vs == height, height - 1, vs)
+        valid = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
+
+        if self._gpu_image_data is None:
+            self._gpu_image_data = cp.asarray(self.image_data)
+
+        out = cp.zeros((lat_lon_flat.shape[0], self.num_channels), dtype=self._gpu_image_data.dtype)
+        if bool(cp.any(valid)):
+            valid_idx = cp.where(valid)[0]
+            out[valid_idx, :] = self._gpu_image_data[vs[valid_idx], us[valid_idx], :]
+
+        out = out.reshape(shape_prefix + (self.num_channels,))
+        return out if return_gpu else cp.asnumpy(out)
 
 
 class GeoTIFFCache:
@@ -330,6 +390,23 @@ class GeoTIFFCache:
         file_path = os.path.join(region_folder, selected_file)
         return GeoTIFFData.load(file_path)
 
+    def load_all_geotiff_data(self, region: str) -> list[GeoTIFFData]:
+        """Load all GeoTIFF files for a region."""
+        region_folder = os.path.join(self.geotiff_folder, region)
+        if not os.path.exists(region_folder):
+            return []
+
+        geotiffs: list[GeoTIFFData] = []
+        for file_name in sorted(os.listdir(region_folder)):
+            file_path = os.path.join(region_folder, file_name)
+            if not os.path.isfile(file_path):
+                continue
+            if not file_name.lower().endswith((".tif", ".tiff")):
+                continue
+            geotiffs.append(GeoTIFFData.load(file_path))
+
+        return geotiffs
+
     def clear_cache(self) -> None:
         """
         Clear the GeoTIFF cache.
@@ -349,6 +426,8 @@ class EarthImageSimulator:
         geotiff_cache: GeoTIFFCache | None = None,
         inpaint_blue_marble: bool = True,
         blue_marble_month: str | None = "may",
+        use_gpu: bool | None = None,
+        preload_regions: list[str] | None = None,
     ):
         """
         Initialize the Earth image simulator.
@@ -358,10 +437,131 @@ class EarthImageSimulator:
             inpaint_blue_marble: Whether to inpaint from the Blue Marble dataset for Earth pixels with no valid data.
             blue_marble_month: The month of the Blue Marble dataset to use. A fixed month improves cache locality.
                                If None, a random month is chosen for each image (slower, more disk I/O).
+            use_gpu: If True, use CuPy for the heavy ray/intersection math. If None, auto-enable when CuPy is
+                     available. If False, force NumPy.
+            preload_regions: Optional list of MGRS regions to preload (all tiles) into RAM,
+                             and into VRAM when use_gpu is enabled.
         """
         self.cache = geotiff_cache if geotiff_cache is not None else GeoTIFFCache()
         self.inpaint_blue_marble = inpaint_blue_marble
         self.blue_marble_month = blue_marble_month
+        if use_gpu is True and cp is None:
+            raise ImportError(
+                "CuPy is required for GPU image simulation but is not installed in this environment."
+            )
+        self.use_gpu = bool(cp is not None) if use_gpu is None else bool(use_gpu)
+
+        # Validate that CuPy can actually talk to the CUDA runtime on this host.
+        # Some environments have CuPy installed but fail at first runtime call.
+        if self.use_gpu and cp is not None:
+            try:
+                _ = cp.cuda.runtime.getDeviceCount()
+                _ = cp.zeros((1,), dtype=cp.float32)
+            except Exception as exc:
+                if use_gpu is True:
+                    raise RuntimeError(
+                        "GPU mode was requested, but CuPy CUDA runtime initialization failed. "
+                        "Try reinstalling a compatible CuPy build for this environment, or run with --cpu. "
+                        f"Original error: {exc}"
+                    ) from exc
+                print(f"[GPU PROBE] CuPy runtime unavailable, falling back to NumPy. Details: {exc}")
+                self.use_gpu = False
+
+        self._gpu_ray_cache: dict[str, object] = {}
+        self._preloaded_tiles: dict[str, list[GeoTIFFData]] = {}
+        backend = "cupy" if self.use_gpu else "numpy"
+        device_msg = ""
+        if self.use_gpu and cp is not None:
+            try:
+                device_msg = f", gpu_count={cp.cuda.runtime.getDeviceCount()}, device={cp.cuda.runtime.getDevice() if cp.cuda.runtime.getDeviceCount() > 0 else 'n/a'}"
+            except Exception:
+                device_msg = ", gpu_info=unavailable"
+        print(f"[GPU PROBE] EarthImageSimulator backend={backend}{device_msg}")
+
+        if preload_regions:
+            self.preload_regions(preload_regions)
+
+    def preload_regions(self, regions: list[str]) -> None:
+        """Preload all GeoTIFF tiles for selected regions into memory (and VRAM if enabled)."""
+        for region in regions:
+            tiles = self.cache.load_all_geotiff_data(region)
+            if not tiles:
+                print(f"[GPU PRELOAD] No tiles found for region={region}")
+                continue
+
+            if self.use_gpu and cp is not None:
+                for tile in tiles:
+                    if tile._gpu_image_data is None:
+                        tile._gpu_image_data = cp.asarray(tile.image_data)
+                print(f"[GPU PRELOAD] region={region} tiles={len(tiles)} loaded_to=VRAM")
+            else:
+                print(f"[GPU PRELOAD] region={region} tiles={len(tiles)} loaded_to=RAM")
+
+            self._preloaded_tiles[region] = tiles
+
+    @staticmethod
+    def _intersect_ellipsoid_cpu(
+        ray_directions: np.ndarray,
+        satellite_position: np.ndarray,
+        a: float = 6378137.0,
+        b: float = 6356752.314245,
+    ) -> np.ndarray:
+        return intersect_ellipsoid(ray_directions, satellite_position, a=a, b=b)
+
+    @staticmethod
+    def _ecef_to_lat_lon_cpu(intersection_points: np.ndarray) -> np.ndarray:
+        return ecef_to_lat_lon(intersection_points)
+
+    @staticmethod
+    def _intersect_ellipsoid_gpu(
+        ray_directions,
+        satellite_position,
+        a: float = 6378137.0,
+        b: float = 6356752.314245,
+    ):
+        ray_directions_flat = ray_directions.reshape(-1, 3)
+        aab_squared = cp.asarray([a, a, b], dtype=ray_directions.dtype) ** 2
+        A = cp.sum(ray_directions_flat**2 / aab_squared, axis=1)
+        B = 2 * cp.sum(ray_directions_flat * (satellite_position / aab_squared), axis=1)
+        C = cp.sum(satellite_position**2 / aab_squared) - 1
+        discriminant = B**2 - 4 * A * C
+
+        intersection_points_flat = cp.full_like(ray_directions_flat, cp.nan)
+        valid_mask = discriminant >= 0
+        if cp.any(valid_mask):
+            sqrt_discriminant = cp.sqrt(discriminant[valid_mask])
+            t1 = (-B[valid_mask] - sqrt_discriminant) / (2 * A[valid_mask])
+            t2 = (-B[valid_mask] + sqrt_discriminant) / (2 * A[valid_mask])
+            t = cp.where((t1 > 0) & ((t1 < t2) | (t2 <= 0)), t1, t2)
+            t = cp.where(t > 0, t, cp.nan)
+            valid_ray_directions = ray_directions_flat[valid_mask]
+            intersection_points_flat[valid_mask] = t[:, None] * valid_ray_directions + satellite_position
+
+        return intersection_points_flat.reshape(ray_directions.shape)
+
+    @staticmethod
+    def _ecef_to_lat_lon_gpu(intersection_points):
+        shape_prefix = intersection_points.shape[:-1]
+        flat = intersection_points.reshape(-1, 3)
+        valid_mask = ~cp.isnan(flat).any(axis=1)
+        lat_lon_flat = cp.full((flat.shape[0], 2), cp.nan, dtype=flat.dtype)
+
+        if cp.any(valid_mask):
+            valid_points = flat[valid_mask]
+            x, y, z = valid_points[:, 0], valid_points[:, 1], valid_points[:, 2]
+
+            lon = cp.degrees(cp.arctan2(y, x))
+            e2 = (6378137.0**2 - 6356752.314245**2) / 6378137.0**2
+            ep2 = (6378137.0**2 - 6356752.314245**2) / 6356752.314245**2
+            p = cp.sqrt(x**2 + y**2)
+            theta = cp.arctan2(z * 6378137.0, p * 6356752.314245)
+            lat = cp.arctan2(z + ep2 * 6356752.314245 * cp.sin(theta) ** 3,
+                             p - e2 * 6378137.0 * cp.cos(theta) ** 3)
+
+            lat_lon_flat[valid_mask, 0] = cp.degrees(lat)
+            lat_lon_flat[valid_mask, 1] = lon
+
+        return lat_lon_flat.reshape(*shape_prefix, 2)
 
     @staticmethod
     def trim_small_connected_components(mask: np.ndarray, min_size: int = 3) -> np.ndarray:
@@ -389,8 +589,27 @@ class EarthImageSimulator:
 
         return mask
 
+    @staticmethod
+    def _trim_small_connected_components_gpu(mask, min_size: int = 3):
+        """GPU connected-component filtering when cupyx is available; CPU fallback otherwise."""
+        assert cp is not None, "CuPy is required for GPU mask trimming"
+        if cp_label is None:
+            trimmed_cpu = EarthImageSimulator.trim_small_connected_components(cp.asnumpy(mask), min_size)
+            return cp.asarray(trimmed_cpu)
+
+        labeled_connected_components, num_labels = cp_label(mask, structure=cp.ones((3, 3), dtype=bool))
+        for label_id in range(1, int(num_labels) + 1):
+            connected_component_mask = labeled_connected_components == label_id
+            if int(cp.sum(connected_component_mask).item()) < min_size:
+                mask[connected_component_mask] = False
+        return mask
+
     def simulate_image_for_training(
-        self, position_ecef: np.ndarray, ecef_R_body: np.ndarray, camera_model: CameraModel
+        self,
+        position_ecef: np.ndarray,
+        ecef_R_body: np.ndarray,
+        camera_model: CameraModel,
+        return_lat_lon: bool = True,
     ) -> Tuple[Frame, np.ndarray]:
         """
         Simulate an Earth image given the satellite position, attitude, and camera model.
@@ -410,22 +629,49 @@ class EarthImageSimulator:
         assert np.linalg.norm(position_ecef) > R_EARTH, "position_ecef must be outside the Earth."
 
         ray_directions_body = camera_model.ray_directions_body()
-        ray_directions_ecef = ray_directions_body @ ecef_R_body.T
 
-        camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
-        intersection_points = intersect_ellipsoid(ray_directions_ecef, camera_position_ecef)
-        lat_lon = ecef_to_lat_lon(intersection_points)
+        lat_lon_gpu = None
+        if self.use_gpu:
+            cam_name = camera_model.camera_name
+            ray_directions_body_gpu = self._gpu_ray_cache.get(cam_name)
+            if ray_directions_body_gpu is None:
+                ray_directions_body_gpu = cp.asarray(ray_directions_body, dtype=cp.float32)
+                self._gpu_ray_cache[cam_name] = ray_directions_body_gpu
 
-        # TODO: see if we can avoid calculating this for every pixel
-        mgrs_regions = calculate_mgrs_zones(lat_lon)
-        present_regions = np.unique(mgrs_regions[mgrs_regions != b""])
+            ecef_R_body_gpu = cp.asarray(ecef_R_body, dtype=cp.float32)
+            ray_directions_ecef = ray_directions_body_gpu @ ecef_R_body_gpu.T
+            camera_position_ecef = cp.asarray(
+                camera_model.get_camera_position(position_ecef, ecef_R_body), dtype=cp.float32
+            )
+            intersection_points = EarthImageSimulator._intersect_ellipsoid_gpu(
+                ray_directions_ecef, camera_position_ecef
+            )
+            lat_lon_gpu = EarthImageSimulator._ecef_to_lat_lon_gpu(intersection_points).astype(cp.float32)
+            lat_lon = cp.asnumpy(lat_lon_gpu) if return_lat_lon else None
+        else:
+            ray_directions_ecef = ray_directions_body @ ecef_R_body.T
+            camera_position_ecef = camera_model.get_camera_position(position_ecef, ecef_R_body)
+            intersection_points = EarthImageSimulator._intersect_ellipsoid_cpu(
+                ray_directions_ecef, camera_position_ecef
+            )
+            lat_lon = EarthImageSimulator._ecef_to_lat_lon_cpu(intersection_points)
 
-        image = np.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE)
-        for region in present_regions:
-            geotiff_data = self.cache.load_geotiff_data(str(region, encoding="ascii"))
-            if geotiff_data is None:
-                continue
+        image = cp.zeros(CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE) if self.use_gpu else np.zeros(
+            CameraModel.OUTPUT_SHAPE, dtype=CameraModel.DTYPE
+        )
 
+        # Fast path for one-region workflows: skip CPU-heavy per-pixel MGRS labeling.
+        # Sampling the preloaded region tile directly is sufficient because out-of-bounds
+        # pixels naturally remain zero via GeoTIFF bounds checks.
+        single_preloaded_region = (
+            next(iter(self._preloaded_tiles.keys()))
+            if len(self._preloaded_tiles) == 1 and len(next(iter(self._preloaded_tiles.values()))) > 0
+            else None
+        )
+
+        if single_preloaded_region is not None:
+            preloaded_tiles = self._preloaded_tiles[single_preloaded_region]
+            geotiff_data = preloaded_tiles[np.random.randint(0, len(preloaded_tiles))]
             assert geotiff_data.num_channels == CameraModel.NUM_CHANNELS, (
                 f"The GeoTIFF data located at '{geotiff_data.image_path}' does not have {CameraModel.NUM_CHANNELS} "
                 f"channels as expected in the camera model."
@@ -434,33 +680,97 @@ class EarthImageSimulator:
                 f"The GeoTIFF data located at {geotiff_data.image_path} does not have a dtype of "
                 f"{CameraModel.DTYPE} as expected in the camera model."
             )
+            if self.use_gpu and lat_lon_gpu is not None:
+                image = geotiff_data.query_pixel_colors(lat_lon_gpu, use_gpu=True, return_gpu=True)
+            else:
+                image = geotiff_data.query_pixel_colors(lat_lon, use_gpu=False)
+        else:
+            # General multi-region path.
+            lat_lon_for_regions = cp.asnumpy(lat_lon_gpu) if (self.use_gpu and lat_lon is None) else lat_lon
+            mgrs_regions = calculate_mgrs_zones(lat_lon_for_regions)
+            present_regions = np.unique(mgrs_regions[mgrs_regions != b""])
 
-            region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
-            image[region_mask, :] = geotiff_data.query_pixel_colors(lat_lon[region_mask])
+            for region in present_regions:
+                region_name = str(region, encoding="ascii")
+                preloaded = self._preloaded_tiles.get(region_name)
+                if preloaded:
+                    geotiff_data = preloaded[np.random.randint(0, len(preloaded))]
+                else:
+                    geotiff_data = self.cache.load_geotiff_data(region_name)
+                if geotiff_data is None:
+                    continue
+
+                assert geotiff_data.num_channels == CameraModel.NUM_CHANNELS, (
+                    f"The GeoTIFF data located at '{geotiff_data.image_path}' does not have {CameraModel.NUM_CHANNELS} "
+                    f"channels as expected in the camera model."
+                )
+                assert geotiff_data.dtype == CameraModel.DTYPE, (
+                    f"The GeoTIFF data located at {geotiff_data.image_path} does not have a dtype of "
+                    f"{CameraModel.DTYPE} as expected in the camera model."
+                )
+
+                region_mask = (mgrs_regions == region).reshape(CameraModel.RESOLUTION)
+                if self.use_gpu and lat_lon_gpu is not None:
+                    region_mask_gpu = cp.asarray(region_mask)
+                    image[region_mask_gpu, :] = geotiff_data.query_pixel_colors(
+                        lat_lon_gpu[region_mask_gpu], use_gpu=True, return_gpu=True
+                    )
+                else:
+                    image[region_mask, :] = geotiff_data.query_pixel_colors(
+                        lat_lon_for_regions[region_mask], use_gpu=False
+                    )
 
         if self.inpaint_blue_marble:
-            inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
+            if self.use_gpu and lat_lon_gpu is not None:
+                inpaint_mask = (~cp.any(cp.isnan(lat_lon_gpu), axis=-1)) & cp.all(image == 0, axis=-1)
 
-            # avoid inpainting very small connected components of pixels since we want to avoid overwriting data that
-            # just happens to consist of zeros by chance, despite being valid data
-            inpaint_mask = EarthImageSimulator.trim_small_connected_components(inpaint_mask)
+                # Keep morphology on device when cupyx is available.
+                inpaint_mask = EarthImageSimulator._trim_small_connected_components_gpu(inpaint_mask)
 
-            if np.any(inpaint_mask):
-                blue_marble_pixel_values = query_blue_marble_pixel_colors(
-                    lat_lon[inpaint_mask, :], self.blue_marble_month
-                )
-                blue_marble_pixel_values = np.clip(
-                    np.rint(
-                        EarthImageSimulator.BLUE_MARBLE_BRIGHTNESS_FACTOR * blue_marble_pixel_values
-                    ),
-                    0,
-                    255,
-                )
-                image[inpaint_mask, :] = blue_marble_pixel_values
+                if bool(cp.any(inpaint_mask)):
+                    inpaint_mask_np = cp.asnumpy(inpaint_mask)
+                    lat_lon_for_inpaint = cp.asnumpy(lat_lon_gpu[inpaint_mask])
+                    blue_marble_pixel_values = query_blue_marble_pixel_colors(
+                        lat_lon_for_inpaint, self.blue_marble_month
+                    )
+                    blue_marble_pixel_values = np.clip(
+                        np.rint(
+                            EarthImageSimulator.BLUE_MARBLE_BRIGHTNESS_FACTOR * blue_marble_pixel_values
+                        ),
+                        0,
+                        255,
+                    )
+                    image[inpaint_mask] = cp.asarray(blue_marble_pixel_values, dtype=image.dtype)
+            else:
+                inpaint_mask = ~np.any(np.isnan(lat_lon), axis=-1) & np.all(image == 0, axis=-1)
+
+                # avoid inpainting very small connected components of pixels since we want to avoid overwriting data that
+                # just happens to consist of zeros by chance, despite being valid data
+                inpaint_mask = EarthImageSimulator.trim_small_connected_components(inpaint_mask)
+
+                if np.any(inpaint_mask):
+                    blue_marble_pixel_values = query_blue_marble_pixel_colors(
+                        lat_lon[inpaint_mask, :], self.blue_marble_month
+                    )
+                    blue_marble_pixel_values = np.clip(
+                        np.rint(
+                            EarthImageSimulator.BLUE_MARBLE_BRIGHTNESS_FACTOR * blue_marble_pixel_values
+                        ),
+                        0,
+                        255,
+                    )
+                    image[inpaint_mask, :] = blue_marble_pixel_values
+
+        if self.use_gpu:
+            image = cp.asnumpy(image)
 
         return (
             Frame(image, camera_model.camera_name, datetime.now()),
-            lat_lon,
+            (
+                cp.asnumpy(lat_lon_gpu)
+                if (self.use_gpu and return_lat_lon and lat_lon_gpu is not None)
+                else (lat_lon if return_lat_lon else np.empty((0, 2), dtype=np.float32))
+            ),
         )
 
     def simulate_image(

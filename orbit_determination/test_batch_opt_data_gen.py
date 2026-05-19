@@ -374,6 +374,8 @@ def run_simulation(
     ld_version: int = 1,
     save_lat_lon: bool = False,
     write_labels: bool = True,
+    use_gpu: bool = True,
+    gpu_preload_region: str | None = None,
 ) -> None:
     idx = dynidx(has_gyro_bias=True)
     config = load_config()
@@ -412,7 +414,10 @@ def run_simulation(
 
     landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor(
         use_cesium=False, run_inference=False, ld_version=ld_version, mgrs_gzd=mgrs_gzd,
-        save_lat_lon=save_lat_lon, write_labels=write_labels,
+        save_lat_lon=save_lat_lon,
+        write_labels=write_labels,
+        use_gpu=use_gpu,
+        preload_regions=[gpu_preload_region or mgrs_gzd] if use_gpu else None,
     )
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt, idx)
@@ -582,6 +587,10 @@ if __name__ == "__main__":
                         help="Save per-pixel lat/lon arrays as .npz alongside each image (default off)")
     parser.add_argument("--no-labels", dest="write_labels", action="store_false", default=True,
                         help="Skip YOLO label generation to speed up image creation")
+    parser.add_argument("--cpu", dest="use_gpu", action="store_false", default=True,
+                        help="Force CPU image simulation instead of CuPy/GPU")
+    parser.add_argument("--gpu-preload-region", type=str, default=None,
+                        help="Preload all GeoTIFF tiles for this region into RAM/VRAM (default: current mgrs)")
     args = parser.parse_args()
 
     load_brahe_data_files_if_needed()
@@ -610,4 +619,6 @@ if __name__ == "__main__":
                 ld_version=args.ld_version,
                 save_lat_lon=args.save_lat_lon,
                 write_labels=args.write_labels,
+                use_gpu=args.use_gpu,
+                gpu_preload_region=args.gpu_preload_region,
             )
