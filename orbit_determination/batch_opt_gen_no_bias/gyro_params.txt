@@ -1,0 +1,3 @@
+gyro_noise_density=0.0008726
+gyro_bias_std=0.0
+gyro_bias_tau=86400

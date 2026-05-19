@@ -13,6 +13,7 @@ import rasterio
 from affine import Affine
 from brahe import R_EARTH
 from rasterio.crs import CRS
+from rasterio.warp import Resampling, calculate_default_transform, reproject
 from scipy.ndimage import label
 
 from image_simulation.blue_marble_simulator import query_blue_marble_pixel_colors
@@ -64,13 +65,36 @@ class GeoTIFFData:
                         or if the data type of the image is not in GeoTIFFData.SUPPORTED_DTYPES.
         """
         with rasterio.open(file_path) as src:
-            if src.crs != GeoTIFFData.EPSG_4326_CRS:
-                raise ValueError(
-                    f"GeoTIFF file located at {file_path} contains "
-                    f"an unsupported coordinate reference system: {src.crs}"
+            if src.crs == GeoTIFFData.EPSG_4326_CRS:
+                image_data = src.read()
+                transform: Affine = src.transform
+            else:
+                # Reproject non-EPSG:4326 imagery to EPSG:4326 on load so all downstream
+                # lat/lon lookup logic can use a consistent coordinate frame.
+                dst_transform, dst_width, dst_height = calculate_default_transform(
+                    src.crs,
+                    GeoTIFFData.EPSG_4326_CRS,
+                    src.width,
+                    src.height,
+                    *src.bounds,
                 )
-            image_data = src.read()
-            transform: Affine = src.transform
+                image_data = np.zeros(
+                    (src.count, dst_height, dst_width),
+                    dtype=src.dtypes[0],
+                )
+
+                for band_idx in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, band_idx),
+                        destination=image_data[band_idx - 1],
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=dst_transform,
+                        dst_crs=GeoTIFFData.EPSG_4326_CRS,
+                        resampling=Resampling.bilinear,
+                    )
+
+                transform = dst_transform
 
         if image_data.dtype not in GeoTIFFData.SUPPORTED_DTYPES:
             raise ValueError(
@@ -324,7 +348,7 @@ class EarthImageSimulator:
         self,
         geotiff_cache: GeoTIFFCache | None = None,
         inpaint_blue_marble: bool = True,
-        blue_marble_month: str | None = None,
+        blue_marble_month: str | None = "may",
     ):
         """
         Initialize the Earth image simulator.
@@ -332,8 +356,8 @@ class EarthImageSimulator:
         Parameters:
             geotiff_cache: The GeoTIFFCache to use. If None, a default GeoTIFFCache will be created.
             inpaint_blue_marble: Whether to inpaint from the Blue Marble dataset for Earth pixels with no valid data.
-            blue_marble_month: The month of the Blue Marble dataset to use. If None, a random month will be chosen for
-                               each simulated image, possibly resulting in worse performance due to increased file I/O.
+            blue_marble_month: The month of the Blue Marble dataset to use. A fixed month improves cache locality.
+                               If None, a random month is chosen for each image (slower, more disk I/O).
         """
         self.cache = geotiff_cache if geotiff_cache is not None else GeoTIFFCache()
         self.inpaint_blue_marble = inpaint_blue_marble

@@ -22,6 +22,9 @@ output_dir/*
 
 # Trained Models and CSVs
 vision_inference/models
+datasets
+Vision-Models
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

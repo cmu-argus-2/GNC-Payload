@@ -1,0 +1,3 @@
+Camera ID: y-
+Timestamp: 2026-04-15 09:49:34.369674
+Frame ID: -5e345e5df50a10e9

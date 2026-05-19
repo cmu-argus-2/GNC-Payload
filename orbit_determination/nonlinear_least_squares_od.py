@@ -6,11 +6,12 @@ from collections.abc import Callable
 
 import numpy as np
 from brahe.constants import GM_EARTH, R_EARTH
-from scipy.optimize import least_squares
-from scipy.stats import circmean, circvar
 
 # pylint: disable=import-error
 from dynamics.orbital_dynamics import Dynamics
+from scipy.optimize import least_squares
+from scipy.stats import circmean, circvar
+
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
 
 

@@ -38,6 +38,15 @@ def R(q: jnp.ndarray) -> jnp.ndarray:
     return R
 
 
+def quat2rotm(q: np.ndarray) -> np.ndarray:
+    """Backward-compatible quaternion-to-rotation helper.
+
+    Older orbit-determination code imports ``quat2rotm`` from this module.
+    Keep this alias so legacy imports continue to work.
+    """
+    return np.asarray(R(np.asarray(q)))
+
+
 def rot_2_q(rot: jnp.ndarray) -> jnp.ndarray:
     """
     Convert a rotation vector to a quaternion.

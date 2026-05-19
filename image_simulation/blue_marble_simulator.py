@@ -8,6 +8,7 @@ A2 B2 C2 D2
 """
 
 import os
+from functools import lru_cache
 from typing import Tuple
 from PIL import Image
 from affine import Affine
@@ -24,6 +25,15 @@ IMG_LAT_BOUNDS = {
     "1": (0, 90),
     "2": (-90, 0),
 }
+
+
+@lru_cache(maxsize=128)
+def _load_blue_marble_tile(month: str, img_name: str) -> np.ndarray:
+    """Load a full Blue Marble tile and keep it cached in memory."""
+    path = os.path.join(load_config(USER_CONFIG_PATH)["blue_marble_directory"], month, f"{img_name}.png")
+    assert os.path.exists(path), f"Blue Marble image not found: {path}"
+    with Image.open(path) as img:
+        return np.array(img)
 IMG_LON_BOUNDS = {
     "A": (-180, -90),
     "B": (-90, 0),
@@ -52,9 +62,6 @@ def get_blue_marble_img(
             - The requested portion of the Blue Marble image, as a numpy array.
             - An affine transformation matrix mapping lat/lon coordinates to pixel coordinates in the returned image.
     """
-    path = os.path.join(load_config(USER_CONFIG_PATH)["blue_marble_directory"], month, f"{img_name}.png")
-    assert os.path.exists(path), f"Blue Marble image not found: {path}"
-
     img_min_lat, img_max_lat = IMG_LAT_BOUNDS[img_name[1]]
     img_min_lon, img_max_lon = IMG_LON_BOUNDS[img_name[0]]
 
@@ -68,24 +75,23 @@ def get_blue_marble_img(
     else:
         min_lat, max_lat, min_lon, max_lon = img_min_lat, img_max_lat, img_min_lon, img_max_lon
 
-    # use PIL to allow loading just the necessary portion of the image
-    with Image.open(path) as img:
-        width, height = img.size
+    full_img = _load_blue_marble_tile(month, img_name)
+    height, width = full_img.shape[:2]
 
-        min_u = width * (min_lon - img_min_lon) / (img_max_lon - img_min_lon)
-        max_u = width * (max_lon - img_min_lon) / (img_max_lon - img_min_lon)
-        # Note that min_v corresponds to max_lat and max_v corresponds to min_lat
-        # Also since the vertical axis is flipped, the coordinates are measured from img_max_lat instead of img_min_lat
-        min_v = height * (img_max_lat - max_lat) / (img_max_lat - img_min_lat)
-        max_v = height * (img_max_lat - min_lat) / (img_max_lat - img_min_lat)
+    min_u = width * (min_lon - img_min_lon) / (img_max_lon - img_min_lon)
+    max_u = width * (max_lon - img_min_lon) / (img_max_lon - img_min_lon)
+    # Note that min_v corresponds to max_lat and max_v corresponds to min_lat
+    # Also since the vertical axis is flipped, the coordinates are measured from img_max_lat instead of img_min_lat
+    min_v = height * (img_max_lat - max_lat) / (img_max_lat - img_min_lat)
+    max_v = height * (img_max_lat - min_lat) / (img_max_lat - img_min_lat)
 
-        # round to integer pixel coordinates
-        min_u = int(np.floor(min_u))
-        max_u = int(np.ceil(max_u))
-        min_v = int(np.floor(min_v))
-        max_v = int(np.ceil(max_v))
+    # round to integer pixel coordinates
+    min_u = int(np.floor(min_u))
+    max_u = int(np.ceil(max_u))
+    min_v = int(np.floor(min_v))
+    max_v = int(np.ceil(max_v))
 
-        roi = np.array(img.crop((min_u, min_v, max_u, max_v)))
+    roi = full_img[min_v:max_v, min_u:max_u, :]
 
     # recompute bounds based on rounded pixel coordinates
     min_lat = img_max_lat - (max_v / height) * (img_max_lat - img_min_lat)

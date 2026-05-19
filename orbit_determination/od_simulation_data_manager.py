@@ -3,17 +3,21 @@ Module to manage simulation data for orbit determination.
 """
 
 # pylint: disable=import-error
+# pylint: disable=too-many-instance-attributes
 from dataclasses import dataclass, field
 from typing import Tuple
 
 import numpy as np
+import quaternion
 from brahe.epoch import Epoch
+from simulation.dynamics.orbital_att_dynamics import DynamicsIDX as dynidx
+from simulation.sensors.camera_model import CameraModel
 
 from orbit_determination.landmark_bearing_sensors import (
     LandmarkBearingSensor,
     SimulatedMLStoredLandmarkBearingSensor,
+    SimulatedMLLandmarkBearingSensor,
 )
-from sensors.camera_model import CameraModel
 from utils.brahe_utils import increment_epoch
 
 
@@ -39,14 +43,38 @@ class ODSimulationDataManager:
 
     starting_epoch: Epoch
     dt: float
-
-    states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 6)))
-    eci_Rs_body: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3, 3)))
+    idx: dynidx = field(default_factory=dynidx)
+    states: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, dynidx.NX)))
 
     measurement_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     measurement_camera_names: np.ndarray = field(default_factory=lambda: np.array([], dtype=str))
     bearing_unit_vectors: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
     landmarks: np.ndarray = field(default_factory=lambda: np.zeros(shape=(0, 3)))
+
+    def __init__(
+        self,
+        starting_epoch: Epoch,
+        dt: float,
+        idx: dynidx = dynidx(),
+    ) -> None:
+        """
+        Initialize the ODSimulationDataManager class.
+
+        :param starting_epoch: The epoch at which the simulation starts.
+        :param dt: The time step for the simulation.
+        """
+        self.starting_epoch = starting_epoch
+        self.dt = dt
+        self.idx = idx
+
+        self.states = np.zeros((0, self.idx.NX))
+
+        self.measurement_indices = np.array([], dtype=int)
+        self.measurement_camera_names = np.array([], dtype=str)
+        self.bearing_unit_vectors = np.zeros((0, 3))
+        self.landmarks = np.zeros((0, 3))
+
+        self.assert_invariants()
 
     @property
     def state_count(self) -> int:
@@ -81,7 +109,14 @@ class ODSimulationDataManager:
         """
         :return: The latest attitude in the simulation data, as a rotation matrix from the body frame to ECI.
         """
-        return self.eci_Rs_body[-1, ...]
+        return self.states[-1, dynidx.QUAT]
+
+    @property
+    def latest_angular_velocity(self) -> np.ndarray:
+        """
+        :return: The latest angular velocity in the simulation data.
+        """
+        return self.states[-1, dynidx.OMEGA]
 
     @property
     def latest_measurements(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -105,13 +140,7 @@ class ODSimulationDataManager:
         :raises AssertionError: If any of the invariants are violated.
         """
         assert len(self.states.shape) == 2, "States must be a 2D array"
-        assert self.states.shape[1] == 6, "States must have shape (N, 6)"
-        assert len(self.eci_Rs_body.shape) == 3, "eci_Rs_body must be a 3D array"
-        assert self.eci_Rs_body.shape[1:] == (3, 3), "eci_Rs_body must have shape (N, 3, 3)"
-        assert (
-            self.states.shape[0] == self.eci_Rs_body.shape[0]
-        ), "states and eci_Rs_body must have the same number of entries"
-
+        assert self.states.shape[1] == self.idx.NX, f"States must have shape (N, {dynidx.NX})"
         assert len(self.measurement_indices.shape) == 1, "measurement_indices must be a 1D array"
         assert (
             len(self.measurement_camera_names.shape) == 1
@@ -127,29 +156,29 @@ class ODSimulationDataManager:
             == self.measurement_camera_names.shape[0]
             == self.bearing_unit_vectors.shape[0]
             == self.landmarks.shape[0]
-        ), "measurement_indices, measurement_camera_names, bearing_unit_vectors, and landmarks must have the same number of entries"
+        ), (
+            "measurement_indices, measurement_camera_names, "
+            "bearing_unit_vectors, and landmarks must have the same number of entries"
+        )
 
         assert np.all(self.measurement_indices >= 0), "measurement_indices must be non-negative"
         assert np.all(
             np.diff(self.measurement_indices) >= 0
         ), "measurement_indices must be non-strictly increasing"
 
-    def push_next_state(self, state: np.ndarray, eci_R_body: np.ndarray) -> None:
+    def push_next_state(self, state: np.ndarray) -> None:
         """
         Append a new state to the simulation data.
 
         Args:
-            state: A numpy array of shape (6,) containing the position and velocity of the satellite.
-            eci_R_body: A numpy array of shape (3, 3) containing the rotation matrix from the body frame to ECI.
+            state: A numpy array of shape (13,) containing the full state of the satellite.
         """
-        self.states = np.row_stack((self.states, state))
-        self.eci_Rs_body = np.concatenate((self.eci_Rs_body, eci_R_body[np.newaxis, ...]), axis=0)
-
+        self.states = np.vstack((self.states, state))
         self.assert_invariants()
 
     def take_measurement(
-        self, landmark_bearing_sensor: LandmarkBearingSensor, camera_model: CameraModel
-    ) -> None:
+        self, landmark_bearing_sensor: LandmarkBearingSensor, camera_model: CameraModel,
+            idx=0, output_dir=None) -> None:
         """
         Take a measurement at the latest state and append it to the simulation data.
 
@@ -159,11 +188,18 @@ class ODSimulationDataManager:
         t_idx = self.state_count - 1
 
         position_eci = self.states[t_idx, :3]
-        eci_R_body = self.eci_Rs_body[t_idx, ...]
+        eci_R_body = quaternion.as_rotation_matrix(
+            quaternion.from_float_array(self.states[t_idx, dynidx.QUAT])
+        )
 
         if isinstance(landmark_bearing_sensor, SimulatedMLStoredLandmarkBearingSensor):
             bearing_unit_vectors, landmarks = landmark_bearing_sensor.load_measurements(
                 t_idx - 1, camera_model.camera_name
+            )
+        elif isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
+            bearing_unit_vectors, landmarks = landmark_bearing_sensor.take_measurement(
+                self.latest_epoch, position_eci*1e3, eci_R_body, camera_model,
+                idx, output_dir
             )
         else:
             bearing_unit_vectors, landmarks = landmark_bearing_sensor.take_measurement(

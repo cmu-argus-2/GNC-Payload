@@ -2,18 +2,21 @@
 Test the nonlinear least squares orbit determination algorithm.
 """
 
+# pylint: disable=import-error
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
+# pylint: disable=too-many-locals
+# pylint: disable=duplicate-code
 import pickle
 from time import perf_counter, time
 
 import brahe
 import numpy as np
 from brahe.epoch import Epoch
-from scipy.spatial.transform import Rotation
-
-# pylint: disable=import-error
-# pylint: disable=unused-import
-# pylint: disable=invalid-name
 from dynamics.orbital_dynamics import Dynamics
+from scipy.spatial.transform import Rotation
+from sensors.camera_model import CameraModelManager
+
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     RandomLandmarkBearingSensor,
@@ -21,7 +24,6 @@ from orbit_determination.landmark_bearing_sensors import (
 )
 from orbit_determination.nonlinear_least_squares_od import OrbitDetermination
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from sensors.camera_model import CameraModelManager
 from utils.brahe_utils import load_brahe_data_files_if_needed
 from utils.config_utils import load_config
 from utils.earth_utils import get_nadir_rotation
@@ -60,19 +62,20 @@ def test_od() -> None:
     N = int(np.ceil(config["mission"]["duration"] / dt))  # number of time steps in the simulation
 
     # landmark_bearing_sensor = GroundTruthLandmarkBearingSensor()
-    # landmark_bearing_sensor = RandomLandmarkBearingSensor()
-    landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
+    landmark_bearing_sensor = RandomLandmarkBearingSensor()
+    # landmark_bearing_sensor = SimulatedMLLandmarkBearingSensor()
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
     od = OrbitDetermination(dt)
 
     # pick a latitude and longitude that results in the satellite passing over the contiguous US in its first few orbits
     initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state))
+    # initial_state /= 1e3  # convert to km
+    data_manager.push_next_state(initial_state, get_nadir_rotation(initial_state), np.zeros(3))
 
     for t in range(0, N - 1):
         next_state = Dynamics.f(data_manager.latest_state, dt)
-        data_manager.push_next_state(next_state, get_nadir_rotation(next_state))
+        data_manager.push_next_state(next_state, get_nadir_rotation(next_state), np.zeros(3))
 
         # take a set of measurements every 5 minutes
         if t % 5 == 0 and is_over_daytime(data_manager.latest_epoch, data_manager.latest_state[:3]):
@@ -118,7 +121,9 @@ def test_od() -> None:
     estimated_states = od.fit_orbit(data_manager)
     print(f"Elapsed time: {perf_counter() - start_time:.2f} s")
 
-    position_errors = np.linalg.norm(data_manager.states[:, :3] - estimated_states[:, :3], axis=1)
+    position_errors = np.linalg.norm(
+        data_manager.trans_states[:, :3] - estimated_states[:, :3], axis=1
+    )
     rms_position_error = np.sqrt(np.mean(position_errors**2))
     print(f"RMS position error: {rms_position_error}")
 

@@ -2,33 +2,39 @@
 Testing the EKF class.
 """
 
+# pylint: disable=import-error
+import os
 import pickle
 from time import time
 
 import brahe
-import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
+import scipy as sp
 from brahe.epoch import Epoch
-
 from dynamics.ekf_dynamics import EKFDynamics
 from dynamics.orbital_dynamics import Dynamics
+from sensors.camera_model import CameraModelManager
+from sensors.imu import IMU
+
 from orbit_determination.ekf import EKF
 from orbit_determination.landmark_bearing_sensors import (
     GroundTruthLandmarkBearingSensor,
     SimulatedMLLandmarkBearingSensor,
 )
 from orbit_determination.od_simulation_data_manager import ODSimulationDataManager
-from sensors.camera_model import CameraModelManager
-from sensors.imu import IMU
-from utils.brahe_utils import load_brahe_data_files_if_needed
+
+# from utils.brahe_utils import load_brahe_data_files, load_brahe_data_files_if_needed
 from utils.config_utils import load_config
+from utils.math_utils import skew
 from utils.orbit_utils import get_sso_orbit_state, is_over_daytime
 
 # pylint: disable=too-many-locals
+# pylint: disable=too-many-statements, duplicate-code
+# mypy: disable-error-code = attr-defined
 
 
-def run_simulation() -> None:
+def run_simulation(trial: int) -> None:
     """
     Run the simulation.
 
@@ -38,7 +44,7 @@ def run_simulation() -> None:
     config = load_config()
     # Set the world update rate and mission duration to a rate that is workable for testing
     config["solver"]["world_update_rate"] = 2  # Hz
-    config["mission"]["duration"] = 3 * 90 * 60  # s
+    config["mission"]["duration"] = 5 * 90 * 60  # s
 
     dt = 1 / config["solver"]["world_update_rate"]
     starting_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
@@ -48,98 +54,113 @@ def run_simulation() -> None:
     camera_model_manager = CameraModelManager()
     data_manager = ODSimulationDataManager(starting_epoch, dt)
 
-    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 600e3, northwards=True)
-    # initial_state = initial_state / 1e3  # Convert from m to km and m/s to km/s
+    initial_state = get_sso_orbit_state(starting_epoch, 0, -73, 510e3, northwards=True)
+    initial_state = initial_state / 1e3  # Convert from m to km and m/s to km/s
     # Set the initial rotation matrix to identity
     init_rot = np.eye(3)
+    # Fix a constant rotation velocity for the test.
+    rot = np.array([0, 0, np.pi / 18])
 
-    data_manager.push_next_state(initial_state, init_rot)
-
-    # Apply error to init_rot and ensure orthonormality
-    noisy_rot = init_rot + np.random.normal(0, 1e-2, (3, 3))
-    noisy_rot = noisy_rot @ np.linalg.inv(np.linalg.cholesky(noisy_rot.T @ noisy_rot))
-
-    # Assert orthonormality
-    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
-        np.linalg.det(noisy_rot), 1
-    ), "Rotation matrix is not a proper rotation matrix"
+    data_manager.push_next_state(initial_state, init_rot, rot)
 
     # Set the number of update iterations for the IEKF
     num_iter = 5
 
-    # Set up scaling parameter for the unmodelled acceleration
-    ua_scale = 10
+    # Set up scaling parameters
+    position_scale = 1e-3  # position [km]
+    velocity_scale = 1e2  # velocity [km/s]
+    ua_scale = 1e8  # unmodelled acceleration [km/s^2]
+    drag_scalar_scale = 1  # drag scalar
+    axisangle_scale = 1e1  # axis-angle scaling for quaternion
+    gyro_bias_scale = 1e2  # gyro bias scaling
 
-    # Set up scaling parameter for gyro bias
-    gyro_bias_scale = 2
-
-    # Fix a constant rotation velocity for the test.
-    rot = np.array([0, 0, np.pi / 18])
+    # Define initial uncertainty
+    init_pos_std = 100  # km
+    init_vel_std = 1e-2  # km/s
+    init_ua_std = 5e-8  # km/s^2
+    init_drag_std = 3  # drag scalar
+    init_quat_std = 1e-3  # axis-angle error [rad]
+    init_gyro_bias_std = 1e-2  # 5e-5  # gyro bias error [rad/s]
 
     # Prep Q matrix for the EKF.
-    Q = np.eye(16) * 1e-12
+    Q = np.zeros((16, 16))
     # Unmodelled acceleration has larger uncertainty
-    Q[6:9, 6:9] = np.eye(3) * 1e-9
+    Q[6:9, 6:9] = np.eye(3) * 1e-26  #  * 1e-30
+    # drag uncertainty is larger
+    Q[9, 9] = 1e-4
     # # Bias uncertainty also larger
-    Q[13:16, 13:16] = np.eye(3) * 1e-9
+    Q[13:16, 13:16] = np.eye(3) * 1e-11
 
-    P = np.eye(16)
-    P[0:3, 0:3] *= 5
-    P[3:6, 3:6] *= 5
-    P[6:9, 6:9] *= 1e-4
-    P[9:10, 9:10] *= 1e-4
-    P[10:13, 10:13] *= 1e-4
-    P[13:16, 13:16] *= 1e-4
+    P = np.diag(
+        [(init_pos_std) ** 2] * 3  # r
+        + [(init_vel_std) ** 2] * 3  # v
+        + [(init_ua_std) ** 2] * 3  # ua
+        + [(init_drag_std) ** 2]  # drag
+        + [(init_quat_std) ** 2] * 3  # quaternion
+        + [(init_gyro_bias_std) ** 2] * 3  # gyro bias
+    )
 
     # Set up dynamics instance for ground truth and EKF
     ground_truth_dynamics = Dynamics(
         config=config,
         use_drag=True,
         use_j2=True,
-        use_j34=True,
+        use_j34=False,
         use_sun_grav=True,
         use_moon_grav=True,
+    )
+    variable_scaling = np.array(
+        [position_scale] * 3  # r
+        + [velocity_scale] * 3  # v
+        + [ua_scale] * 3  # ua
+        + [drag_scalar_scale]  # drag
+        + [axisangle_scale] * 3  # quaternion
+        + [gyro_bias_scale] * 3  # gyro bias
     )
     ekf_dynamics = EKFDynamics(
         config=config,
         use_drag=False,
-        use_j2=False,
+        use_j2=True,
         use_j34=False,
         use_sun_grav=False,
         use_moon_grav=False,
         use_unmodelled_a=True,
         use_drag_scalar=True,
-        ua_scale=ua_scale,
     )
 
     # Initialize IMU and EKF
     imu = IMU.get_default_imu(dt)
-    gyro_bias = (imu.get_bias()[0] + np.random.normal(0, 5e-5, 3)) * gyro_bias_scale
+    # gyro_bias = imu.get_bias()[0] + np.random.normal(0, init_gyro_bias_std, 3)
+
+    # Apply error to init_rot and ensure orthonormality
+    noisy_rot = sp.linalg.expm(skew(np.random.normal(0, init_quat_std, 3)))
+
+    # Assert orthonormality
+    assert np.allclose(noisy_rot @ noisy_rot.T, np.eye(3), atol=1e-3) and np.isclose(
+        np.linalg.det(noisy_rot), 1
+    ), "Rotation matrix is not a proper rotation matrix"
+
     ekf = EKF(
-        # error ranges are in meters and m/s
-        r=initial_state[0:3] + np.random.normal(0, 2000, 3),
-        v=initial_state[3:6] + np.random.normal(0, 10, 3),
-        ua=np.random.normal(0, 1e-5, 3) * ua_scale,
+        # error ranges are in km and km/s
+        r=initial_state[0:3] + np.random.normal(0, init_pos_std, 3),
+        v=initial_state[3:6] + np.random.normal(0, init_vel_std, 3),
+        ua=np.zeros(3),  # np.random.normal(0, init_ua_std, 3),
         q=quaternion.as_float_array(quaternion.from_rotation_matrix(noisy_rot)),
         P=P,
         Q=Q,
         dt=dt,
         config=config,
         ekf_dynamics=ekf_dynamics,
-        w_b=gyro_bias,
-        gyro_bias_scale=gyro_bias_scale,
+        w_b=np.zeros(3),  # gyro_bias,
+        state_scaling=variable_scaling,
     )
 
-    # Store errors for plotting
-    error = []
-    vel_error = []
-    ua_error = []
+    # Store data for plotting
+    ekf_state = []
+    ekf_state_std = []
+    true_state = []
     cov_trace = []
-    gyro_bias_error = []
-    actual_bias = []
-    drag_estimate = []
-    sigma_high = []
-    sigma_low = []
+    cov_cond_num = []
 
     for t in range(0, N - 1):
         # take a set of measurements every minute
@@ -158,16 +179,18 @@ def run_simulation() -> None:
         imu_gyro_bias = imu.get_bias()[0]
 
         next_state = ground_truth_dynamics.perturbed_f(
-            x=x[0:6], dt=dt, epoch=data_manager.latest_epoch
+            x=x[0:6],
+            dt=dt,
+            epoch=data_manager.latest_epoch,  # pylint: disable=E1136  # pylint/issues/9590
         )
         next_quat = quaternion.from_rotation_matrix(q) * quaternion.from_rotation_vector(w * dt)
 
         ekf.predict(u=gyro_meas, epoch=data_manager.latest_epoch)
 
-        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat))
+        data_manager.push_next_state(next_state[0:6], quaternion.as_rotation_matrix(next_quat), w)
 
         if t % 120 == 0 and is_over_daytime(
-            data_manager.latest_epoch, data_manager.latest_state[:3]
+            data_manager.latest_epoch, data_manager.latest_state[:3] * 1e3
         ):
             for camera_name in CameraModelManager.CAMERA_NAMES:
                 data_manager.take_measurement(
@@ -176,6 +199,11 @@ def run_simulation() -> None:
             print(f"Total measurements so far: {data_manager.measurement_count}")
             print(f"Completion: {100 * t / N:.2f}%")
             print(f"State position: {next_state[0:3]}")
+            print(
+                np.diag(1.0 / ekf.state_scaling[0:3])
+                @ ekf.P_m[0:3, 0:3]
+                @ np.diag(1.0 / ekf.state_scaling[0:3])
+            )
 
             # EKF prediction step
             measurement_camera_names, *z = data_manager.latest_measurements
@@ -194,32 +222,57 @@ def run_simulation() -> None:
         else:
             ekf.no_measurement()
 
-        error.append(ekf.r_m - next_state[0:3])
-        vel_error.append(ekf.v_m - next_state[3:6])
-        ua_error.append(ekf.ua / ua_scale)
-        cov_trace.append(np.trace(ekf.P_m))
-        gyro_bias_error.append(ekf.w_b / gyro_bias_scale - imu_gyro_bias)
-        actual_bias.append(imu_gyro_bias)
-        drag_estimate.append(ekf.drag_est)
+        # Check if ekf.P_m is symmetric and positive semidefinite (sdp)
+        if not np.allclose(ekf.P_m, ekf.P_m.T, atol=1e-8):
+            print(f"Warning: ekf.P_m is not symmetric at step {t}")
+            ekf.P_m = (ekf.P_m + ekf.P_m.T) / 2  # temp hack: Make it symmetric
+        eigvals = np.linalg.eigvalsh(ekf.P_m)
+        if np.any(eigvals < 0):
+            print(
+                f"Warning: ekf.P_m is not positive semidefinite at step {t}, min eigenvalue: {eigvals.min()}"
+            )
+        # Check condition number of ekf.P_m
+        cond_number = np.linalg.cond(ekf.P_m)
+        if cond_number > 1e14:
+            print(f"Warning: ekf.P_m condition number is very high at step {t}: {cond_number:.2e}")
+        # R_filter = transform_eci_to_lvlh(ekf.r_m, ekf.v_m)
+        # filter_position = R_filter @ ekf.r_m
+        # gt_position_lvlh = R_filter @ next_state[0:3]
 
-        sigma_high.append(
-            np.array(
-                [
-                    3 * np.sqrt(ekf.P_m[0, 0]),
-                    3 * np.sqrt(ekf.P_m[1, 1]),
-                    3 * np.sqrt(ekf.P_m[2, 2]),
-                ]
-            )
+        # pos_error_lvlh.append(filter_position - gt_position_lvlh)
+
+        ekf_x = np.concatenate(
+            [
+                ekf.r_p,
+                ekf.v_p,
+                ekf.ua,
+                ekf.drag_est,
+                ekf.q_p,
+                gyro_meas - ekf.w_b,
+                ekf.w_b,
+            ]
         )
-        sigma_low.append(
-            np.array(
-                [
-                    -3 * np.sqrt(ekf.P_m[0, 0]),
-                    -3 * np.sqrt(ekf.P_m[1, 1]),
-                    -3 * np.sqrt(ekf.P_m[2, 2]),
-                ]
-            )
+        true_x = np.concatenate(
+            [
+                next_state[0:6],
+                ekf.ekf_dynamics.true_unmodelled_acceleration(
+                    x=next_state, epoch=data_manager.latest_epoch
+                ),
+                ekf.ekf_dynamics.true_drag_constant(
+                    x=next_state[0:6], epoch=data_manager.latest_epoch
+                ),  # pylint: disable=E1136  # pylint/issues/9590
+                next_quat.components,
+                w,
+                imu_gyro_bias,
+            ]
         )
+
+        ekf_state.append(ekf_x)
+        ekf_state_std.append((np.diag(ekf.P_m) ** 0.5) / ekf.state_scaling)
+        true_state.append(true_x)
+        cov_trace.append(np.trace(ekf.P_m))
+        cov_cond_num.append(cond_number)
+        # [TODO:] store measurement data for plotting
 
     if isinstance(landmark_bearing_sensor, SimulatedMLLandmarkBearingSensor):
         # save measurements to pickle file
@@ -227,65 +280,30 @@ def run_simulation() -> None:
             pickle.dump(data_manager, file)
 
     # Print final covariance matrix
-    print(ekf.P_m)
+    print(np.diag(1.0 / ekf.state_scaling) @ ekf.P_m @ np.diag(1.0 / ekf.state_scaling))
 
-    plt.plot(error)
-    plt.plot(sigma_high, "r--")
-    plt.plot(sigma_low, "r--")
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Position error [m]")
-    plt.title("EKF Position Error")
+    # Create three subplots for x,y,z position error
+    ekf_state_np = np.array(ekf_state)
+    ekf_state_std_np = np.array(ekf_state_std)
+    true_state_np = np.array(true_state)
+    cov_trace = np.array(cov_trace)
+    cov_cond_num = np.array(cov_cond_num)
 
-    plt.figure()
-
-    plt.plot(vel_error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Velocity error [m/s]")
-    plt.title("EKF Velocity Error")
-
-    plt.figure()
-
-    plt.plot(ua_error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Unmodelled acc error [m/s^2]")
-    plt.title("EKF Unmodelled Acceleration")
-
-    plt.figure()
-
-    plt.plot(gyro_bias_error)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Gyro bias error [rad/s]")
-    plt.title("EKF Gyro Bias Error")
-
-    plt.figure()
-
-    plt.plot(cov_trace)
-    plt.xlabel("Time step")
-    plt.ylabel("Covariance trace")
-    plt.title("EKF Covariance Trace")
-
-    plt.figure()
-
-    plt.plot(actual_bias)
-    plt.legend(["x", "y", "z"])
-    plt.xlabel("Time step")
-    plt.ylabel("Actual gyro bias [rad/s]")
-    plt.title("Actual Gyro Bias")
-
-    plt.figure()
-    plt.plot(drag_estimate)
-    plt.xlabel("Time step")
-    plt.ylabel("Drag estimate")
-    plt.title("EKF Drag Estimate")
-
-    plt.show()
+    index_trial = trial + 0
+    dir_name = f"results/ekf_realdrag/trial_{index_trial}"
+    os.makedirs(dir_name, exist_ok=True)
+    np.save(os.path.join(dir_name, "ekf_state.npy"), ekf_state_np)
+    np.save(os.path.join(dir_name, "ekf_state_std.npy"), ekf_state_std_np)
+    np.save(os.path.join(dir_name, "true_state.npy"), true_state_np)
+    np.save(os.path.join(dir_name, "cov_trace.npy"), cov_trace)
+    np.save(os.path.join(dir_name, "cov_cond_num.npy"), cov_cond_num)
 
 
 if __name__ == "__main__":
     # Run state propagation for the satellite based on ICs
-    load_brahe_data_files_if_needed()
-    run_simulation()
+    # load_brahe_data_files_if_needed()
+    #### load_brahe_data_files()
+    TRIALS = 1
+    # np.random.seed(69420)
+    for i in range(TRIALS):
+        run_simulation(i)

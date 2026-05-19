@@ -38,7 +38,10 @@ def load_brahe_data_files_if_needed() -> None:
     Load up-to-date brahe files if they are needed.
     """
     config = load_config()
+    mission_epoch = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
     try:
-        _ = Epoch(*brahe.time.mjd_to_caldate(config["mission"]["start_date"]))
+        # Exercise Earth-orientation lookups (UT1/EOP) for mission start date.
+        # If EOP tables are stale or missing this date, Brahe raises here.
+        _ = brahe.frames.rECItoECEF(mission_epoch)
     except Exception:
         load_brahe_data_files()
