@@ -56,7 +56,7 @@ _MGRS_GZD_NAMES = {
     # "12R": "Sonora",
     # "16T": "Minnesota",
     "17R": "Florida",
-    # "17T": "Toronto",
+    "17T": "Toronto",
     # "18S": "NewJersey",
     # "32S": "Tunisia",
     # "32T": "Switzerland",
